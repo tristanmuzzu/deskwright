@@ -256,6 +256,45 @@ def focus_window(target: Any) -> dict:
     )
 
 
+_LAYOUT_CACHE: list[str] | None = None
+
+
+def keyboard_layouts() -> list[str]:
+    """Active XKB layouts. Cached; the layout does not change mid-session."""
+    global _LAYOUT_CACHE
+    if _LAYOUT_CACHE is None:
+        try:
+            out = subprocess.run(
+                ["gsettings", "get", "org.gnome.desktop.input-sources", "sources"],
+                capture_output=True, text=True, timeout=15).stdout
+            _LAYOUT_CACHE = re.findall(r"'xkb',\s*'([^']+)'", out) or []
+        except Exception:
+            _LAYOUT_CACHE = []
+    return _LAYOUT_CACHE
+
+
+def layout_hazard() -> str:
+    """Why injected keystrokes may arrive as different characters.
+
+    ydotool writes raw evdev keycodes into /dev/uinput, BELOW the compositor. The
+    compositor then maps those keycodes through the active XKB layout. ydotool's
+    character-to-keycode table assumes US QWERTY, so on any other layout the
+    characters that moved arrive transposed.
+
+    Measured on this machine 2026-08-08: layout is `de` (QWERTZ), and
+    `ydotool type "ydo1"` landed as "zdo1" -- y and z are swapped on QWERTZ. Most
+    punctuation moves too. This is silent: ydotool exits 0 either way.
+    """
+    layouts = keyboard_layouts()
+    if not layouts or layouts[0] == "us":
+        return ""
+    return (f"keyboard layout is {layouts[0]!r}, not 'us'. ydotool injects raw "
+            "US-QWERTY keycodes below the compositor, which then maps them through "
+            f"the {layouts[0]!r} layout, so characters that differ between the two "
+            "arrive TRANSPOSED (on de, y<->z, and most punctuation moves). Prefer "
+            "ui_set_text, which passes characters to the widget and is unaffected.")
+
+
 def _ydotool(*args: str, timeout: float = 30.0) -> None:
     if not shutil.which("ydotool"):
         raise ToolError("ydotool is not installed, so no input can be injected")
@@ -281,14 +320,27 @@ def parse_combo(combo: str) -> list[int]:
         raise ToolError("empty key combination")
 
     mods = {p for p in parts if p in MODIFIERS}
+    has_ctrl = bool({"ctrl", "control", "leftctrl"} & mods)
+    has_alt = bool({"alt", "leftalt"} & mods)
     fkeys = {p for p in parts if re.fullmatch(r"f([1-9]|1[0-2])", p)}
-    if fkeys and ({"ctrl", "control", "leftctrl"} & mods) and ({"alt", "leftalt"} & mods):
+    if fkeys and has_ctrl and has_alt:
         raise ToolError(
             f"refusing to inject {combo!r}. Ctrl+Alt+F1-F12 is switch-to-session in "
             "mutter: it throws the desktop onto a VT login screen that is "
             "indistinguishable from a frozen machine, and subsequent keystrokes go "
             "into a password box. This happened on 2026-08-08 and cost a hard "
             "power-off. There is no flag to override this."
+        )
+    # Same failure class, different key: Ctrl+Alt+Delete is bound to `logout` on
+    # this machine (verified via org.gnome.settings-daemon.plugins.media-keys).
+    # It tears the session down, takes unsaved work with it, and an injecting
+    # client cannot observe that it happened.
+    if has_ctrl and has_alt and ({"delete", "backspace"} & set(parts)):
+        raise ToolError(
+            f"refusing to inject {combo!r}. Ctrl+Alt+Delete is bound to logout here: "
+            "it ends the session, discards unsaved work, and leaves an injecting "
+            "client with no way to observe that anything happened. There is no flag "
+            "to override this."
         )
     codes = []
     for part in parts:
@@ -455,14 +507,27 @@ def tool_list_windows(_: dict) -> dict:
 
 def tool_screenshot(a: dict) -> dict:
     path = Path(os.path.expanduser(str(a.get("path") or ""))).absolute()
-    if not str(path) or path.is_dir():
-        raise ToolError("path must be a writable file path ending in .png")
+    if path.is_dir():
+        raise ToolError(f"{path} is a directory; give a file path ending in .png")
+    # The suffix check is load-bearing, not cosmetic: this used to unlink whatever
+    # already existed at the caller-supplied path before capturing, so
+    # screenshot{"path": "~/system/healthcheck.sh"} deleted that file -- and if the
+    # capture then failed (a locked screen is enough), it was simply gone.
+    if path.suffix.lower() != ".png":
+        raise ToolError(f"path must end in .png, got {path.name!r}")
     path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        path.unlink()
-    _gdbus("Screenshot", str(path), "true" if a.get("include_cursor") else "false")
-    if not path.exists() or path.stat().st_size == 0:
-        raise ToolError("the call returned but no image was written")
+
+    # Capture to a temp file beside the target and rename on success, so an
+    # existing file is only ever replaced by a real screenshot.
+    tmp = path.with_name(f".{path.name}.capturing")
+    tmp.unlink(missing_ok=True)
+    try:
+        _gdbus("Screenshot", str(tmp), "true" if a.get("include_cursor") else "false")
+        if not tmp.exists() or tmp.stat().st_size == 0:
+            raise ToolError("the call returned but no image was written")
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
     with path.open("rb") as fh:
         if fh.read(8) != b"\x89PNG\r\n\x1a\n":
             raise ToolError(f"{path} was written but is not a PNG")
@@ -543,11 +608,19 @@ def tool_ui_press(a: dict) -> dict:
         raise ToolError("path is required (get one from ui_find)")
     expect_name = a.get("expect_name")
     expect_role = a.get("expect_role")
+    # An empty expect_name defeats the whole check, because "" is a substring of
+    # every string -- expect_name="" would have matched a widget called
+    # "Delete Everything". Treat blank as absent.
+    if isinstance(expect_name, str) and not expect_name.strip():
+        expect_name = None
+    if isinstance(expect_role, str) and not expect_role.strip():
+        expect_role = None
     if expect_name is None and expect_role is None:
         raise ToolError(
-            "expect_name or expect_role is required. An AT-SPI index path is only "
-            "valid while the tree is unchanged, so acting on one without checking "
-            "what it now points at is how you press the wrong widget."
+            "expect_name or expect_role is required, and neither may be blank. An "
+            "AT-SPI index path is only valid while the tree is unchanged, so acting "
+            "on one without checking what it now points at is how you press the "
+            "wrong widget."
         )
     index = int(a.get("action_index") or 0)
 
@@ -632,6 +705,16 @@ def tool_ui_set_text(a: dict) -> dict:
             "insert_text reported success but the text is not in the widget "
             f"(now {len(after)} chars). Treat this as a failure, not a success."
         )
+    # With replace=True, `text in after` is too weak: a no-op delete_text leaves
+    # the old content, the new text is found anyway, and the tool would report
+    # verified:True on a widget that was never actually cleared.
+    if replace and after.strip() != text.strip():
+        raise ToolError(
+            f"replace=True did not clear the widget: it holds {len(after)} chars "
+            f"but {len(text)} were written. delete_text appears to be a no-op on "
+            f"this widget ({node.get_role_name()}); content now starts "
+            f"{after[:60]!r}."
+        )
     return {"role": node.get_role_name(), "wrote": len(text),
             "characters_before": len(before), "characters_after": len(after),
             "verified": True,
@@ -651,10 +734,80 @@ def tool_type_text(a: dict) -> dict:
         )
     focus = focus_window(target)
     delay = int(a.get("key_delay_ms") or 20)
+
+    # Read the widget BEFORE typing so we can tell what this call actually added.
+    app_hint = a.get("verify_app") or _atspi_app_for_window(focus["window"])
+    before = None
+    if app_hint:
+        try:
+            before = _read_text(_find_text_widget(str(app_hint), None))
+        except ToolError:
+            before = None
+
     _ydotool("type", "--key-delay", str(delay), text,
              timeout=max(30.0, len(text) * delay / 1000 + 15))
-    return {"characters": len(text), "focus": focus["detail"],
-            "detail": f'typed {len(text)} characters into {focus["window"]["wm_class"]}'}
+
+    result = {"characters": len(text), "focus": focus["detail"],
+              "detail": f'sent {len(text)} characters to {focus["window"]["wm_class"]}'}
+    hazard = layout_hazard()
+    if hazard:
+        result["layout_warning"] = hazard
+
+    # Verify what LANDED, not what was sent. ydotool exits 0 whether or not the
+    # right characters arrived, and on a non-US layout they demonstrably do not.
+    if before is None:
+        result["verified"] = False
+        result["detail"] += (" -- COULD NOT VERIFY: no readable AT-SPI text widget, "
+                            "so there is no proof these characters arrived intact"
+                            + (f". {hazard}" if hazard else ""))
+        return result
+
+    time.sleep(0.4)
+    try:
+        after = _read_text(_find_text_widget(str(app_hint), None))
+    except ToolError:
+        result["verified"] = False
+        result["detail"] += " -- could not re-read the widget to verify"
+        return result
+
+    added = after[len(before):] if after.startswith(before) else after
+    if text in added or text in after[len(before):]:
+        result["verified"] = True
+        result["detail"] = (f'typed {len(text)} characters into '
+                            f'{focus["window"]["wm_class"]} and read them back')
+        return result
+
+    raise ToolError(
+        f"ydotool reported success but the wrong characters arrived. Sent {text!r}, "
+        f"the widget gained {added!r}. Nothing here is retryable -- this is the "
+        f"keycode/layout mismatch, not a race. {hazard or ''} "
+        "Use ui_set_text instead: it hands characters to the widget and cannot be "
+        "transposed."
+    )
+
+
+def _atspi_app_for_window(window: dict) -> str | None:
+    """Best-effort map a window's wm_class to an AT-SPI application name.
+
+    They are not the same string: gnome-text-editor's wm_class is
+    'org.gnome.TextEditor' while its AT-SPI name is 'gnome-text-editor'. Compare
+    with separators and case stripped.
+    """
+    def norm(s: str) -> str:
+        return "".join(c for c in (s or "").lower() if c.isalnum())
+
+    wanted = norm(window.get("wm_class"))
+    if not wanted:
+        return None
+    try:
+        names = [a["name"] for a in list_atspi_apps()]
+    except ToolError:
+        return None
+    for name in names:
+        n = norm(name)
+        if n and (n in wanted or wanted in n):
+            return name
+    return None
 
 
 def tool_press_keys(a: dict) -> dict:
@@ -863,16 +1016,22 @@ TOOLS: list[dict] = [
     {
         "name": "type_text",
         "description": "Last-resort text entry: injects keystrokes with ydotool into a "
-                       "named window. Focus is confirmed first, and nothing is typed if "
-                       "it cannot be confirmed. TRY ui_set_text FIRST -- it needs no "
-                       "focus and verifies itself. This is for widgets AT-SPI cannot "
-                       "edit.",
+                       "named window. Focus is confirmed first, nothing is typed if it "
+                       "cannot be confirmed, and the widget is read back afterwards to "
+                       "check the right characters arrived. TRY ui_set_text FIRST. On "
+                       "this machine the keyboard layout is German (QWERTZ) and ydotool "
+                       "injects US-QWERTY keycodes, so typed y/z and most punctuation "
+                       "arrive TRANSPOSED -- measured, not theoretical. ui_set_text "
+                       "passes characters to the widget and is immune.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "text": _s("Literal text to type"),
                 "target": TARGET_SCHEMA,
                 "key_delay_ms": {"type": "integer", "default": 20},
+                "verify_app": _s("AT-SPI application name to read back for "
+                                 "verification; auto-detected from the window if "
+                                 "omitted"),
             },
             "required": ["text", "target"],
         },
@@ -998,10 +1157,20 @@ def self_test() -> int:
     run("ui_find(actionable)", lambda: (
         f'{tool_ui_find({"text": "/", "app": "gnome-shell", "actionable_only": True})["matches"]}'
         " actionable widgets"))
-    run("combo guard", lambda: (
-        "refused ctrl+alt+f2"
-        if _expect_refusal("ctrl+alt+f2") else
-        (_ for _ in ()).throw(AssertionError("ctrl+alt+f2 was NOT refused"))))
+    run("KEYS table loaded", lambda: (
+        f"{len(KEYS)} keys, {len(MODIFIERS)} modifiers"
+        if len(KEYS) > 40 and MODIFIERS else
+        (_ for _ in ()).throw(AssertionError(
+            "KEYS/MODIFIERS failed to import from desktop.py -- press_keys is dead "
+            "and every guard below would pass vacuously"))))
+    run("VT-switch guard", lambda: (
+        "ctrl+alt+f2 refused as switch-to-session"
+        if _expect_refusal("ctrl+alt+f2", "switch-to-session") else
+        (_ for _ in ()).throw(AssertionError("ctrl+alt+f2 not refused for the right reason"))))
+    run("logout-combo guard", lambda: (
+        "ctrl+alt+delete refused as logout"
+        if _expect_refusal("ctrl+alt+delete", "bound to logout") else
+        (_ for _ in ()).throw(AssertionError("ctrl+alt+delete not refused for the right reason"))))
     run("focus guard", lambda: (
         "type_text without target refused"
         if _expect_tool_error(tool_type_text, {"text": "x"}) else
@@ -1019,12 +1188,19 @@ def self_test() -> int:
     return 1 if failed else 0
 
 
-def _expect_refusal(combo: str) -> bool:
+def _expect_refusal(combo: str, because: str) -> bool:
+    """Refused for the RIGHT reason.
+
+    Without checking the message this passed vacuously: if the KEYS import at the
+    top failed, KEYS is empty, every combo is refused as "unknown key 'ctrl'", and
+    the self-test printed PASS for a VT guard it had never reached -- while
+    press_keys was entirely dead.
+    """
     try:
         parse_combo(combo)
         return False
-    except ToolError:
-        return True
+    except ToolError as e:
+        return because in str(e)
 
 
 def _expect_tool_error(fn: Callable[[dict], Any], args: dict) -> bool:

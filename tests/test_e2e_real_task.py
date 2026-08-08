@@ -31,6 +31,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -38,9 +39,16 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 SERVER = REPO / "mcp_server.py"
-EDITOR_CMD = ["gnome-text-editor", "--new-window"]
 EDITOR_APP = "gnome-text-editor"
 EDITOR_SETTLE_S = 9.0
+# Its wm_class is 'org.gnome.TextEditor' while its AT-SPI app name is
+# 'gnome-text-editor'. Matching on the literal 'text-editor' missed the window
+# entirely, so compare with separators stripped.
+EDITOR_WM_CLASS_HINT = "texteditor"
+
+
+def normalise(s: str) -> str:
+    return "".join(c for c in (s or "").lower() if c.isalnum())
 
 PASSES: list[str] = []
 FAILURES: list[str] = []
@@ -203,7 +211,7 @@ def tier2_extension(client: Client, health: dict) -> None:
           f"{len(windows)} windows")
 
     window = next((w for w in windows
-                   if "text-editor" in (w.get("wm_class") or "").lower()), None)
+                   if EDITOR_WM_CLASS_HINT in normalise(w.get("wm_class"))), None)
     if not check("the editor window is visible to the shell", window is not None,
                  f'id={window["id"]}' if window else "not found"):
         return
@@ -254,8 +262,16 @@ def guards_always(client: Client) -> None:
 def main() -> int:
     keep = "--keep" in sys.argv
     client = Client()
-    editor = subprocess.Popen(EDITOR_CMD, stdout=subprocess.DEVNULL,
-                              stderr=subprocess.DEVNULL)
+
+    # Open a DEDICATED file rather than a blank window. gnome-text-editor is
+    # DBusActivatable, so --new-window forwards to the running instance and one
+    # AT-SPI app node covers all its windows -- meaning ui_set_text{replace:true}
+    # could land on, and wipe, an unsaved draft Tristan cared about. A scratch file
+    # makes the target unambiguous and the test harmless.
+    scratch = Path(tempfile.gettempdir()) / f"wcu-e2e-{uuid.uuid4().hex[:8]}.txt"
+    scratch.write_text("scratch file for the wayland-computer-use e2e test\n")
+    editor = subprocess.Popen(["gnome-text-editor", str(scratch)],
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         time.sleep(EDITOR_SETTLE_S)
 
@@ -275,19 +291,16 @@ def main() -> int:
         return 1 if FAILURES else 0
     finally:
         if keep:
-            print("--keep: editor left open")
+            print(f"--keep: editor left open on {scratch}")
         else:
-            # Clear the scratch text so the editor does not keep a draft around.
-            try:
-                client.call("ui_set_text", {"app": EDITOR_APP, "text": "",
-                                            "replace": True})
-            except Exception:
-                pass
             editor.terminate()
             try:
                 editor.wait(timeout=8)
             except subprocess.TimeoutExpired:
                 editor.kill()
+            # Only the scratch file is removed. Nothing else the editor holds is
+            # touched, because the app instance may be shared with real windows.
+            scratch.unlink(missing_ok=True)
         client.close()
 
 
