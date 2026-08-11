@@ -22,7 +22,8 @@ The moment that connection drops, the session is destroyed -- which is why this
 cannot be a shell one-liner and has to be a process that stays alive for the
 whole recording.
 
-USAGE
+USAGE  (~/.claude/bin is not on PATH; call this by absolute path, as with
+        screenshot / windows / safe-rm)
 
     screencast out.mp4                       # whole screen, 10s, 30fps
     screencast --seconds 5 out.mp4
