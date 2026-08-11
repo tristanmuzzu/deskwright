@@ -45,6 +45,7 @@ can drift or vanish out from under a server whose whole job is to be reliable.
 """
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -167,11 +168,17 @@ def _extension_diagnosis() -> str:
 
 
 def _unwrap_gvariant_string(raw: str) -> str:
-    """gdbus prints ('<payload>',) with the payload escaped."""
-    match = re.match(r"^\('(.*)',\)$", raw, re.S)
-    if not match:
+    """gdbus prints ('<payload>',), but switches to ("<payload>",) the moment the
+    payload contains an apostrophe -- which any window title can. literal_eval
+    accepts both quotings and undoes the escapes; the old regex + unicode_escape
+    rejected the double-quoted form outright and mangled non-ASCII titles."""
+    try:
+        value = ast.literal_eval(raw.strip())
+    except (SyntaxError, ValueError) as exc:
+        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}") from exc
+    if not (isinstance(value, tuple) and len(value) == 1 and isinstance(value[0], str)):
         raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}")
-    return match.group(1).encode().decode("unicode_escape")
+    return value[0]
 
 
 def list_windows() -> list[dict]:
