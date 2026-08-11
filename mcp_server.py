@@ -548,6 +548,42 @@ def tool_screenshot(a: dict) -> dict:
     return {"path": str(path), "bytes": path.stat().st_size, "dimensions": dims}
 
 
+def tool_screencast(a: dict) -> dict:
+    # Deliberately a subprocess rather than an import: screencast.py has to hold
+    # the D-Bus connection open for the whole recording, because Mutter destroys
+    # the session the instant that connection drops. Running it in-process would
+    # block this server's stdio loop for the entire duration.
+    path = Path(os.path.expanduser(str(a.get("path") or ""))).absolute()
+    if path.is_dir():
+        raise ToolError(f"{path} is a directory; give a file path ending in .mp4")
+    if path.suffix.lower() != ".mp4":
+        raise ToolError(f"path must end in .mp4, got {path.name!r}")
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    seconds = float(a.get("seconds", 10))
+    if not 0.5 <= seconds <= 120:
+        raise ToolError(f"seconds must be between 0.5 and 120, got {seconds}")
+
+    cmd = [sys.executable, str(Path(__file__).parent / "screencast.py"),
+           "--seconds", str(seconds), "--fps", str(int(a.get("fps", 30)))]
+    if a.get("target") is not None:
+        cmd += ["--window", str(_resolve_target(a["target"])["id"])]
+    if a.get("include_cursor"):
+        cmd.append("--cursor")
+    cmd.append(str(path))
+
+    proc = subprocess.run(cmd, capture_output=True, text=True,
+                          timeout=seconds + 60)
+    if proc.returncode != 0:
+        detail = (proc.stderr or proc.stdout or "").strip()
+        try:
+            detail = json.loads(detail).get("error", detail)
+        except (ValueError, AttributeError):
+            pass
+        raise ToolError(f"recording failed: {detail[:400]}")
+    return json.loads(proc.stdout)
+
+
 def tool_activate_window(a: dict) -> dict:
     return focus_window(a.get("target"))
 
@@ -908,6 +944,30 @@ TOOLS: list[dict] = [
             "required": ["path"],
         },
         "handler": tool_screenshot,
+    },
+    {
+        "name": "screencast",
+        "description": "Record the screen, or one window, to an h264 mp4. Use this "
+                       "instead of screenshot whenever the thing being judged MOVES "
+                       "-- an animation, a transition, a scroll, a stutter, a hover "
+                       "state. Stills cannot show motion and bursting them tops out "
+                       "near 5 fps. Goes under the xdg portal straight to "
+                       "org.gnome.Mutter.ScreenCast, so there is no share-your-screen "
+                       "consent dialog, and encodes on the iGPU. Read the result back "
+                       "by pulling frames out with ffmpeg.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": _s("Where to write the mp4, e.g. /tmp/cast.mp4"),
+                "seconds": {"type": "number", "default": 10, "minimum": 0.5,
+                            "maximum": 120},
+                "fps": {"type": "integer", "default": 30},
+                "target": TARGET_SCHEMA,
+                "include_cursor": {"type": "boolean", "default": False},
+            },
+            "required": ["path"],
+        },
+        "handler": tool_screencast,
     },
     {
         "name": "activate_window",
