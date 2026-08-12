@@ -142,6 +142,67 @@ def test_window_recording_targets_that_window(tmp: Path) -> str:
     return out["captured"][:80]
 
 
+# ------------------------------------------------- the other half: reading it
+def test_screencast_hands_off_to_frames(tmp: Path) -> str:
+    """A path to an mp4 is a dead end on its own -- a model cannot decode it.
+    screencast must say what to call next, or the capability goes unused."""
+    out = srv.tool_screencast({"path": str(tmp / "handoff.mp4"), "seconds": 2})
+    step = out.get("next_step", "")
+    assert "frames" in step, f"screencast gave no pointer to frames: {out}"
+    assert out["path"] in step, "the pointer omits the path it applies to"
+    return step[:70]
+
+
+def test_frames_produces_a_readable_sheet(tmp: Path) -> str:
+    src = srv.tool_screencast({"path": str(tmp / "sheet.mp4"), "seconds": 3})
+    out = srv.tool_frames({"path": src["path"], "cols": 3, "rows": 2})
+
+    sheet = Path(out["sheet"])
+    assert sheet.exists() and sheet.suffix == ".png", out
+    assert out["tiles"] == 6, out
+
+    # A contact sheet must be WIDER than one frame -- otherwise the tiling
+    # silently did not happen and this is just a screenshot with extra steps.
+    dims = subprocess.run(["magick", "identify", "-format", "%w %h", str(sheet)],
+                          capture_output=True, text=True, check=True).stdout
+    w, h = (int(x) for x in dims.split())
+    assert w > 600 and h > 200, f"sheet is {w}x{h}, too small to be a 3x2 tiling"
+    return f"{out['tiles']} tiles, sheet {w}x{h}"
+
+
+def test_frames_measures_stillness(tmp: Path) -> str:
+    """The motion numbers have to mean something. A recording of an idle screen
+    is the one case with a known answer: almost every frame is a duplicate."""
+    src = srv.tool_screencast({"path": str(tmp / "idle.mp4"), "seconds": 3})
+    out = srv.tool_frames({"path": src["path"]})
+    m = out["motion"]
+    assert set(m) >= {"peak", "mean", "duplicate_frames", "duplicate_pct"}, m
+    assert 0 <= m["duplicate_pct"] <= 100, m
+    assert m["peak"] >= m["mean"], f"peak below mean is impossible: {m}"
+    return f"peak {m['peak']}, mean {m['mean']}, {m['duplicate_pct']}% duplicates"
+
+
+def test_frames_guards(tmp: Path) -> str:
+    cases = [
+        ({"path": str(tmp / "nope.mp4")}, "does not exist"),
+        ({"path": str(tmp / "probe.png")}, "expected a video"),
+    ]
+    (tmp / "probe.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    for args, expected in cases:
+        try:
+            srv.tool_frames(args)
+        except srv.ToolError as exc:
+            assert expected in str(exc), f"{args} raised {exc!r}, wanted {expected!r}"
+        else:
+            raise AssertionError(f"{args} was accepted but should have been rejected")
+    # A grid bigger than the cap would spawn an ffmpeg call per tile.
+    try:
+        srv.tool_frames({"path": str(tmp / "nope.mp4"), "cols": 99})
+    except srv.ToolError:
+        pass
+    return f"{len(cases) + 1} bad inputs rejected"
+
+
 # -------------------------------------------------------------------- guards
 def test_guards(tmp: Path) -> str:
     cases = [
@@ -176,6 +237,13 @@ def main() -> int:
               lambda: test_full_screen_recording_has_moving_content(tmp))
         check("window recording targets that window",
               lambda: test_window_recording_targets_that_window(tmp))
+        check("screencast hands off to frames",
+              lambda: test_screencast_hands_off_to_frames(tmp))
+        check("frames produces a readable sheet",
+              lambda: test_frames_produces_a_readable_sheet(tmp))
+        check("frames measures stillness",
+              lambda: test_frames_measures_stillness(tmp))
+        check("frames guards reject bad input", lambda: test_frames_guards(tmp))
         check("guards reject bad input", lambda: test_guards(tmp))
 
     width = max(len(n) for _, n, _ in results)

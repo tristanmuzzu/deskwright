@@ -581,6 +581,44 @@ def tool_screencast(a: dict) -> dict:
         except (ValueError, AttributeError):
             pass
         raise ToolError(f"recording failed: {detail[:400]}")
+    result = json.loads(proc.stdout)
+    # An mp4 is opaque to a model, so a bare path is a dead end -- the caller
+    # would either try to Read the video or fall back to guessing. Name the
+    # exact next call here, at the one moment it is certain to be read.
+    result["next_step"] = (
+        f'The mp4 cannot be read directly. Call frames{{"path": "{path}"}} to '
+        "tile its frames into one PNG, then Read that PNG."
+    )
+    return result
+
+
+def tool_frames(a: dict) -> dict:
+    """Contact sheet + motion measurement for a recording. See frames.py."""
+    path = Path(os.path.expanduser(str(a.get("path") or ""))).absolute()
+    if not path.exists():
+        raise ToolError(f"{path} does not exist")
+    if path.suffix.lower() not in (".mp4", ".mkv", ".webm", ".mov"):
+        raise ToolError(f"expected a video file, got {path.name!r}")
+
+    outdir = a.get("outdir")
+    outdir = (Path(os.path.expanduser(str(outdir))).absolute() if outdir
+              else path.parent / f"{path.stem}-frames")
+
+    cols, rows = int(a.get("cols", 4)), int(a.get("rows", 3))
+    if not (1 <= cols <= 8 and 1 <= rows <= 8):
+        raise ToolError(f"cols and rows must each be 1-8, got {cols}x{rows}")
+
+    cmd = [sys.executable, str(Path(__file__).parent / "frames.py"),
+           str(path), str(outdir), "--cols", str(cols), "--rows", str(rows),
+           "--json"]
+    for flag, key in (("--from-frame", "from_frame"), ("--to-frame", "to_frame")):
+        if a.get(key) is not None:
+            cmd += [flag, str(int(a[key]))]
+
+    proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+    if proc.returncode != 0:
+        raise ToolError("frame extraction failed: "
+                        f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
     return json.loads(proc.stdout)
 
 
@@ -968,6 +1006,39 @@ TOOLS: list[dict] = [
             "required": ["path"],
         },
         "handler": tool_screencast,
+    },
+    {
+        "name": "frames",
+        "description": "Turn a video into ONE image you can actually look at: N "
+                       "frames, evenly spaced, stamped with frame number and "
+                       "timestamp, tiled into a contact sheet. This is the other "
+                       "half of screencast -- a model cannot decode an mp4, so a "
+                       "recording is useless until it becomes stills. Also "
+                       "measures per-frame change and reports duplicate frames, "
+                       "which detects a source repainting slower than the capture "
+                       "rate and catches stutter and frozen output that eyeballing "
+                       "misses. Use from_frame/to_frame to zoom into a fraction of "
+                       "a second once the overview shows where the interesting "
+                       "moment is. Works on any video, not just screencast output.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "path": _s("The video to read, e.g. /tmp/cast.mp4"),
+                "outdir": _s("Where to write the sheet; defaults to "
+                             "<video>-frames next to the video"),
+                "cols": {"type": "integer", "default": 4, "minimum": 1,
+                         "maximum": 8},
+                "rows": {"type": "integer", "default": 3, "minimum": 1,
+                         "maximum": 8},
+                "from_frame": {"type": "integer",
+                               "description": "Start of a dense slice, in frames. "
+                                              "Omit to span the whole clip."},
+                "to_frame": {"type": "integer"},
+            },
+            "required": ["path"],
+        },
+        "handler": tool_frames,
+        "annotations": {"readOnlyHint": True},
     },
     {
         "name": "activate_window",
