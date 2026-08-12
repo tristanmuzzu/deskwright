@@ -187,7 +187,15 @@ def record(args: argparse.Namespace) -> dict:
         "pipewiresrc", f"path={state['node_id']}", "do-timestamp=true", "!",
         "videorate", "!", f"video/x-raw,framerate={args.fps}/1", "!",
         *chain.split(), "!",
-        "h264parse", "!", "mp4mux", "!", "filesink", f"location={args.output}",
+        # Fragmented mp4, deliberately. A plain mp4mux writes its moov index only
+        # on a clean end-of-stream, so if the recorded window is destroyed
+        # mid-capture the pipeline breaks, the index is never written, and the
+        # file is left unplayable -- "moov atom not found" -- while still being
+        # megabytes long, which sails past any size check. Fragments make every
+        # chunk self-describing, so a cut recording stays readable up to the
+        # point it stopped. Found 2026-08-12 by closing a window mid-record.
+        "h264parse", "!", "mp4mux", "fragment-duration=1000", "!",
+        "filesink", f"location={args.output}",
     ]
     # gst-launch needs the whole graph as one argv; the '!' tokens above are
     # already separate arguments, which is what it expects.
@@ -206,20 +214,69 @@ def record(args: argparse.Namespace) -> dict:
             gst.kill()
             gst.wait()
         elapsed = time.time() - started
-        session.call_sync("Stop", None, Gio.DBusCallFlags.NONE, -1, None)
+        # If the recorded window was destroyed mid-capture, Mutter has already
+        # torn the session down and Stop() raises UnknownMethod. That used to
+        # crash the tool in its own `finally`, throwing away a recording that
+        # was sitting complete on disk. Session already gone is a success.
+        try:
+            session.call_sync("Stop", None, Gio.DBusCallFlags.NONE, -1, None)
+        except GLib.GError as exc:
+            if "UnknownMethod" not in str(exc) and "does not exist" not in str(exc):
+                raise
 
     stderr = gst.stderr.read().decode(errors="replace").strip() if gst.stderr else ""
     if not os.path.exists(args.output) or os.path.getsize(args.output) == 0:
         raise Failed(f"gst-launch produced no output. {stderr[:400]}")
 
-    return {
+    # Wall-clock elapsed is NOT the length of the video. If the recorded window
+    # is destroyed mid-capture -- a job finishing, a scene switching -- Mutter's
+    # stream dies, gst keeps running against a dead surface, and the file ends up
+    # far shorter than requested with green or black frames on the tail. Reporting
+    # `elapsed` alone claimed 5.1s for a 1.1s file (seen 2026-08-12). Probe the
+    # actual output and say so.
+    result = {
         "path": os.path.abspath(args.output),
         "captured": captured,
+        "requested_seconds": round(args.seconds, 1),
         "seconds": round(elapsed, 1),
         "fps": args.fps,
         "encoder": encoder,
         "bytes": os.path.getsize(args.output),
     }
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "v:0",
+         "-show_entries", "format=duration", "-show_entries", "stream=nb_frames",
+         "-of", "default=nw=1:nk=1", args.output],
+        capture_output=True, text=True, check=False,
+    )
+    fields = [f for f in probe.stdout.split() if f != "N/A"]
+    recorded = None
+    if probe.returncode == 0 and fields:
+        try:
+            recorded = float(fields[-1])
+        except ValueError:
+            recorded = None
+    if recorded is None:
+        # A file that exists and is megabytes long can still be undecodable, so
+        # "size > 0" is not proof of success and reporting one is worse than
+        # failing: the caller wastes a turn discovering it downstream.
+        raise Failed(
+            f"the recording at {args.output} is not decodable "
+            f"({(probe.stderr or '').strip()[:150] or 'ffprobe found no duration'}). "
+            "The usual cause is the recorded window closing mid-capture. Re-check "
+            "the target with list_windows and record again."
+        )
+
+    result["seconds"] = round(recorded, 1)
+    result["wall_clock_seconds"] = round(elapsed, 1)
+    if recorded < args.seconds * 0.8:
+        result["warning"] = (
+            f"only {recorded:.1f}s of the requested {args.seconds:.0f}s was "
+            "captured -- the recorded window most likely closed or was recreated "
+            "mid-capture. Frames after that point are dead surface (solid green "
+            "or black), not content. Re-target with a fresh id from list_windows."
+        )
+    return result
 
 
 def main() -> int:

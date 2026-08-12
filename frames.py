@@ -48,11 +48,18 @@ def probe(path: pathlib.Path) -> dict:
     d = json.loads(out)
     s = d["streams"][0]
     num, den = (int(x) for x in s["avg_frame_rate"].split("/"))
+    fps = num / den if den else 0
+    duration = float(d["format"]["duration"])
+    # Fragmented mp4 -- which screencast now writes so a cut recording stays
+    # readable -- carries no nb_frames, so ffprobe reports N/A. Falling through
+    # with 0 made every tile land on frame 0 and produced a sheet of twelve
+    # identical images that looked like a frozen capture. Derive it instead.
+    frames = int(s.get("nb_frames") or 0) or round(duration * fps)
     return {
-        "frames": int(s.get("nb_frames") or 0),
+        "frames": frames,
         "w": int(s["width"]), "h": int(s["height"]),
-        "fps": num / den if den else 0,
-        "duration": float(d["format"]["duration"]),
+        "fps": fps,
+        "duration": duration,
     }
 
 

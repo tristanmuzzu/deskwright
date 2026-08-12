@@ -107,12 +107,17 @@ def test_full_screen_recording_has_moving_content(tmp: Path) -> str:
     path = Path(out["path"])
     assert path.exists() and path.stat().st_size > 50_000, out
 
-    streams = ffprobe(path, "stream=codec_name,width,height,nb_frames")["streams"]
+    probed = ffprobe(path, "stream=codec_name,width,height,nb_frames")
+    streams = probed["streams"]
     assert streams, "no video stream in the file"
     s = streams[0]
     assert s["codec_name"] == "h264", s
     assert int(s["width"]) >= 640 and int(s["height"]) >= 480, s
-    frames = int(s.get("nb_frames", 0))
+    # Fragmented mp4 carries no nb_frames, so count them the way frames.py does.
+    frames = int(s.get("nb_frames") or 0)
+    if not frames:
+        dur = float(ffprobe(path, "format=duration")["format"]["duration"])
+        frames = round(dur * 30)
     assert 40 <= frames <= 130, f"3s at 30fps should be ~90 frames, got {frames}"
 
     # The black-frame check. A recording of a real desktop has spread; a black
@@ -140,6 +145,51 @@ def test_window_recording_targets_that_window(tmp: Path) -> str:
     assert str(target["id"]) in out["captured"], out
     assert Path(out["path"]).stat().st_size > 20_000, out
     return out["captured"][:80]
+
+
+# ------------------------------------- regressions from the 2026-08-12 session
+def test_recording_is_decodable_and_honest(tmp: Path) -> str:
+    """Three bugs in one test, all found by closing a window mid-capture.
+
+    1. mp4mux wrote its moov index only at a clean end-of-stream, so a cut
+       recording was multi-megabyte and completely unplayable -- and the size
+       check happily called it a success.
+    2. `seconds` reported wall-clock, so a 2.4s file was announced as 10s.
+    3. Mutter tears the session down with the window, so the Stop() in the
+       finally block raised UnknownMethod and crashed away a good recording.
+    """
+    out = srv.tool_screencast({"path": str(tmp / "honest.mp4"), "seconds": 3})
+
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=nw=1:nk=1", out["path"]],
+        capture_output=True, text=True, check=False,
+    )
+    assert probe.returncode == 0 and probe.stdout.strip(), (
+        f"recording is not decodable: {probe.stderr.strip()[:200]}"
+    )
+    real = float(probe.stdout.strip())
+    assert abs(out["seconds"] - real) < 0.3, (
+        f'reported {out["seconds"]}s but the file is {real:.1f}s'
+    )
+    assert "wall_clock_seconds" in out, "wall clock must stay visible, separately"
+    return f'{out["seconds"]}s reported, {real:.1f}s on disk'
+
+
+def test_frames_survives_missing_nb_frames(tmp: Path) -> str:
+    """Fragmented mp4 reports nb_frames=N/A. Trusting it gave 0, every tile
+    landed on frame 0, and the sheet was twelve copies of one image."""
+    src = srv.tool_screencast({"path": str(tmp / "frag.mp4"), "seconds": 3})
+    out = srv.tool_frames({"path": src["path"], "cols": 3, "rows": 1})
+    tiles = sorted((Path(out["sheet"]).parent / "frames").glob("*.png"))
+    assert len(tiles) == 3, tiles
+    means = {subprocess.run(["magick", "identify", "-format", "%[mean]", str(t)],
+                            capture_output=True, text=True, check=True).stdout
+             for t in tiles}
+    assert out["source"]["frames"] > 10, (
+        f'frame count collapsed to {out["source"]["frames"]}'
+    )
+    return f'{out["source"]["frames"]} frames derived, {len(means)} distinct tiles'
 
 
 # ------------------------------------------------- the other half: reading it
@@ -237,6 +287,10 @@ def main() -> int:
               lambda: test_full_screen_recording_has_moving_content(tmp))
         check("window recording targets that window",
               lambda: test_window_recording_targets_that_window(tmp))
+        check("recording is decodable and honest about length",
+              lambda: test_recording_is_decodable_and_honest(tmp))
+        check("frames survives nb_frames=N/A",
+              lambda: test_frames_survives_missing_nb_frames(tmp))
         check("screencast hands off to frames",
               lambda: test_screencast_hands_off_to_frames(tmp))
         check("frames produces a readable sheet",
