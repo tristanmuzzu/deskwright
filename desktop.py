@@ -25,6 +25,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import os
 import re
@@ -93,12 +94,20 @@ def call(method: str, *args: str) -> str:
 
 def cmd_windows(args):
     raw = call("ListWindows")
-    # gdbus prints ('<json>',) with the JSON escaped as a GVariant string.
-    match = re.match(r"^\('(.*)',\)$", raw, re.S)
-    if not match:
-        die(f"unexpected reply: {raw}")
-    payload = match.group(1).encode().decode("unicode_escape")
-    windows = json.loads(payload)
+    # gdbus prints ('<json>',) and switches to ("<json>",) the moment the payload
+    # contains an apostrophe -- which any window title can, and the JSON payload
+    # itself always does once a title is quoted. literal_eval accepts both
+    # quotings and undoes the escapes; the old regex matched only the
+    # single-quoted form and died on the other, and unicode_escape mangled
+    # non-ASCII titles. mcp_server.py fixed this in _unwrap_gvariant_string;
+    # this copy did not (found 2026-08-13).
+    try:
+        value = ast.literal_eval(raw)
+        if not (isinstance(value, tuple) and len(value) == 1 and isinstance(value[0], str)):
+            raise ValueError("not a single-string reply")
+        windows = json.loads(value[0])
+    except (SyntaxError, ValueError) as exc:
+        die(f"unexpected reply: {raw[:200]} ({exc})")
     if args.json:
         print(json.dumps(windows, indent=2))
         return
