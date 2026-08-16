@@ -7,7 +7,7 @@ no separate setup step.
 
 WHAT IT IS FOR AND WHAT IT REFUSES
 
-Three mechanisms, because Wayland hands a client none of them directly:
+Four mechanisms, because Wayland hands a client none of them directly:
 
   * gnome-shell extension over D-Bus (`org.tristan.MigrationHelpers`) for
     screenshots, window geometry, and focus. gnome-shell refuses
@@ -17,8 +17,24 @@ Three mechanisms, because Wayland hands a client none of them directly:
   * AT-SPI for anything semantic. `ui_find` then `ui_press` presses the real
     widget, so it cannot miss, cannot be defeated by a window moving, and needs
     no pointer at all. **Prefer this over typing and key combos.**
-  * ydotool through /dev/uinput for text and key combos. This is the weak one:
-    injection is focus-blind, it types wherever focus happens to be.
+  * `org.gnome.Mutter.RemoteDesktop` for the pointer and for text: absolute
+    motion in screen coordinates, real buttons and wheel, and keysyms, which
+    are characters rather than key positions and so cannot be transposed by the
+    keyboard layout. See remote_input.py for why this replaced ydotool.
+  * ydotool through /dev/uinput, now only a fallback. It cannot point (its
+    absolute mode is dead here and relative motion goes through pointer
+    acceleration) and its keycodes are mapped through the active XKB layout,
+    which on this machine's `de` layout turns every typed `y` into a `z`.
+
+WHERE THINGS ARE, IN PIXELS
+
+`screen_map` answers "where do I click for X" without an image: every window
+top of the stack first with its centre, and every pressable widget of the
+focused application with the exact point to click it at. `window_at` answers
+"what would a click here hit" before the click happens, and `pointer_click`
+takes `expect_window` so a click that would land somewhere else is refused
+rather than delivered. `screenshot annotate` draws the same information onto
+the picture, labelled in screen coordinates.
 
 TWO THINGS THIS SERVER DOES THAT THE CLI DID NOT
 
@@ -182,7 +198,46 @@ def _unwrap_gvariant_string(raw: str) -> str:
 
 
 def list_windows() -> list[dict]:
+    """Every window, bottom of the stack first -- the order gnome-shell keeps
+    them in, which is what makes the last match at a point the topmost one."""
     return json.loads(_unwrap_gvariant_string(_gdbus("ListWindows")))
+
+
+# ---- what the running extension can actually do ---------------------------
+_EXTENSION_METHODS: set[str] | None = None
+
+
+def extension_methods() -> set[str]:
+    """Which methods the LOADED extension has, which is not the same as the
+    methods in its source.
+
+    gnome-shell imports an extension once per session and cannot reload it on
+    Wayland -- `ReloadExtension` answers "deprecated and does not work" on 50.1,
+    and disable/enable re-runs enable() against the already-imported module. So
+    a file edited an hour ago is not running until the next login, and a client
+    that assumes otherwise fails with UnknownMethod and no explanation.
+    """
+    global _EXTENSION_METHODS
+    if _EXTENSION_METHODS is None:
+        try:
+            xml = subprocess.run(
+                ["gdbus", "introspect", "--session", "--dest", BUS_NAME,
+                 "--object-path", OBJ_PATH, "--xml"],
+                capture_output=True, text=True, timeout=15).stdout
+            _EXTENSION_METHODS = set(re.findall(r'<method name="([^"]+)"', xml))
+        except Exception:
+            _EXTENSION_METHODS = set()
+    return _EXTENSION_METHODS
+
+
+def _needs_relogin(method: str) -> str:
+    return (
+        f"the running gnome-shell extension has no {method} method. The source "
+        f"in ~/.local/share/gnome-shell/extensions/{EXTENSION_UUID}/ may already "
+        "have it: gnome-shell only imports extensions at session start and "
+        "Wayland has no way to restart it, so this needs a log out and back in. "
+        "Everything that does not depend on it keeps working."
+    )
 
 
 def _resolve_target(target: Any) -> dict:
@@ -359,6 +414,175 @@ def parse_combo(combo: str) -> list[int]:
     return codes
 
 
+def combo_keysyms(combo: str) -> list[int]:
+    """The same combination as layout-independent keysyms.
+
+    parse_combo stays the gatekeeper -- it holds the refusals, and it runs
+    first -- but what actually gets injected is this, because a keycode is a
+    position on a US keyboard and a keysym is the key that was meant.
+    """
+    parse_combo(combo)                  # refusals and unknown-key errors first
+    import remote_input
+    syms = []
+    for part in [p.strip().lower() for p in str(combo).split("+") if p.strip()]:
+        sym = remote_input.KEYSYMS.get(part)
+        if sym is None:
+            raise ToolError(f"no keysym known for {part!r}")
+        syms.append(sym)
+    return syms
+
+
+# ---- pointer, in the coordinates list_windows already speaks --------------
+def _input():
+    """The mutter RemoteDesktop input layer, imported late.
+
+    Late because it needs PyGObject and a session bus, and a machine missing
+    either should still get windows, screenshots and AT-SPI rather than a server
+    that will not start.
+    """
+    try:
+        import remote_input
+    except Exception as e:                                  # pragma: no cover
+        raise ToolError(
+            f"the pointer layer is unavailable ({type(e).__name__}: {e}). "
+            "It needs PyGObject (python3-gi) and a session bus."
+        ) from None
+    return remote_input
+
+
+class _InputProxy:
+    """The input session with its failures re-raised as ToolError.
+
+    remote_input keeps its own exception type because it is useful on its own,
+    but anything that reaches the model has to be a ToolError: an InputError
+    escaping a handler surfaces as an internal error with no advice in it,
+    which is exactly the shape of message this server exists to avoid.
+    """
+
+    def __init__(self, inner: Any) -> None:
+        self._inner = inner
+
+    def __getattr__(self, name: str) -> Any:
+        attr = getattr(self._inner, name)
+        if not callable(attr):
+            return attr
+
+        def wrapped(*args: Any, **kwargs: Any) -> Any:
+            try:
+                return attr(*args, **kwargs)
+            except Exception as e:
+                if type(e).__name__ == "InputError":
+                    raise ToolError(str(e)) from None
+                raise
+        return wrapped
+
+
+def _pointer() -> Any:
+    return _InputProxy(_input().shared())
+
+
+def _point(a: dict, xk: str = "x", yk: str = "y") -> tuple[float, float]:
+    for key in (xk, yk):
+        if a.get(key) is None:
+            raise ToolError(f"{xk} and {yk} are required, in screen pixels")
+        if isinstance(a[key], bool) or not isinstance(a[key], (int, float)):
+            raise ToolError(f"{key} must be a number, got {a[key]!r}")
+    return float(a[xk]), float(a[yk])
+
+
+def window_at(x: float, y: float) -> dict:
+    """Which window a click at this point would be delivered to.
+
+    Two answers, because they can differ and the difference is where clicks get
+    lost. `covering` is every window whose rectangle contains the point, top
+    first, computed here from the stacking order. `window` is the compositor's
+    own answer, picked from the scene graph, which respects input shapes -- a
+    click-through overlay covers the rectangle without taking the click. Only
+    the newer extension can answer that one; without it this says so rather
+    than guessing.
+    """
+    windows = [w for w in list_windows() if not w.get("minimized")]
+    covering = [
+        w for w in reversed(windows)                # reversed: topmost first
+        if w["x"] <= x < w["x"] + w["width"] and w["y"] <= y < w["y"] + w["height"]
+    ]
+    result: dict[str, Any] = {"x": x, "y": y, "covering": covering}
+
+    if "WindowAt" in extension_methods():
+        picked = json.loads(_unwrap_gvariant_string(
+            _gdbus("WindowAt", str(int(x)), str(int(y)))))
+        result["window"] = picked.get("window")
+        result["source"] = "compositor pick (input shapes respected)"
+    else:
+        result["window"] = covering[0] if covering else None
+        result["source"] = "window rectangles and stacking order"
+        result["caveat"] = (
+            "the compositor was not asked, so an input-shaped or click-through "
+            "window (an overlay, a HUD) will be reported as the target even "
+            "though the click falls through it. " + _needs_relogin("WindowAt")
+        )
+    return result
+
+
+def pointer_position() -> dict:
+    """Where the pointer is.
+
+    The extension knows exactly. Without it, the only honest answer is where
+    this server last put the pointer, clearly labelled as such, because X's
+    answer through XWayland is stale the moment the pointer is over a Wayland
+    surface and looks perfectly plausible while being wrong.
+    """
+    if "Pointer" in extension_methods():
+        data = json.loads(_unwrap_gvariant_string(_gdbus("Pointer")))
+        return {"x": data["x"], "y": data["y"], "source": "compositor"}
+    ri = _input().shared()
+    if ri.last_position:
+        return {
+            "x": ri.last_position[0], "y": ri.last_position[1],
+            "source": "last position this server set",
+            "age_seconds": round(time.time() - ri.last_position_at, 1),
+            "caveat": "a hand on the mouse since then is invisible here. "
+                      + _needs_relogin("Pointer"),
+        }
+    raise ToolError(
+        "nothing knows where the pointer is: this server has not moved it, and "
+        + _needs_relogin("Pointer")
+    )
+
+
+def _guard_point(x: float, y: float, expect: Any) -> dict:
+    """Refuse to click when the thing under the point is not what was expected.
+
+    This exists because of three real misdirected clicks on 2026-08-16: an
+    agent aiming at a small window under a mis-measured pointer hit the browser
+    behind it instead, knocked a video out of full screen, and opened a system
+    permission dialog. A click that names the window it believes it is aiming
+    at can be refused instead of landing somewhere else.
+    """
+    wanted = _resolve_target(expect)
+    at = window_at(x, y)
+    target = at.get("window")
+    if target and target.get("id") == wanted["id"]:
+        return {"expected": wanted["wm_class"], "confirmed_by": at["source"]}
+    covering_ids = [w["id"] for w in at["covering"]]
+    if target is None and wanted["id"] in covering_ids:
+        # Rect says yes, the compositor says nothing is there: the point is over
+        # a hole in an input shape, or over the desktop.
+        raise ToolError(
+            f"({x:.0f}, {y:.0f}) is inside {wanted['wm_class']}'s rectangle but the "
+            "compositor routes no click there -- the window is click-through at "
+            "that point. Nothing was clicked."
+        )
+    found = (f'{target["wm_class"]} {target.get("title", "")!r}' if target
+             else "nothing (the desktop)")
+    raise ToolError(
+        f'refusing to click ({x:.0f}, {y:.0f}): expected {wanted["wm_class"]} '
+        f'(id {wanted["id"]}) but {found} is there. Nothing was clicked. '
+        f"Pass expect_window=null to click anyway, or check screen_map for where "
+        f"the window actually is."
+    )
+
+
 # ---- AT-SPI --------------------------------------------------------------
 def _atspi():
     try:
@@ -524,12 +748,20 @@ def tool_screenshot(a: dict) -> dict:
         raise ToolError(f"path must end in .png, got {path.name!r}")
     path.parent.mkdir(parents=True, exist_ok=True)
 
+    region = _screenshot_region(a)
+
     # Capture to a temp file beside the target and rename on success, so an
     # existing file is only ever replaced by a real screenshot.
     tmp = path.with_name(f".{path.name}.capturing")
     tmp.unlink(missing_ok=True)
     try:
-        _gdbus("Screenshot", str(tmp), "true" if a.get("include_cursor") else "false")
+        if region and "ScreenshotArea" in extension_methods():
+            _gdbus("ScreenshotArea", *(str(int(v)) for v in region), str(tmp))
+            cropped_in_shell = True
+        else:
+            _gdbus("Screenshot", str(tmp),
+                   "true" if a.get("include_cursor") else "false")
+            cropped_in_shell = False
         if not tmp.exists() or tmp.stat().st_size == 0:
             raise ToolError("the call returned but no image was written")
         os.replace(tmp, path)
@@ -538,14 +770,213 @@ def tool_screenshot(a: dict) -> dict:
     with path.open("rb") as fh:
         if fh.read(8) != b"\x89PNG\r\n\x1a\n":
             raise ToolError(f"{path} was written but is not a PNG")
-    dims = ""
+
+    result: dict[str, Any] = {"path": str(path)}
+    origin = (region[0], region[1]) if region else (0, 0)
+    if region and not cropped_in_shell:
+        _crop(path, region)
+        result["cropped_by"] = "this server, after a full capture"
+    if region:
+        result["region"] = {"x": region[0], "y": region[1],
+                            "width": region[2], "height": region[3]}
+
+    scale = float(a.get("scale") or 1.0)
+    if scale != 1.0:
+        if not 0.05 <= scale <= 1.0:
+            raise ToolError("scale must be between 0.05 and 1.0")
+        _rescale(path, scale)
+        result["scale"] = scale
+
+    # Annotation goes on AFTER the resize, or the labels shrink with the image
+    # and the grid you added to make coordinates readable is unreadable.
+    annotate = a.get("annotate")
+    if annotate:
+        result["annotated"] = _annotate(path, origin, annotate, a, scale)
+
+    if scale != 1.0:
+        result["coordinate_note"] = (
+            f"this image is {scale:g}x, so a pixel in it is at "
+            f"screen ({origin[0]} + px/{scale:g}, {origin[1]} + py/{scale:g}). "
+            "Any drawn labels are already in screen coordinates."
+        )
+    elif region:
+        result["coordinate_note"] = (
+            f"pixel (px, py) in this image is screen "
+            f"({origin[0]} + px, {origin[1]} + py)."
+        )
+
+    result["bytes"] = path.stat().st_size
+    result["dimensions"] = _png_dimensions(path)
+    return result
+
+
+def _png_dimensions(path: Path) -> str:
+    try:
+        from PIL import Image
+        with Image.open(path) as img:
+            return f"{img.width}x{img.height}"
+    except Exception:
+        pass
     if shutil.which("file"):
         out = subprocess.run(["file", "-b", str(path)], capture_output=True,
                              text=True, timeout=15).stdout
         m = re.search(r"(\d+) x (\d+)", out)
         if m:
-            dims = f"{m.group(1)}x{m.group(2)}"
-    return {"path": str(path), "bytes": path.stat().st_size, "dimensions": dims}
+            return f"{m.group(1)}x{m.group(2)}"
+    return ""
+
+
+def _pillow():
+    try:
+        from PIL import Image, ImageDraw
+    except Exception:                                       # pragma: no cover
+        raise ToolError(
+            "this needs Pillow (python3-pil) for image work and it is not installed"
+        ) from None
+    return Image, ImageDraw
+
+
+def _screenshot_region(a: dict) -> tuple[int, int, int, int] | None:
+    """The rectangle to capture, from either `window` or `region`."""
+    if a.get("window") is not None and a.get("region") is not None:
+        raise ToolError("give window or region, not both")
+    if a.get("window") is not None:
+        win = _resolve_target(a["window"])
+        if win.get("minimized"):
+            raise ToolError(
+                f'{win["wm_class"]} is minimized, so there is nothing on screen to '
+                "capture. Activate it first."
+            )
+        return win["x"], win["y"], win["width"], win["height"]
+    region = a.get("region")
+    if region is None:
+        return None
+    if isinstance(region, dict):
+        try:
+            values = (region["x"], region["y"], region["width"], region["height"])
+        except KeyError:
+            raise ToolError("region needs x, y, width, height") from None
+    elif isinstance(region, (list, tuple)) and len(region) == 4:
+        values = tuple(region)
+    else:
+        raise ToolError("region must be [x, y, width, height] or an object with those keys")
+    x, y, width, height = (int(v) for v in values)
+    if width <= 0 or height <= 0:
+        raise ToolError(f"refusing to capture a {width}x{height} region")
+    return x, y, width, height
+
+
+def _crop(path: Path, region: tuple[int, int, int, int]) -> None:
+    Image, _ = _pillow()
+    x, y, width, height = region
+    with Image.open(path) as img:
+        box = (max(0, x), max(0, y), min(img.width, x + width), min(img.height, y + height))
+        if box[2] <= box[0] or box[3] <= box[1]:
+            raise ToolError(f"region {region} does not overlap the screen")
+        img.crop(box).save(path)
+
+
+def _rescale(path: Path, scale: float) -> None:
+    Image, _ = _pillow()
+    with Image.open(path) as img:
+        img.resize((max(1, int(img.width * scale)), max(1, int(img.height * scale)))
+                   ).save(path)
+
+
+def _label_font(size: int = 13):
+    try:
+        from PIL import ImageFont
+        return ImageFont.truetype(
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", size)
+    except Exception:
+        try:
+            from PIL import ImageFont
+            return ImageFont.load_default()
+        except Exception:                                   # pragma: no cover
+            return None
+
+
+def _annotate(path: Path, origin: tuple[int, int], annotate: Any, a: dict,
+              scale: float = 1.0) -> dict:
+    """Draw the coordinate system onto the picture.
+
+    A model looking at a screenshot has no way to turn "that button" into a
+    number, and guessing from proportions is how a click ends up in the wrong
+    window. Drawing the grid, the window boxes and the widget boxes -- all
+    labelled in SCREEN coordinates, not image ones -- means the number to click
+    can be read straight off the image.
+    """
+    Image, ImageDraw = _pillow()
+    options = annotate if isinstance(annotate, dict) else {}
+    if annotate is True:
+        options = {"grid": True, "windows": True}
+    grid = options.get("grid", True)
+    spacing = int(grid) if isinstance(grid, int) and not isinstance(grid, bool) else 100
+    drawn = {"grid_spacing": spacing if grid else None, "windows": 0, "widgets": 0}
+
+    font = _label_font()
+
+    with Image.open(path) as img:
+        img = img.convert("RGB")
+        draw = ImageDraw.Draw(img)
+        ox, oy = origin
+
+        def px(sx: float, sy: float) -> tuple[float, float]:
+            """Screen coordinates to pixels in this (cropped, scaled) image."""
+            return (sx - ox) * scale, (sy - oy) * scale
+
+        def text(sx: float, sy: float, label: str, colour) -> None:
+            x, y = px(sx, sy)
+            # A dark plate under the label, because pink on a white window and
+            # pink on a dark one cannot both be read.
+            box = draw.textbbox((x + 2, y + 2), label, font=font)
+            draw.rectangle([box[0] - 2, box[1] - 1, box[2] + 2, box[3] + 1],
+                           fill=(0, 0, 0))
+            draw.text((x + 2, y + 2), label, fill=colour, font=font)
+
+        if grid:
+            width_s, height_s = img.width / scale, img.height / scale
+            first_x = ((ox + spacing - 1) // spacing) * spacing
+            for sx in range(int(first_x), int(ox + width_s), spacing):
+                x, _ = px(sx, 0)
+                draw.line([(x, 0), (x, img.height)], fill=(255, 0, 128), width=1)
+                text(sx, oy, str(sx), (255, 120, 190))
+            first_y = ((oy + spacing - 1) // spacing) * spacing
+            for sy in range(int(first_y), int(oy + height_s), spacing):
+                _, y = px(0, sy)
+                draw.line([(0, y), (img.width, y)], fill=(255, 0, 128), width=1)
+                text(ox, sy, str(sy), (255, 120, 190))
+
+        if options.get("windows", True):
+            for win in reversed(list_windows()):
+                if win.get("minimized"):
+                    continue
+                x0, y0 = px(win["x"], win["y"])
+                x1, y1 = px(win["x"] + win["width"], win["y"] + win["height"])
+                draw.rectangle([x0, y0, x1 - 1, y1 - 1], outline=(0, 200, 255), width=2)
+                text(win["x"], win["y"],
+                     f'{win["id"]} {win["wm_class"]} @{win["x"]},{win["y"]}',
+                     (0, 200, 255))
+                drawn["windows"] += 1
+
+        if options.get("widgets"):
+            app = a.get("app")
+            if not app:
+                focused = [w for w in list_windows() if w.get("focused")]
+                app = _atspi_app_for_window(focused[0]) if focused else None
+            if app:
+                for widget in _clickable_widgets(app, int(options.get("limit") or 40)):
+                    b = widget["bounds"]
+                    x0, y0 = px(b["x"], b["y"])
+                    x1, y1 = px(b["x"] + b["w"], b["y"] + b["h"])
+                    draw.rectangle([x0, y0, x1, y1], outline=(0, 255, 120), width=1)
+                    text(b["x"], b["y"],
+                         f'{widget["click_at"][0]},{widget["click_at"][1]} '
+                         f'{widget["name"][:24]}', (0, 255, 120))
+                    drawn["widgets"] += 1
+                drawn["widgets_app"] = app
+        img.save(path)
+    return drawn
 
 
 def tool_screencast(a: dict) -> dict:
@@ -825,12 +1256,29 @@ def tool_type_text(a: dict) -> dict:
         except ToolError:
             before = None
 
-    _ydotool("type", "--key-delay", str(delay), text,
-             timeout=max(30.0, len(text) * delay / 1000 + 15))
+    # Keysyms first: the compositor is handed the CHARACTER, so the active XKB
+    # layout cannot transpose it. ydotool is the fallback, and the reason this
+    # function still has a verification pass at all.
+    via = str(a.get("via") or "auto").lower()
+    if via not in ("auto", "keysym", "ydotool"):
+        raise ToolError("via must be auto, keysym or ydotool")
+    used = "ydotool"
+    if via in ("auto", "keysym"):
+        try:
+            _pointer().type_text(text, delay=max(delay, 8) / 1000)
+            used = "compositor keysyms"
+        except Exception as e:
+            if via == "keysym":
+                raise ToolError(f"keysym typing failed: {e}") from None
+            _ydotool("type", "--key-delay", str(delay), text,
+                     timeout=max(30.0, len(text) * delay / 1000 + 15))
+    else:
+        _ydotool("type", "--key-delay", str(delay), text,
+                 timeout=max(30.0, len(text) * delay / 1000 + 15))
 
-    result = {"characters": len(text), "focus": focus["detail"],
+    result = {"characters": len(text), "focus": focus["detail"], "via": used,
               "detail": f'sent {len(text)} characters to {focus["window"]["wm_class"]}'}
-    hazard = layout_hazard()
+    hazard = layout_hazard() if used == "ydotool" else ""
     if hazard:
         result["layout_warning"] = hazard
 
@@ -859,9 +1307,9 @@ def tool_type_text(a: dict) -> dict:
         return result
 
     raise ToolError(
-        f"ydotool reported success but the wrong characters arrived. Sent {text!r}, "
-        f"the widget gained {added!r}. Nothing here is retryable -- this is the "
-        f"keycode/layout mismatch, not a race. {hazard or ''} "
+        f"{used} reported success but the wrong characters arrived. Sent {text!r}, "
+        f"the widget gained {added!r}. Nothing here is retryable -- with ydotool "
+        f"this is the keycode/layout mismatch, not a race. {hazard or ''} "
         "Use ui_set_text instead: it hands characters to the widget and cannot be "
         "transposed."
     )
@@ -903,10 +1351,203 @@ def tool_press_keys(a: dict) -> dict:
         )
     codes = parse_combo(combo)          # validate BEFORE stealing focus
     focus = focus_window(target)
-    sequence = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
-    _ydotool("key", "--key-delay", "40", *sequence)
-    return {"combo": combo, "focus": focus["detail"],
+
+    # Same reasoning as type_text: a keysym is the key the user means, a keycode
+    # is a position on a US keyboard that may hold a different key here.
+    via = str(a.get("via") or "auto").lower()
+    used = "ydotool"
+    if via in ("auto", "keysym"):
+        try:
+            syms = combo_keysyms(combo)
+            _pointer().combo(syms)
+            used = "compositor keysyms"
+        except Exception as e:
+            if via == "keysym":
+                raise ToolError(f"keysym combo failed: {e}") from None
+            used = "ydotool"
+    if used == "ydotool":
+        sequence = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
+        _ydotool("key", "--key-delay", "40", *sequence)
+    return {"combo": combo, "focus": focus["detail"], "via": used,
             "detail": f'sent {combo} to {focus["window"]["wm_class"]}'}
+
+
+def _pointer_result(x: float, y: float, action: str, guard: dict | None) -> dict:
+    out = {"action": action, "x": x, "y": y}
+    if guard:
+        out["guard"] = guard
+    return out
+
+
+def tool_pointer_move(a: dict) -> dict:
+    x, y = _point(a)
+    guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+    _pointer().move_to(x, y)
+    return _pointer_result(x, y, "moved", guard)
+
+
+def tool_pointer_click(a: dict) -> dict:
+    x, y = _point(a)
+    button = str(a.get("button") or "left")
+    count = int(a.get("count") or 1)
+    if not 1 <= count <= 3:
+        raise ToolError("count must be 1, 2 or 3")
+    guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+    before = [w for w in list_windows() if w.get("focused")]
+    _pointer().click(x, y, button=button, count=count)
+    time.sleep(0.25)
+    after = [w for w in list_windows() if w.get("focused")]
+    result = _pointer_result(x, y, f"{button} click x{count}", guard)
+    # Whether the keyboard moved is the single most useful consequence of a
+    # click and the caller cannot see it any other way.
+    was = before[0]["wm_class"] if before else None
+    now = after[0]["wm_class"] if after else None
+    result["focus"] = ("unchanged: " + str(now)) if was == now else f"moved {was} -> {now}"
+    return result
+
+
+def tool_pointer_drag(a: dict) -> dict:
+    x1, y1 = _point(a, "from_x", "from_y")
+    x2, y2 = _point(a, "to_x", "to_y")
+    guard = _guard_point(x1, y1, a["expect_window"]) if a.get("expect_window") else None
+    _pointer().drag(x1, y1, x2, y2, button=str(a.get("button") or "left"),
+                           steps=int(a.get("steps") or 24))
+    return {"action": "drag", "from": [x1, y1], "to": [x2, y2], "guard": guard}
+
+
+def tool_pointer_scroll(a: dict) -> dict:
+    x, y = _point(a)
+    dy, dx = int(a.get("dy") or 0), int(a.get("dx") or 0)
+    if not dy and not dx:
+        raise ToolError("give dy (down is positive) or dx (right is positive)")
+    if max(abs(dy), abs(dx)) > 30:
+        raise ToolError("more than 30 wheel clicks at once is almost always a typo")
+    guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+    _pointer().scroll(x, y, dy=dy, dx=dx)
+    return {"action": "scroll", "x": x, "y": y, "dy": dy, "dx": dx, "guard": guard}
+
+
+def tool_pointer_position(_: dict) -> dict:
+    return pointer_position()
+
+
+def tool_window_at(a: dict) -> dict:
+    x, y = _point(a)
+    return window_at(x, y)
+
+
+def tool_screen_map(a: dict) -> dict:
+    """Everything on screen with the pixel coordinates to reach it."""
+    windows = list_windows()
+    stack = [
+        {**w, "centre": [w["x"] + w["width"] // 2, w["y"] + w["height"] // 2]}
+        for w in reversed(windows)                  # topmost first
+    ]
+    out: dict[str, Any] = {
+        "desktop": None,
+        "windows_top_first": stack,
+        "pointer": None,
+    }
+    try:
+        x, y, width, height = _pointer().desktop_bounds()
+        out["desktop"] = {"x": x, "y": y, "width": width, "height": height}
+    except Exception as e:
+        out["desktop"] = f"unknown: {e}"
+    try:
+        out["pointer"] = pointer_position()
+    except ToolError as e:
+        out["pointer"] = f"unknown: {e}"
+
+    if a.get("widgets", True):
+        app = a.get("app")
+        if not app:
+            focused = [w for w in windows if w.get("focused")]
+            app = _atspi_app_for_window(focused[0]) if focused else None
+        if app:
+            try:
+                out["widgets"] = _clickable_widgets(app, int(a.get("limit") or 60))
+                out["widgets_app"] = app
+            except ToolError as e:
+                out["widgets"] = f"unavailable: {e}"
+        else:
+            out["widgets"] = ("no AT-SPI application matched the focused window; "
+                              "pass app= to map a different one")
+    return out
+
+
+def _clickable_widgets(app_name: str, limit: int) -> list[dict]:
+    """Widgets that can be pressed, each with the screen box to press it at.
+
+    The AT-SPI tree already carries screen extents, so this is the answer to
+    "where do I click for X" without measuring anything off a screenshot. Press
+    them with ui_press where possible -- it cannot miss -- and use these
+    coordinates when the widget only responds to a real pointer.
+    """
+    app = _find_app(app_name)
+    collected: list[dict] = []
+    _walk(app, app.get_name(), 0, DEFAULT_FIND_DEPTH, collected, cap=MAX_FIND_NODES)
+    out = []
+    for node in collected:
+        bounds = node.get("bounds")
+        if not bounds or not node.get("actions"):
+            continue
+        if bounds["w"] < 4 or bounds["h"] < 4:
+            continue
+        out.append({
+            "name": node["name"], "role": node["role"], "path": node["path"],
+            "bounds": bounds,
+            "click_at": [bounds["x"] + bounds["w"] // 2, bounds["y"] + bounds["h"] // 2],
+        })
+        if len(out) >= limit:
+            break
+    return out
+
+
+def tool_wait_for(a: dict) -> dict:
+    """Poll a desktop condition instead of sleeping and hoping."""
+    timeout = float(a.get("timeout") or 10)
+    if not 0.2 <= timeout <= 120:
+        raise ToolError("timeout must be between 0.2 and 120 seconds")
+    condition = str(a.get("condition") or "").strip()
+    target = a.get("target")
+    known = {"window_focused", "window_exists", "window_gone", "focus_changes"}
+    if condition not in known:
+        raise ToolError(f"condition must be one of: {', '.join(sorted(known))}")
+    if condition != "focus_changes" and target is None:
+        raise ToolError(f"{condition} needs a target window")
+
+    def matches(w: dict) -> bool:
+        if isinstance(target, int) or (isinstance(target, str) and str(target).isdigit()):
+            return w["id"] == int(target)
+        needle = str(target).lower()
+        return (needle in (w["wm_class"] or "").lower()
+                or needle in (w["title"] or "").lower())
+
+    start = time.monotonic()
+    first = [w for w in list_windows() if w.get("focused")]
+    was = first[0]["id"] if first else None
+    while True:
+        windows = list_windows()
+        hits = [w for w in windows if matches(w)] if target is not None else []
+        focused = [w for w in windows if w.get("focused")]
+        now = focused[0]["id"] if focused else None
+        met = (
+            (condition == "window_exists" and hits)
+            or (condition == "window_gone" and not hits)
+            or (condition == "window_focused" and any(w.get("focused") for w in hits))
+            or (condition == "focus_changes" and now != was)
+        )
+        waited = round(time.monotonic() - start, 2)
+        if met:
+            return {"condition": condition, "met": True, "waited_seconds": waited,
+                    "focused": (focused[0]["wm_class"] if focused else None),
+                    "matched": [{"id": w["id"], "wm_class": w["wm_class"],
+                                 "title": w["title"]} for w in hits[:5]]}
+        if waited >= timeout:
+            return {"condition": condition, "met": False, "waited_seconds": waited,
+                    "focused": (focused[0]["wm_class"] if focused else None),
+                    "detail": "timed out; nothing was changed by waiting"}
+        time.sleep(0.15)
 
 
 def tool_health(_: dict) -> dict:
@@ -927,9 +1568,48 @@ def tool_health(_: dict) -> dict:
     except ToolError as e:
         report["atspi_apps"] = f"FAIL: {e}"
 
-    report["ydotool"] = (
-        "ready" if shutil.which("ydotool") and os.path.exists(YDOTOOL_SOCKET)
-        else "unavailable (ydotoold socket missing or ydotool not installed)"
+    # "ready" used to mean "the socket is there", which is not the question a
+    # caller is asking. ydotool's absolute mode is dead on this machine and its
+    # relative motion is put through pointer acceleration, and reporting it as
+    # simply ready is what sent an agent down a two-hour detour on 2026-08-16.
+    if not shutil.which("ydotool"):
+        report["ydotool"] = "not installed"
+    elif not os.path.exists(YDOTOOL_SOCKET):
+        report["ydotool"] = "unavailable (ydotoold socket missing)"
+    else:
+        report["ydotool"] = ("present, but relative-only and acceleration-warped: "
+                             "use pointer_move / pointer_click instead")
+
+    try:
+        ri = _input().shared()
+        bounds = ri.desktop_bounds()
+        report["pointer_control"] = (
+            f"absolute, via org.gnome.Mutter.RemoteDesktop; desktop is "
+            f"{bounds[2]}x{bounds[3]} at ({bounds[0]}, {bounds[1]})"
+        )
+    except Exception as e:
+        report["pointer_control"] = f"FAIL: {e}"
+
+    methods = extension_methods()
+    missing = sorted({"Pointer", "WindowAt", "ScreenshotArea", "ScreenshotWindow"}
+                     - methods)
+    report["extension_methods"] = sorted(methods)
+    if missing:
+        report["extension_pending_relogin"] = (
+            f"the running shell has no {', '.join(missing)}. "
+            + _needs_relogin(missing[0])
+        )
+    report["xtest"] = (
+        "avoid: XTEST through XWayland (xdotool, wmctrl click) is not routed to "
+        "the compositor on GNOME 50 and asking for it pops a Remote Desktop "
+        "consent dialog that grabs input until it is dismissed. Observed "
+        "2026-08-16. pointer_click needs no consent."
+    )
+    hazard = layout_hazard()
+    report["keyboard_layout"] = (
+        f"{keyboard_layouts() or ['unknown']}; typing goes through compositor "
+        "keysyms, which the layout cannot transpose"
+        + (f" (ydotool fallback would be affected: {hazard})" if hazard else "")
     )
     try:
         a11y = subprocess.run(
@@ -969,19 +1649,197 @@ TOOLS: list[dict] = [
     },
     {
         "name": "screenshot",
-        "description": "Capture the whole screen to a PNG and verify it really is a "
-                       "PNG with real dimensions. Goes through the gnome-shell "
-                       "extension because the compositor refuses screenshots to "
-                       "ordinary clients and grim never works on GNOME.",
+        "description": "Capture the screen, one window, or one rectangle to a PNG "
+                       "and verify it really is a PNG with real dimensions. Goes "
+                       "through the gnome-shell extension because the compositor "
+                       "refuses screenshots to ordinary clients and grim never works "
+                       "on GNOME. `annotate` draws the coordinate system onto the "
+                       "image -- grid lines, window boxes, and optionally every "
+                       "pressable widget -- all labelled in SCREEN coordinates, so "
+                       "the number to pass to pointer_click can be read straight off "
+                       "the picture instead of estimated from proportions.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "path": _s("Where to write the PNG, e.g. /tmp/shot.png"),
                 "include_cursor": {"type": "boolean", "default": False},
+                "window": {
+                    "description": "Capture just this window (id, wm_class or title "
+                                   "fragment). Captures what is ON SCREEN there, so "
+                                   "anything in front of it is included.",
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                },
+                "region": {
+                    "description": "Capture just this rectangle, in screen pixels.",
+                    "type": "object",
+                    "properties": {"x": {"type": "integer"}, "y": {"type": "integer"},
+                                   "width": {"type": "integer"},
+                                   "height": {"type": "integer"}},
+                },
+                "scale": {"type": "number", "default": 1.0, "minimum": 0.05,
+                          "maximum": 1.0,
+                          "description": "Shrink the written image. 0.4 is usually "
+                                         "enough to read a layout at a quarter of "
+                                         "the tokens."},
+                "annotate": {
+                    "description": "true for grid + window boxes, or an object: "
+                                   "{grid: true|<spacing px>, windows: bool, "
+                                   "widgets: bool, limit: int}.",
+                    "anyOf": [{"type": "boolean"}, {"type": "object"}],
+                },
+                "app": _s("AT-SPI application name for annotate.widgets, if the "
+                          "focused window is not the one to map."),
             },
             "required": ["path"],
         },
         "handler": tool_screenshot,
+    },
+    {
+        "name": "pointer_move",
+        "description": "Move the pointer to an absolute screen position. Exact: this "
+                       "goes to the compositor (org.gnome.Mutter.RemoteDesktop), not "
+                       "through ydotool, so there is no acceleration curve and no "
+                       "closed loop needed. Coordinates are the same ones "
+                       "list_windows and screen_map report.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"},
+                "expect_window": {
+                    "description": "Refuse the move if this window is not the one at "
+                                   "that point.",
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                },
+            },
+            "required": ["x", "y"],
+        },
+        "handler": tool_pointer_move,
+    },
+    {
+        "name": "pointer_click",
+        "description": "Click at an absolute screen position, and report whether the "
+                       "keyboard moved as a result. PASS expect_window: the click is "
+                       "refused if something else is under that point, which is the "
+                       "difference between a missed click and a click in someone "
+                       "else's window. Needs no consent dialog, unlike xdotool.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"},
+                "button": {"type": "string", "enum": ["left", "right", "middle",
+                                                      "back", "forward"],
+                           "default": "left"},
+                "count": {"type": "integer", "default": 1, "minimum": 1, "maximum": 3,
+                          "description": "2 for a double click."},
+                "expect_window": {
+                    "description": "The window this click is aimed at (id, wm_class "
+                                   "or title fragment). Nothing is clicked if it is "
+                                   "not the window at that point.",
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                },
+            },
+            "required": ["x", "y"],
+        },
+        "handler": tool_pointer_click,
+    },
+    {
+        "name": "pointer_drag",
+        "description": "Press at one point, travel, release at another. The travel is "
+                       "real intermediate motion, because a press-and-teleport is not "
+                       "a drag to most toolkits.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "from_x": {"type": "number"}, "from_y": {"type": "number"},
+                "to_x": {"type": "number"}, "to_y": {"type": "number"},
+                "button": {"type": "string", "default": "left"},
+                "steps": {"type": "integer", "default": 24},
+                "expect_window": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+            },
+            "required": ["from_x", "from_y", "to_x", "to_y"],
+        },
+        "handler": tool_pointer_drag,
+    },
+    {
+        "name": "pointer_scroll",
+        "description": "Wheel clicks at a point. dy positive scrolls down, dx "
+                       "positive scrolls right.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "x": {"type": "number"}, "y": {"type": "number"},
+                "dy": {"type": "integer", "default": 0},
+                "dx": {"type": "integer", "default": 0},
+                "expect_window": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+            },
+            "required": ["x", "y"],
+        },
+        "handler": tool_pointer_scroll,
+    },
+    {
+        "name": "pointer_position",
+        "description": "Where the pointer is. Answers from the compositor when the "
+                       "extension supports it, otherwise from the last position this "
+                       "server set and says which. Never guesses from X, whose answer "
+                       "is stale whenever the pointer is over a Wayland surface.",
+        "inputSchema": {"type": "object", "properties": {}},
+        "handler": tool_pointer_position,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "window_at",
+        "description": "What a click at this point would hit. Use it before clicking "
+                       "somewhere you inferred from a screenshot. Reports both the "
+                       "compositor's own pick (which respects input shapes, so a "
+                       "click-through overlay is seen through) and every window whose "
+                       "rectangle covers the point.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {"x": {"type": "number"}, "y": {"type": "number"}},
+            "required": ["x", "y"],
+        },
+        "handler": tool_window_at,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "screen_map",
+        "description": "Everything on screen with the coordinates to reach it: the "
+                       "desktop rectangle, every window top of the stack first with "
+                       "its centre point, where the pointer is, and every pressable "
+                       "widget of the focused application with the exact pixel to "
+                       "click it at. This is the one call that turns 'click the Save "
+                       "button' into a number without looking at an image.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "widgets": {"type": "boolean", "default": True},
+                "app": _s("AT-SPI application name, if not the focused window's."),
+                "limit": {"type": "integer", "default": 60},
+            },
+        },
+        "handler": tool_screen_map,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "wait_for",
+        "description": "Wait until the desktop reaches a state, instead of sleeping a "
+                       "guessed number of seconds. Conditions: window_exists, "
+                       "window_gone, window_focused, focus_changes. Returns as soon as "
+                       "it is true, or reports honestly that it timed out.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "condition": {"type": "string",
+                              "enum": ["window_exists", "window_gone",
+                                       "window_focused", "focus_changes"]},
+                "target": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "timeout": {"type": "number", "default": 10, "minimum": 0.2,
+                            "maximum": 120},
+            },
+            "required": ["condition"],
+        },
+        "handler": tool_wait_for,
+        "annotations": {"readOnlyHint": True},
     },
     {
         "name": "screencast",
@@ -1153,20 +2011,24 @@ TOOLS: list[dict] = [
     },
     {
         "name": "type_text",
-        "description": "Last-resort text entry: injects keystrokes with ydotool into a "
-                       "named window. Focus is confirmed first, nothing is typed if it "
-                       "cannot be confirmed, and the widget is read back afterwards to "
-                       "check the right characters arrived. TRY ui_set_text FIRST. On "
-                       "this machine the keyboard layout is German (QWERTZ) and ydotool "
-                       "injects US-QWERTY keycodes, so typed y/z and most punctuation "
-                       "arrive TRANSPOSED -- measured, not theoretical. ui_set_text "
-                       "passes characters to the widget and is immune.",
+        "description": "Type into a named window. Focus is confirmed first, nothing "
+                       "is typed if it cannot be confirmed, and the widget is read "
+                       "back afterwards to check the right characters arrived. "
+                       "Characters go to the compositor as keysyms, so the keyboard "
+                       "layout cannot transpose them -- the German-QWERTZ hazard that "
+                       "made ydotool type z for y does not apply to this path. "
+                       "ui_set_text is still better where it works: it hands text to "
+                       "the widget and needs no focus at all.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "text": _s("Literal text to type"),
                 "target": TARGET_SCHEMA,
                 "key_delay_ms": {"type": "integer", "default": 20},
+                "via": {"type": "string", "enum": ["auto", "keysym", "ydotool"],
+                        "default": "auto",
+                        "description": "auto prefers compositor keysyms and falls "
+                                       "back to ydotool."},
                 "verify_app": _s("AT-SPI application name to read back for "
                                  "verification; auto-detected from the window if "
                                  "omitted"),
@@ -1182,17 +2044,24 @@ TOOLS: list[dict] = [
                        "virtual terminal and looks exactly like a frozen machine.",
         "inputSchema": {
             "type": "object",
-            "properties": {"combo": _s("e.g. 'ctrl+shift+t'"), "target": TARGET_SCHEMA},
+            "properties": {
+                "combo": _s("e.g. 'ctrl+shift+t'"),
+                "target": TARGET_SCHEMA,
+                "via": {"type": "string", "enum": ["auto", "keysym", "ydotool"],
+                        "default": "auto"},
+            },
             "required": ["combo", "target"],
         },
         "handler": tool_press_keys,
     },
     {
         "name": "desktop_health",
-        "description": "Whether each mechanism is usable right now: extension state, "
-                       "window count, AT-SPI app count, ydotool socket, "
-                       "toolkit-accessibility, session type. Call this first when "
-                       "something behaves oddly.",
+        "description": "Whether each mechanism is usable right now, and what each one "
+                       "will actually do: extension state and which methods the "
+                       "RUNNING shell has (an edited extension does not load until "
+                       "the next login), absolute pointer control, window and AT-SPI "
+                       "counts, keyboard layout, and the XTEST trap. Call this first "
+                       "when something behaves oddly.",
         "inputSchema": {"type": "object", "properties": {}},
         "handler": tool_health,
         "annotations": {"readOnlyHint": True},
@@ -1317,6 +2186,33 @@ def self_test() -> int:
         "ui_press without expectation refused"
         if _expect_tool_error(tool_ui_press, {"path": "gnome-shell/0"}) else
         (_ for _ in ()).throw(AssertionError("ui_press without expectation allowed"))))
+    run("pointer space", lambda: (
+        "desktop is {}x{} at ({}, {})".format(
+            *(lambda b: (b[2], b[3], b[0], b[1]))(_pointer().desktop_bounds()))))
+    # Not knowing where the pointer is, and saying so, is a correct state until
+    # the extension gains Pointer at the next login. Only a wrong answer is a
+    # failure here.
+    run("pointer position", lambda: json.dumps(_position_or_reason()))
+    run("window_at centre", lambda: (
+        lambda b: json.dumps(
+            {k: v for k, v in window_at(b[0] + b[2] / 2, b[1] + b[3] / 2).items()
+             if k in ("window", "source")}))(_pointer().desktop_bounds()))
+    run("off-screen click refused", lambda: (
+        "a click outside the desktop is refused"
+        if _expect_tool_error(tool_pointer_move, {"x": -50, "y": -50}) else
+        (_ for _ in ()).throw(AssertionError("moved the pointer off the desktop"))))
+    run("expect_window guard", lambda: (
+        "a click naming the wrong window is refused"
+        if _expect_tool_error(
+            tool_pointer_click,
+            {"x": 0, "y": 0, "expect_window": "no-such-window-anywhere"}) else
+        (_ for _ in ()).throw(AssertionError("clicked while naming a missing window"))))
+    run("keysym table", lambda: (
+        lambda ri: f"{len(ri.KEYSYMS)} keysyms, 'y' is {hex(ri.char_to_keysym('y'))}"
+        if ri.char_to_keysym("y") == ord("y") else
+        (_ for _ in ()).throw(AssertionError("char_to_keysym is wrong for ASCII"))
+    )(_input()))
+    run("extension methods", lambda: ", ".join(sorted(extension_methods())) or "none")
 
     failed = 0
     for label, ok, detail in checks:
@@ -1324,6 +2220,13 @@ def self_test() -> int:
         failed += 0 if ok else 1
     print(f"\n{len(checks) - failed}/{len(checks)} passed")
     return 1 if failed else 0
+
+
+def _position_or_reason() -> dict:
+    try:
+        return pointer_position()
+    except ToolError as e:
+        return {"known": False, "why": str(e)[:120]}
 
 
 def _expect_refusal(combo: str, because: str) -> bool:

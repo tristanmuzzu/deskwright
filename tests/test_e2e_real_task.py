@@ -22,6 +22,21 @@ Two tiers, because half the stack survives a locked screen and half does not.
 Guards are asserted in both tiers: typing with no target, pressing a widget
 without stating what you expect, a widget whose identity moved, and Ctrl+Alt+F2.
 
+KNOWN FRAGILITY, MEASURED 2026-08-17
+
+"injected keystrokes actually landed" fails whenever gnome-text-editor already
+has other tabs open, which on a real desktop it usually does. TIER 1 writes
+through AT-SPI, which addresses a document directly; typed keys go to whatever
+tab is VISIBLE; and `ui_read_text` then reads the first text widget in the
+tree, which need be neither. The failure message is "the widget gained ''".
+
+It is not the injection. With a single-tab editor the same sequence
+(ui_set_text, then type_text) verifies itself, and the characters are there in
+a screenshot. It also fails identically with ydotool and with compositor
+keysyms, which is the tell: two unrelated injection paths cannot be broken in
+the same way at the same moment. Fixing it means addressing ONE document
+rather than "the app's first text widget".
+
     ./tests/test_e2e_real_task.py
     ./tests/test_e2e_real_task.py --keep     # leave the editor open to look at
 """
