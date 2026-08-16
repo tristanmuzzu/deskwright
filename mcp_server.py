@@ -147,10 +147,13 @@ def _extension_diagnosis() -> str:
     """Say WHICH of the two very different causes this is.
 
     They look identical from a failed D-Bus call and have opposite remedies, and
-    a session that guesses wrong burns an hour. INACTIVE-while-enabled almost
-    always means the screen is locked: gnome-shell unloads every extension whose
-    metadata.json does not list "unlock-dialog" in session-modes, and this one
-    lists only "user".
+    a session that guesses wrong burns an hour. INACTIVE-while-enabled usually
+    means the screen is locked: gnome-shell unloads every extension whose
+    metadata.json does not list "unlock-dialog" in session-modes.
+
+    Which this one lists is read from the file rather than remembered here --
+    it was changed to ["user", "unlock-dialog"] after this comment first
+    claimed otherwise, and a hardcoded answer would now be confidently wrong.
     """
     state = _extension_state()
     if state == "INACTIVE":

@@ -175,24 +175,27 @@ search returns nothing at all, which reads as "this app has no widgets" rather
 than "you did not look far enough". `ui_find` therefore defaults to depth 30 and
 caps on node count instead.
 
-### The screen lock takes half of this away
+### The screen lock, and what it takes away
 
 gnome-shell unloads every extension whose `metadata.json` does not list
 `unlock-dialog` in `session-modes`, and a screen lock is exactly that change of
-session mode. `migration-helpers` lists only `user`, so **while the screen is
-locked there are no screenshots, no window list, and no focus control.** The
-extension reports `State: INACTIVE` and D-Bus calls fail — which looks identical
-to the extension being broken and has a completely different remedy. Both
-`desktop_health` and `~/system/healthcheck.sh` now tell the two apart by reading
-`session-modes`.
+session mode. An extension without it reports `State: INACTIVE` and every D-Bus
+call fails — which looks identical to the extension being broken and has a
+completely different remedy. `desktop_health` tells the two apart by reading
+`session-modes` at the time it is asked.
 
-AT-SPI is unaffected: `ui_find`, `ui_press`, `ui_set_text` and `ui_read_text` all
-keep working while locked. That is a second reason to prefer them.
+`migration-helpers` now lists `["user", "unlock-dialog"]`, so screenshots, the
+window list and focus control survive a lock. That is a deliberate choice with
+a cost attached: it also means the desktop can be screenshotted while locked.
+Dropping `unlock-dialog` reverses both.
 
-Adding `"unlock-dialog"` to `session-modes` (plus one logout) would keep the whole
-surface alive while locked. It is deliberately **not** done here: it also makes
-screenshots of the locked desktop possible, which is Tristan's call to make, not
-an agent's.
+AT-SPI is unaffected either way: `ui_find`, `ui_press`, `ui_set_text` and
+`ui_read_text` keep working while locked. That is a second reason to prefer them.
+
+The pointer is a third case. `org.gnome.Mutter.RemoteDesktop` is mutter's, not
+the extension's, so it does not care about session modes — but there is nothing
+worth clicking on a lock screen, and clicking blind is exactly what the guards
+exist to prevent.
 
 ## Requirements
 
