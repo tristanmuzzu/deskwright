@@ -196,6 +196,17 @@ def main() -> int:
                   f'ok={batch.get("all_ok")} run={batch.get("steps_run")} '
                   f'images={batch["_images"]}')
 
+            # look:false has exactly one job, and a re-scoping branch used to
+            # override it whenever the sequence ended on a different window
+            # than it started on -- which "activate then click" always does.
+            silent = s.call("do_steps", {"look": False, "steps": [
+                {"do": "activate", "target": wid},
+                {"do": "click", "x": wx + 44, "y": wy + 438},
+            ]})
+            check("do_steps look:false attaches nothing",
+                  silent["_images"] == 0 and "look" not in silent,
+                  f'blocks={silent["_blocks"]}')
+
             bad = s.call("do_steps", {"steps": [
                 {"do": "activate", "target": wid},
                 {"do": "key", "target": wid, "combo": "ctrl+alt+f2"},

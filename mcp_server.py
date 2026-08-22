@@ -2646,11 +2646,16 @@ def tool_do_steps(a: dict) -> dict:
     if failed_at is not None and look.get("look", "auto") == "auto":
         look["look"] = "window" if last_window else "screen"
 
-    if last_window and (not watching.window
-                        or watching.window.get("id") != last_window.get("id")):
+    if (watching.mode is not False and last_window
+            and (not watching.window
+                 or watching.window.get("id") != last_window.get("id"))):
         # The sequence moved to a different window than the one measured at the
         # start. Look at where it ended up, and say nothing about "changed".
-        watching = _Look(watching.mode if watching.mode is not False else "window",
+        #
+        # The mode guard is load-bearing: this used to substitute "window" for a
+        # False mode while re-scoping, so `look: false` still attached a picture
+        # -- the one setting whose entire job is to attach nothing.
+        watching = _Look(watching.mode,
                          (last_window["x"], last_window["y"],
                           last_window["width"], last_window["height"]),
                          last_window, None)
