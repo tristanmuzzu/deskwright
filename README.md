@@ -142,6 +142,7 @@ The ordering below is the ordering you should prefer:
 | `window_at` | What a click at a point would hit, *before* clicking it. |
 | `pointer_click`, `pointer_move`, `pointer_drag`, `pointer_scroll` | Real pointer input at absolute screen coordinates. Pass `expect_window` and a click that would land elsewhere is refused. |
 | `pointer_position` | Where the pointer is, or an honest statement that only the last set position is known. |
+| `ui_apps` | Applications on the AT-SPI bus, each with its **pid**. Two windows of one program are two applications here; when their names collide, `address_as` gives the `name#pid` form that addresses exactly one. |
 | `find_text` | **Where a visible string is, in screen coordinates.** OCR. This is the answer for Chrome, Electron and Qt, which expose almost nothing to `ui_find`. ~0.3 s for a window, and no image in the transcript. |
 | `wait_for` | Wait for `window_exists` / `window_gone` / `window_focused` / `focus_changes` instead of sleeping a guessed number of seconds. |
 | `region_changed` | Wait for *pixels* to change — a reply arriving, a spinner finishing — for the things `wait_for` cannot express. |
@@ -187,15 +188,43 @@ Measured 2026-08-22, same binary, same moment, one tab each:
 | Chrome with `--force-renderer-accessibility` | 238 | **238** |
 
 With the flag the whole page is exposed with real screen bounds — headings,
-links, the omnibox as a readable `entry` — so `ui_find` and `ui_press` work on
-web content and `type_text` can verify itself. The cost measured on the same
-page was 344.6 MB of renderer RSS against 338.4 MB, about 2%, and no idle CPU
-difference. The same flag applies to Electron applications.
+links, the omnibox as a readable `entry`. **Proven end to end 2026-08-22:**
+`ui_find` located a page's own `<button>` at (83, 241, 183, 52) and `ui_press`
+activated it, with the page's JavaScript reacting. No coordinates, no pixels,
+cannot miss. The same flag applies to Electron applications.
 
-This is not enabled anywhere by default: it changes how a browser launches, and
-for web work `claude-in-chrome` is a better tool than the accessibility tree
-anyway. It is written down because "Chrome exposes nothing" was treated as a
-property of Chrome for months, and it is a property of one flag.
+Cost, measured on the same machine:
+
+| page | renderer RSS | total RSS | idle CPU |
+|---|---|---|---|
+| one trivial tab | +6 MB (+2%) | +26 MB | none measurable |
+| a 24 000-node DOM | −19 MB | **+111 MB (+7.6%)** | 0.65% vs 0.55% of a core |
+
+**It is deliberately NOT enabled**, and the reasoning is worth keeping because
+the measurements alone look favourable:
+
+* `claude-in-chrome` already drives Tristan's real Chrome with `read_page` and
+  CDP, which is strictly better than an accessibility tree for web work. The
+  flag mostly duplicates a tool that is already here.
+* The memory cost lands on this machine's one accepted constraint. 111 MB on a
+  heavy page is not free on 8 GB.
+* It cannot be turned on per-task. Chrome reuses its running process, so
+  `google-chrome --force-renderer-accessibility` opens a window in the existing
+  instance and the flag does nothing. It is all-or-nothing per Chrome process,
+  and a separate profile has none of the logins that make driving a browser
+  worth doing.
+
+The one case where it wins outright: a headless or scheduled run, where
+interactively-authenticated MCP servers like `claude-in-chrome` may not be
+available at all, and AT-SPI still is. To use it there, launch the browser with
+the flag rather than attaching to a running one:
+
+```bash
+google-chrome --force-renderer-accessibility --user-data-dir=/tmp/a11y-profile
+```
+
+It is written down because "Chrome exposes nothing" was treated as a property of
+Chrome for months, and it is a property of one flag.
 
 Then click with `expect_window`. The click is refused if the compositor would
 deliver it to a different window, which is the difference between a missed

@@ -623,28 +623,87 @@ def _describe(node, path: str) -> dict:
     return out
 
 
+def _app_labels(apps: list) -> dict:
+    """Path roots for these applications: the bare name, or `name#pid` when the
+    name alone would address more than one of them."""
+    named = []
+    for app in apps:
+        try:
+            named.append((app, app.get_name() or "<unnamed application>"))
+        except Exception:
+            named.append((app, "<application that would not identify itself>"))
+    counts: dict[str, int] = {}
+    for _app, name in named:
+        counts[name] = counts.get(name, 0) + 1
+    return {id(app): (f"{name}#{_app_pid(app)}" if counts[name] > 1 else name)
+            for app, name in named}
+
+
+def _app_pid(app) -> int | None:
+    try:
+        return int(app.get_process_id())
+    except Exception:
+        return None
+
+
 def _find_app(app_name: str):
+    """The AT-SPI application called `app_name`, or `name#<pid>` when several are.
+
+    Taking the first match was wrong in a way that produced no error and the
+    wrong answer: two windows of the same program are two applications on this
+    bus, so `ui_find` would walk instance A, hand back a path rooted at the
+    shared name, and `ui_press` would resolve that path against instance B and
+    act on whatever happened to sit at those indices. Measured 2026-08-22 with
+    two Chrome windows -- ui_find located a button on the page, ui_press
+    resolved into the other window's tree and failed. Failing loudly with the
+    pids is the only safe behaviour; silently acting on the wrong window is not.
+    """
     Atspi = _atspi()
     desk = Atspi.get_desktop(0)
-    names = []
+
+    wanted, _, pid_text = str(app_name).partition("#")
+    wanted_pid = int(pid_text) if pid_text.isdigit() else None
+
+    apps, names = [], []
     for i in range(desk.get_child_count()):
         app = desk.get_child_at_index(i)
         if app is None:
             continue
-        names.append(app.get_name())
-        if app.get_name() == app_name:
-            return app
-    lowered = app_name.lower()
-    for i in range(desk.get_child_count()):
-        app = desk.get_child_at_index(i)
-        if app is not None and lowered in (app.get_name() or "").lower():
-            return app
-    raise ToolError(
-        f"no application named {app_name!r} on the AT-SPI bus. Present: "
-        + ", ".join(repr(n) for n in names)
-        + ". An app started while toolkit-accessibility was false exposes a "
-          "stunted tree for its whole life -- restart the app, not the setting."
-    )
+        try:
+            name = app.get_name() or ""
+        except Exception:
+            continue
+        names.append(name)
+        apps.append((name, app))
+
+    exact = [(n, a) for n, a in apps if n == wanted]
+    matches = exact or [(n, a) for n, a in apps if wanted.lower() in n.lower()]
+
+    if wanted_pid is not None:
+        for name, app in matches or apps:
+            if _app_pid(app) == wanted_pid:
+                return app
+        raise ToolError(
+            f"no application {wanted!r} with pid {wanted_pid} on the AT-SPI bus. "
+            "Check list_windows -- it reports the pid of every window."
+        )
+
+    if not matches:
+        raise ToolError(
+            f"no application named {app_name!r} on the AT-SPI bus. Present: "
+            + ", ".join(repr(n) for n in names)
+            + ". An app started while toolkit-accessibility was false exposes a "
+              "stunted tree for its whole life -- restart the app, not the setting."
+        )
+    if len(matches) > 1:
+        listed = ", ".join(f"{n!r}#{_app_pid(a)}" for n, a in matches)
+        raise ToolError(
+            f"{len(matches)} applications match {app_name!r}, and an index path is "
+            f"only meaningful inside one of them: {listed}. Pass the pid form, e.g. "
+            f"app: \"{matches[0][0]}#{_app_pid(matches[0][1])}\". list_windows "
+            "reports the pid of every window, so you can pick the right one."
+        )
+    return matches[0][1]
 
 
 def _walk(node, path: str, depth: int, max_depth: int, out: list[dict],
@@ -763,8 +822,21 @@ def list_atspi_apps() -> list[dict]:
     apps = []
     for i in range(desk.get_child_count()):
         app = desk.get_child_at_index(i)
-        if app is not None:
-            apps.append({"name": app.get_name(), "children": app.get_child_count()})
+        if app is None:
+            continue
+        try:
+            apps.append({"name": app.get_name(), "pid": _app_pid(app),
+                         "children": app.get_child_count()})
+        except Exception:
+            continue
+    seen: dict[str, int] = {}
+    for a in apps:
+        seen[a["name"]] = seen.get(a["name"], 0) + 1
+    for a in apps:
+        if seen[a["name"]] > 1:
+            # Two windows of one program are two applications here. Say so, and
+            # give the form that addresses one of them.
+            a["address_as"] = f'{a["name"]}#{a["pid"]}'
     return apps
 
 
@@ -1791,12 +1863,19 @@ def tool_ui_find(a: dict) -> dict:
             "would dump the whole tree -- use ui_tree for that."
         )
 
-    roots = [_find_app(str(a["app"]))] if a.get("app") else None
-    if roots is None:
+    if a.get("app"):
+        roots = [_find_app(str(a["app"]))]
+    else:
         Atspi = _atspi()
         desk = Atspi.get_desktop(0)
         roots = [desk.get_child_at_index(i) for i in range(desk.get_child_count())]
         roots = [r for r in roots if r is not None]
+
+    # A path is only meaningful inside ONE application, so when two of them
+    # share a name the path has to carry the pid or ui_press will resolve it
+    # against the wrong instance -- silently, and against whatever sits at those
+    # indices there.
+    labels = _app_labels(roots)
 
     needle = text.lower()
     hits: list[dict] = []
@@ -1806,10 +1885,7 @@ def tool_ui_find(a: dict) -> dict:
         # snap.telegram-desktop raised out of the loop and ui_find returned
         # nothing at all, from every other application as well. An app that
         # cannot be read is a gap in the answer, not the end of it.
-        try:
-            name = root.get_name() or "<unnamed application>"
-        except Exception:
-            name = "<application that would not identify itself>"
+        name = labels.get(id(root), "<unnamed application>")
         collected: list[dict] = []
         try:
             _walk(root, name, 0, depth, collected, cap=MAX_FIND_NODES)
