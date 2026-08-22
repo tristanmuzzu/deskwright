@@ -37,6 +37,13 @@ keysyms, which is the tell: two unrelated injection paths cannot be broken in
 the same way at the same moment. Fixing it means addressing ONE document
 rather than "the app's first text widget".
 
+Half of that landed on 2026-08-22: `_find_text_widget` now prefers the widget
+AT-SPI reports as FOCUSED, which is the one keystrokes go to. That fixes the
+readback for an editor with several tabs. It does not fix this test, because
+TIER 1 here writes through `ui_set_text` to a document that is not the focused
+one, so the two halves still address different tabs. The remaining half is
+`ui_set_text` and `type_text` taking the same document identity.
+
     ./tests/test_e2e_real_task.py
     ./tests/test_e2e_real_task.py --keep     # leave the editor open to look at
 """

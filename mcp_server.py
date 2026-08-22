@@ -580,8 +580,11 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
             "compositor routes no click there -- the window is click-through at "
             "that point. Nothing was clicked."
         )
-    found = (f'{target["wm_class"]} {target.get("title", "")!r}' if target
-             else "nothing (the desktop)")
+    # Include the id. Two windows of the same application read as
+    # "expected org.gnome.Calculator but org.gnome.Calculator is there", which
+    # looks like the guard malfunctioning rather than a second instance.
+    found = (f'{target["wm_class"]} (id {target.get("id")}) {target.get("title", "")!r}'
+             if target else "nothing (the desktop)")
     raise ToolError(
         f'refusing to click ({x:.0f}, {y:.0f}): expected {wanted["wm_class"]} '
         f'(id {wanted["id"]}) but {found} is there. Nothing was clicked. '
@@ -700,12 +703,42 @@ def _find_text_widget(app_name: str, path: str | None):
             "toolkit-accessibility was false its tree is stunted for its whole "
             "life -- restart the app."
         )
+
+    # The FOCUSED one first. "The app's first text widget" is the wrong document
+    # the moment an editor has two tabs open, which on a real desktop it usually
+    # does: typing goes to the visible tab and the readback came from whichever
+    # tab happened to be first in the tree, so type_text reported that the wrong
+    # characters had arrived when they had arrived perfectly. Documented as a
+    # known fragility in tests/test_e2e_real_task.py since 2026-08-17.
+    live_candidates = []
     for node in candidates:
-        live = _resolve_path(node["path"])
+        try:
+            live = _resolve_path(node["path"])
+        except ToolError:
+            continue
         _, editable = _text_ifaces(live)
-        if editable is not None:
+        live_candidates.append((live, editable is not None, _is_focused(live)))
+
+    for want_focus in (True, False):
+        for live, editable, focused in live_candidates:
+            if editable and focused == want_focus:
+                return live
+    for live, _editable, focused in live_candidates:
+        if focused:
             return live
+    if live_candidates:
+        return live_candidates[0][0]
     return _resolve_path(candidates[0]["path"])
+
+
+def _is_focused(node) -> bool:
+    """Whether this widget holds the keyboard, according to AT-SPI."""
+    try:
+        Atspi = _atspi()
+        state = node.get_state_set()
+        return bool(state.contains(Atspi.StateType.FOCUSED))
+    except Exception:
+        return False
 
 
 def _resolve_path(path: str):
@@ -1061,11 +1094,17 @@ FINGERPRINT = (240, 135)     # 32400 cells; ~8ms to compare in pure Python
 CELL_NOISE = 12              # 0-255; below this is encoder and antialiasing jitter
 STRONG_DELTA = 60            # a cell this different is new content, not jitter
 STRONG_CELLS_STABLE = 2      # a blinking caret is one or two cells; ignore it
-STRONG_CELLS_CHANGED = 4     # measured: a miss is 0, the smallest real hit is 10
+# Measured margin, gnome-calculator, 2026-08-22: a blinking text caret peaks at
+# 11 strong cells on a completely idle window (it cycles 0 -> 11 -> 0 about once
+# a second), while the smallest real button press moves 22. 12 sits between them.
+# Blinkers that toggle during the settle window are masked out below, which is
+# what makes this margin comfortable rather than lucky.
+STRONG_CELLS_CHANGED = 12
 STABLE_CHANGED_PCT = 0.1     # two frames this close are the same frame
 CHANGE_FLOOR_PCT = 0.06      # backstop for a large, low-contrast change
 SETTLE_MAX_S = 1.5
 SETTLE_POLL_S = 0.12
+SETTLE_MIN_FRAMES = 4       # enough of a window to see what blinks on its own
 
 
 def _fingerprint(path: Path) -> bytes:
@@ -1075,12 +1114,19 @@ def _fingerprint(path: Path) -> bytes:
         return img.convert("L").resize(FINGERPRINT, Image.BOX).tobytes()
 
 
-def _frame_delta(before: bytes, after: bytes) -> dict:
-    """How different two frames are, in the three ways that turn out to matter."""
+def _frame_delta(before: bytes, after: bytes, ignore: set[int] | None = None) -> dict:
+    """How different two frames are, in the three ways that turn out to matter.
+
+    `ignore` is the set of cells known to be moving on their own -- a caret, a
+    spinner, a clock. They are excluded from the counts rather than from the
+    picture.
+    """
     if len(before) != len(after) or not before:
         return {"percent": 100.0, "strong_cells": len(after or b""), "max_delta": 255}
     moved = strong = peak = 0
-    for x, y in zip(before, after):
+    for index, (x, y) in enumerate(zip(before, after)):
+        if ignore and index in ignore:
+            continue
         delta = x - y if x > y else y - x
         if delta > CELL_NOISE:
             moved += 1
@@ -1092,24 +1138,66 @@ def _frame_delta(before: bytes, after: bytes) -> dict:
             "strong_cells": strong, "max_delta": peak}
 
 
+def _ambient_cells(frames: list[bytes]) -> set[int]:
+    """Cells that were moving by themselves while nothing was happening.
+
+    A caret blinks on a roughly one-second cycle, so a two-frame baseline taken
+    120ms apart usually catches one phase and calls the other phase a change --
+    measured: 11 strong cells on an idle calculator, six times out of six. The
+    settle loop is already sampling frames after the action; anything that
+    changes BETWEEN those samples is something that changes on its own, and is
+    not evidence that the action did anything.
+    """
+    moving: set[int] = set()
+    for earlier, later in zip(frames, frames[1:]):
+        if len(earlier) != len(later):
+            continue
+        for index, (x, y) in enumerate(zip(earlier, later)):
+            if abs(x - y) > CELL_NOISE:
+                moving.add(index)
+    return moving
+
+
 def _frame_change(before: bytes, after: bytes) -> float:
     """Percent of cells that moved more than sensor noise. Kept for callers that
     only want the one number (the settle loop's noise figure)."""
     return _frame_delta(before, after)["percent"]
 
 
-def _is_change(delta: dict, floor_percent: float = CHANGE_FLOOR_PCT) -> bool:
-    """Whether two frames differ because something HAPPENED.
+def _changed_since(baseline: list[bytes], current: bytes,
+                   ambient: set[int] | None = None,
+                   floor_percent: float = CHANGE_FLOOR_PCT) -> dict:
+    """Whether the screen differs from `baseline` because something HAPPENED.
 
-    The area test needs the contrast test beside it. A click that moved focus
-    repainted 2.6% of a window with a peak difference of 17/255 -- a shadow and
-    a focus ring, nothing a caller would call a change -- and an area-only rule
-    reported it as one. Real content has contrast: the smallest genuine button
-    press measured here peaks at 173.
+    Three rules, each of which exists because the two simpler ones were tried
+    and measured wrong on this machine:
+
+      * strong cells OUTSIDE anything that was already moving, threshold 4.
+        The cheap, confident case: a menu opened, a dialog appeared.
+      * strong cells including them, threshold 12. Needed because a caret and
+        the text it sits next to occupy the SAME cells -- masking the caret out
+        masked the typed digit out with it, and a real button press dropped from
+        22 strong cells to 0. 12 sits above the caret's measured peak of 11.
+      * a large, high-contrast area change, for a scroll or a page swap, which
+        moves a lot of cells without any of them being new content.
+
+    The area rule needs the contrast test beside it: a click that only moved
+    focus repainted 2.6% of a window with a peak difference of 17/255, and an
+    area-only rule called that a change.
     """
-    if delta["strong_cells"] >= STRONG_CELLS_CHANGED:
-        return True
-    return delta["percent"] > max(floor_percent, 1.0) and delta["max_delta"] > 40
+    outside = _least_change(baseline, current, ambient) if ambient else None
+    overall = _least_change(baseline, current)
+    delta = dict(overall)
+    if outside is not None:
+        delta["strong_cells_excluding_moving"] = outside["strong_cells"]
+
+    landed = (
+        (outside is not None and outside["strong_cells"] >= 4)
+        or overall["strong_cells"] >= STRONG_CELLS_CHANGED
+        or (overall["percent"] > max(floor_percent, 1.0) and overall["max_delta"] > 40)
+    )
+    delta["landed"] = landed
+    return delta
 
 
 def _settle(path: Path, region: tuple[int, int, int, int] | None,
@@ -1120,28 +1208,36 @@ def _settle(path: Path, region: tuple[int, int, int, int] | None,
     (and is pure latency). Foreground `sleep` is blocked on this machine anyway.
     """
     start = time.monotonic()
-    previous, frames, noise = None, 0, 0.0
+    seen: list[bytes] = []
+    noise = 0.0
+    settled_at: int | None = None
     while True:
         _capture(path, region)
-        frames += 1
         current = _fingerprint(path)
+        seen.append(current)
         waited = time.monotonic() - start
-        if previous is not None:
-            delta = _frame_delta(previous, current)
+        if len(seen) >= 2:
+            delta = _frame_delta(seen[-2], current)
             noise = delta["percent"]
             if (delta["strong_cells"] <= STRONG_CELLS_STABLE
                     and noise <= STABLE_CHANGED_PCT):
-                # The delta between the two frames that finally agreed IS the
-                # live noise floor for this exact rectangle -- a blinking cursor,
-                # a ticking clock. Reporting it lets the verdict adapt instead of
-                # trusting one constant for a 360px dialog and a 1920px desktop.
-                return {"settled": True, "frames": frames, "noise_percent": noise,
-                        "waited_seconds": round(waited, 2), "fingerprint": current}
-        previous = current
-        if waited >= max_wait:
-            return {"settled": False, "frames": frames, "noise_percent": noise,
+                settled_at = len(seen)
+        # Keep sampling past the first agreement, up to SETTLE_MIN_FRAMES, so
+        # there is enough of a window to see what moves on its own. Two frames
+        # 120ms apart cannot tell a caret from a keystroke.
+        if settled_at is not None and len(seen) >= SETTLE_MIN_FRAMES:
+            # The delta between the frames that agreed IS the live noise floor
+            # for this exact rectangle. Reporting it lets the verdict adapt
+            # instead of trusting one constant for a dialog and a whole desktop.
+            return {"settled": True, "frames": len(seen), "noise_percent": noise,
                     "waited_seconds": round(waited, 2), "fingerprint": current,
-                    "detail": "still changing when time ran out; the image is the last frame"}
+                    "ambient": _ambient_cells(seen)}
+        if waited >= max_wait:
+            return {"settled": settled_at is not None, "frames": len(seen),
+                    "noise_percent": noise, "waited_seconds": round(waited, 2),
+                    "fingerprint": current, "ambient": _ambient_cells(seen),
+                    "detail": None if settled_at is not None else
+                    "still changing when time ran out; the image is the last frame"}
         time.sleep(SETTLE_POLL_S)
 
 
@@ -1201,8 +1297,38 @@ class _Look:
     __slots__ = ("mode", "region", "window", "before")
 
     def __init__(self, mode: Any, region: tuple | None, window: dict | None,
-                 before: bytes | None):
+                 before: list[bytes] | None):
         self.mode, self.region, self.window, self.before = mode, region, window, before
+
+
+def _baseline(path: Path, region: tuple[int, int, int, int] | None,
+              gap: float = 0.12, frames: int = 2) -> list[bytes]:
+    """Two frames of "before", a moment apart.
+
+    One frame is not a baseline on a screen with anything blinking in it.
+    gnome-calculator's entry has a caret, and a single-frame baseline reported a
+    change 6 times out of 6 on a completely idle window: 5-11 strong cells,
+    peaking at 207/255, purely from the caret being on in one frame and off in
+    the other. Comparing against both frames and taking the smaller difference
+    costs one extra capture -- 50ms for a window -- and makes a blink invisible
+    while leaving real changes untouched.
+    """
+    out = []
+    for index in range(max(2, frames)):
+        if index:
+            time.sleep(gap)
+        _capture(path, region)
+        out.append(_fingerprint(path))
+    return out
+
+
+def _least_change(baseline: list[bytes], current: bytes,
+                  ignore: set[int] | None = None) -> dict:
+    """How different `current` is from the baseline frame it resembles most."""
+    deltas = [_frame_delta(b, current, ignore) for b in baseline if b]
+    if not deltas:
+        return {"percent": 0.0, "strong_cells": 0, "max_delta": 0}
+    return min(deltas, key=lambda d: (d["strong_cells"], d["percent"]))
 
 
 def _look_before(a: dict, hint_window: dict | None = None,
@@ -1218,8 +1344,7 @@ def _look_before(a: dict, hint_window: dict | None = None,
         return _Look(False, None, None, None)
     try:
         path, _ = _shot_path({})
-        _capture(path, region)
-        return _Look(mode, region, window, _fingerprint(path))
+        return _Look(mode, region, window, _baseline(path, region))
     except Exception:
         # Never let the measurement break the action it is measuring.
         return _Look(mode, region, window, None)
@@ -1241,6 +1366,7 @@ def _look(a: dict, result: dict, prepared: _Look) -> dict:
     path, _ = _shot_path({})
     settle = _settle(path, region, float(a.get("settle_max_s") or SETTLE_MAX_S))
     after = settle.pop("fingerprint")
+    ambient = settle.pop("ambient", None) or set()
 
     view: dict[str, Any] = {"of": (window["wm_class"] if window else "whole screen"),
                             "settled": settle["settled"],
@@ -1248,15 +1374,15 @@ def _look(a: dict, result: dict, prepared: _Look) -> dict:
                             "waited_seconds": settle["waited_seconds"]}
     if settle.get("detail"):
         view["detail"] = settle["detail"]
+    if ambient:
+        view["moving_on_its_own"] = len(ambient)
 
     landed = None
-    if before is not None:
-        delta = _frame_delta(before, after)
+    if before:
         floor = max(CHANGE_FLOOR_PCT, 2 * settle.get("noise_percent", 0.0))
-        landed = _is_change(delta, floor)
-        view["changed"] = {"percent": delta["percent"],
-                           "strong_cells": delta["strong_cells"],
-                           "max_delta": delta["max_delta"]}
+        delta = _changed_since(before, after, ambient, floor)
+        landed = delta.pop("landed")
+        view["changed"] = delta
         view["verdict"] = (
             "the screen changed, so this landed on something"
             if landed else
@@ -1538,9 +1664,8 @@ def tool_screencast(a: dict) -> dict:
     return result
 
 
-def tool_frames(a: dict) -> dict:
-    """Contact sheet + motion measurement for a recording. See frames.py."""
-    path = Path(os.path.expanduser(str(a.get("path") or ""))).absolute()
+def _frames_once(a: dict, raw: Any) -> dict:
+    path = Path(os.path.expanduser(str(raw or ""))).absolute()
     if not path.exists():
         raise ToolError(f"{path} does not exist")
     if path.suffix.lower() not in (".mp4", ".mkv", ".webm", ".mov"):
@@ -1566,6 +1691,60 @@ def tool_frames(a: dict) -> dict:
         raise ToolError("frame extraction failed: "
                         f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
     return json.loads(proc.stdout)
+
+
+def tool_frames(a: dict) -> dict:
+    """Contact sheet + motion measurement for a recording. See frames.py.
+
+    The sheet comes back inline for the same reason screenshots do: it existed
+    to be looked at, and returning a path meant a second round trip to Read it.
+    `compare` stacks a second recording underneath the first, which is what a
+    before/after actually needs -- two calls and two Reads used to mean judging
+    two images that were never on screen together.
+    """
+    result = _frames_once(a, a.get("path"))
+    sheet = result.get("contact_sheet") or result.get("sheet")
+
+    other = a.get("compare")
+    if other:
+        second = _frames_once(a, other)
+        result = {"first": result, "second": second}
+        sheet2 = second.get("contact_sheet") or second.get("sheet")
+        if sheet and sheet2:
+            try:
+                sheet = _stack_sheets(Path(sheet), Path(sheet2))
+                result["compared_sheet"] = str(sheet)
+            except Exception as e:                          # pragma: no cover
+                result["compare_note"] = f"could not stack the two sheets: {e}"
+
+    if sheet and a.get("inline", True):
+        _attach_inline(result, Path(sheet), a)
+    return result
+
+
+def _stack_sheets(top: Path, bottom: Path) -> Path:
+    """Two contact sheets in one image, first above second, same width."""
+    Image, ImageDraw = _pillow()
+    with Image.open(top) as a_img, Image.open(bottom) as b_img:
+        a_rgb, b_rgb = a_img.convert("RGB"), b_img.convert("RGB")
+        width = max(a_rgb.width, b_rgb.width)
+        if b_rgb.width != width:
+            b_rgb = b_rgb.resize((width, int(b_rgb.height * width / b_rgb.width)),
+                                 Image.LANCZOS)
+        if a_rgb.width != width:
+            a_rgb = a_rgb.resize((width, int(a_rgb.height * width / a_rgb.width)),
+                                 Image.LANCZOS)
+        gap = 28
+        out = Image.new("RGB", (width, a_rgb.height + b_rgb.height + gap * 2), "black")
+        out.paste(a_rgb, (0, gap))
+        out.paste(b_rgb, (0, a_rgb.height + gap * 2))
+        draw = ImageDraw.Draw(out)
+        font = _label_font(18)
+        draw.text((8, 4), "FIRST", fill="white", font=font)
+        draw.text((8, a_rgb.height + gap + 4), "SECOND", fill="white", font=font)
+        target = top.with_name(f"{top.parent.name}-vs-{bottom.parent.name}.png")
+        out.save(target)
+    return target
 
 
 def tool_activate_window(a: dict) -> dict:
@@ -2298,8 +2477,11 @@ def tool_region_changed(a: dict) -> dict:
 
     region, window = _screenshot_region(a)
     path, _ = _shot_path({})
-    _capture(path, region)
-    baseline = _fingerprint(path)
+    # A waiting tool can afford a proper look at what is already moving: four
+    # frames over about half a second, and anything that toggles between them is
+    # a caret or a spinner rather than the event being waited for.
+    baseline = _baseline(path, region, gap=max(0.12, min(poll, 0.2)), frames=4)
+    ambient = _ambient_cells(baseline)
 
     start = time.monotonic()
     polls, best = 1, {"percent": 0.0, "strong_cells": 0, "max_delta": 0}
@@ -2310,15 +2492,17 @@ def tool_region_changed(a: dict) -> dict:
                     "polls": polls, "largest_change_seen": best,
                     "watched": (window["wm_class"] if window else
                                 list(region) if region else "whole screen"),
+                    "moving_on_its_own": len(ambient),
                     "detail": "nothing changed before the timeout; nothing was altered "
                               "by waiting"}
         time.sleep(poll)
         _capture(path, region)
         polls += 1
-        delta = _frame_delta(baseline, _fingerprint(path))
+        delta = _changed_since(baseline, _fingerprint(path), ambient)
+        landed = delta.pop("landed")
         if delta["strong_cells"] > best["strong_cells"]:
             best = delta
-        if _is_change(delta):
+        if landed:
             result = {"changed": True, "waited_seconds": round(time.monotonic() - start, 2),
                       "polls": polls, "change": delta,
                       "watched": (window["wm_class"] if window else
@@ -2601,24 +2785,38 @@ _LOOK_AT_SCHEMA = {
 TOOLS: list[dict] = [
     {
         "name": "list_windows",
-        "description": "Every open window with id, wm_class, title, geometry, and "
+        "description": "Every open window with id, wm_class, title, geometry, pid and "
                        "which one has focus. Start here: ids from this list are what "
-                       "type_text and press_keys target.",
+                       "type_text and press_keys target (ids change when a dialog is "
+                       "recreated -- a wm_class or title fragment does not). "
+                       "HOW TO DRIVE THIS DESKTOP, because the round trip is the "
+                       "expensive part and the actions are milliseconds: (1) ui_find "
+                       "then ui_press where the app has an accessibility tree -- it "
+                       "cannot miss; (2) find_text for Chrome, Electron and Qt, which "
+                       "expose almost nothing; (3) do_steps when you already know the "
+                       "next few actions, instead of one call each; (4) let the acting "
+                       "tool show you the result rather than following it with a "
+                       "screenshot -- they all do now. A screenshot of the whole "
+                       "screen is the last resort, not the first move.",
         "inputSchema": {"type": "object", "properties": {}},
         "handler": tool_list_windows,
         "annotations": {"readOnlyHint": True},
     },
     {
         "name": "screenshot",
-        "description": "Capture the screen, one window, or one rectangle to a PNG "
-                       "and verify it really is a PNG with real dimensions. Goes "
-                       "through the gnome-shell extension because the compositor "
-                       "refuses screenshots to ordinary clients and grim never works "
-                       "on GNOME. `annotate` draws the coordinate system onto the "
-                       "image -- grid lines, window boxes, and optionally every "
-                       "pressable widget -- all labelled in SCREEN coordinates, so "
-                       "the number to pass to pointer_click can be read straight off "
-                       "the picture instead of estimated from proportions.",
+        "description": "Look at the screen, one window, or one rectangle. The image "
+                       "comes back in this reply -- there is nothing to Read "
+                       "afterwards. CROP, DO NOT SHRINK: `window` costs about 1300 "
+                       "tokens and a `region` strip about 160, against 1843 for the "
+                       "whole desktop, and all three stay legible, while `scale` "
+                       "below 1 makes small text unreadable for a saving a crop "
+                       "would have made anyway. Passing `window` AND `region` means "
+                       "a rectangle measured inside that window. `annotate` draws "
+                       "grid lines and window boxes labelled in SCREEN coordinates, "
+                       "so the number to pass to pointer_click can be read off the "
+                       "picture instead of estimated. Before reaching for this at "
+                       "all: ui_find and find_text answer \"where is X\" without an "
+                       "image, and every acting tool already shows you the result.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -2638,10 +2836,17 @@ TOOLS: list[dict] = [
                                    "height": {"type": "integer"}},
                 },
                 "scale": {"type": "number", "default": 1.0, "minimum": 0.05,
-                          "maximum": 1.0,
-                          "description": "Shrink the written image. 0.4 is usually "
-                                         "enough to read a layout at a quarter of "
-                                         "the tokens."},
+                          "maximum": 4.0,
+                          "description": "Resize the image you are shown. Below 1 it "
+                                         "shrinks -- measured on this 1920x1080 "
+                                         "screen, 0.5 makes UI text hard to read and "
+                                         "OCR fails on it entirely, so crop instead. "
+                                         "Above 1 it enlarges, which is what a tiny "
+                                         "crop of an icon needs."},
+                "inline": {"type": "boolean", "default": True,
+                           "description": "Set false to only write the PNG and get "
+                                          "its path back, for a capture nobody needs "
+                                          "to look at now."},
                 "annotate": {
                     "description": "true for grid + window boxes, or an object: "
                                    "{grid: true|<spacing px>, windows: bool, "
@@ -2681,7 +2886,11 @@ TOOLS: list[dict] = [
     },
     {
         "name": "pointer_click",
-        "description": "Click at an absolute screen position, and report whether the "
+        "description": "Click at an absolute screen position. Reports whether it "
+                       "LANDED on anything -- the screen is compared before and "
+                       "after, so a click into dead space says so instead of looking "
+                       "exactly like one that worked -- and shows you the result "
+                       "without a separate screenshot. Also reports whether the "
                        "keyboard moved as a result. PASS expect_window: the click is "
                        "refused if something else is under that point, which is the "
                        "difference between a missed click and a click in someone "
@@ -2950,6 +3159,10 @@ TOOLS: list[dict] = [
             "type": "object",
             "properties": {
                 "path": _s("The video to read, e.g. /tmp/cast.mp4"),
+                "compare": _s("A second video. Its sheet is stacked underneath the "
+                              "first in ONE image, which is what a before/after "
+                              "needs -- two separate sheets are never on screen "
+                              "together to be compared."),
                 "outdir": _s("Where to write the sheet; defaults to "
                              "<video>-frames next to the video"),
                 "cols": {"type": "integer", "default": 4, "minimum": 1,
@@ -3121,7 +3334,8 @@ TOOLS: list[dict] = [
     },
     {
         "name": "press_keys",
-        "description": "Send a key combination to a named window, e.g. ctrl+s. Focus "
+        "description": "Send a key combination to a named window, e.g. ctrl+s. Chain "
+                       "several with do_steps rather than one call each. Focus "
                        "is confirmed first. Ctrl+Alt+F1-F12 is refused: it switches "
                        "virtual terminal and looks exactly like a frozen machine.",
         "inputSchema": {

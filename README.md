@@ -90,10 +90,45 @@ remembering a script path.
 
 ```bash
 ./mcp_server.py --self-test            # prove every capability, print a report
+./tests/test_look.py                   # prove it SHOWS you things, and hit != miss
 ./tests/test_e2e_real_task.py          # drive a real task through the protocol
 ./tests/test_pointer.py                # prove the pointer lands where it is told
 ./tests/test_screencast.py             # prove a recording is a real recording
+./tests/mcpdrv.py tools                # speak MCP to a fresh server, from a shell
 ```
+
+`tests/mcpdrv.py` matters more than it looks: the server Claude Code is holding
+open is whatever was on disk when the session started, so without it no change
+here is observable until a restart.
+
+### The round trip is the cost, not the work
+
+Measured from real session transcripts on this machine, 2026-08-22:
+
+| | |
+|---|---|
+| a screenshot capture | **0.23 s** |
+| the same screenshot, then a `Read` of the PNG, then the next action | **14.0 s** (median, n=28) |
+| a tool that returns its image inline, then the next action | **7.9 s** (median, n=37) |
+| screenshots followed by a `Read` in one 102-minute session | **61 of 62** |
+| assistant messages in two long sessions containing more than one tool call | **0 of 1052** |
+
+Everything in this server that looks like a convenience is really that table.
+Images come back **inside the reply**; acting tools **show you the result**
+instead of making you ask; `do_steps` runs a known sequence in one call; and
+`find_text` and `region_changed` answer questions that were previously answered
+by taking a picture and looking at it.
+
+Two things that are NOT true and were assumed to be:
+
+* **`scale` is not a cheap way to look at the screen.** Measured on this
+  1920x1080 display, a full capture reduced to 960x540 loses small UI text
+  entirely — OCR reads 0 words against 106 at 1568px, and a human reading it
+  struggles. Crop instead: a window is ~1300 tokens and a 1200x100 strip is 160,
+  against 1843 for the whole desktop, and all of them stay legible.
+* **"percent of pixels changed" cannot tell a hit from a miss.** A real button
+  press moves 0.05% of a window. What separates them is contrast: a miss moves
+  0 cells by more than 60/255, the smallest real press moves 22.
 
 The ordering below is the ordering you should prefer:
 
@@ -107,7 +142,10 @@ The ordering below is the ordering you should prefer:
 | `window_at` | What a click at a point would hit, *before* clicking it. |
 | `pointer_click`, `pointer_move`, `pointer_drag`, `pointer_scroll` | Real pointer input at absolute screen coordinates. Pass `expect_window` and a click that would land elsewhere is refused. |
 | `pointer_position` | Where the pointer is, or an honest statement that only the last set position is known. |
+| `find_text` | **Where a visible string is, in screen coordinates.** OCR. This is the answer for Chrome, Electron and Qt, which expose almost nothing to `ui_find`. ~0.3 s for a window, and no image in the transcript. |
 | `wait_for` | Wait for `window_exists` / `window_gone` / `window_focused` / `focus_changes` instead of sleeping a guessed number of seconds. |
+| `region_changed` | Wait for *pixels* to change — a reply arriving, a spinner finishing — for the things `wait_for` cannot express. |
+| `do_steps` | A known sequence of actions in ONE call, with one picture at the end or at the step that failed. |
 | `list_windows`, `activate_window`, `screenshot` | Extension-backed. Unavailable while the screen is locked. |
 | `screencast`, `frames` | For anything that moves. Stills cannot show motion. |
 | `type_text`, `press_keys` | Compositor keysyms by default, focus proven first, `ydotool` only as a fallback. |
@@ -126,10 +164,38 @@ Three ways to turn "click that button" into a number, best first:
 1. `ui_press` — do not click at all. Press the widget.
 2. `screen_map` — the widget list already carries `click_at` coordinates taken
    from the accessibility tree, so no measuring off an image.
-3. `screenshot` with `annotate` — draws the grid, the window boxes and the
+3. `find_text` — OCR, returning `click_at` in screen coordinates. Slower than
+   the tree and blind to icon-only buttons, but it reads Chrome, Electron and
+   Qt, where the tree is empty.
+4. `screenshot` with `annotate` — draws the grid, the window boxes and the
    widget boxes onto the picture, labelled in **screen** coordinates, so the
    number to click can be read off the image rather than estimated from
-   proportions. Combine with `scale` to keep it cheap.
+   proportions. Crop it with `window` or `region`; do not shrink it with
+   `scale`.
+
+Whatever you clicked with, the click tells you whether it landed: the screen is
+compared before and after, and a click into dead space says so instead of
+looking exactly like one that worked.
+
+### Chrome and Electron are opaque, and there is a flag for it
+
+Measured 2026-08-22, same binary, same moment, one tab each:
+
+| | AT-SPI nodes | actionable |
+|---|---|---|
+| Chrome, as it launches today | 7 | **3** |
+| Chrome with `--force-renderer-accessibility` | 238 | **238** |
+
+With the flag the whole page is exposed with real screen bounds — headings,
+links, the omnibox as a readable `entry` — so `ui_find` and `ui_press` work on
+web content and `type_text` can verify itself. The cost measured on the same
+page was 344.6 MB of renderer RSS against 338.4 MB, about 2%, and no idle CPU
+difference. The same flag applies to Electron applications.
+
+This is not enabled anywhere by default: it changes how a browser launches, and
+for web work `claude-in-chrome` is a better tool than the accessibility tree
+anyway. It is written down because "Chrome exposes nothing" was treated as a
+property of Chrome for months, and it is a property of one flag.
 
 Then click with `expect_window`. The click is refused if the compositor would
 deliver it to a different window, which is the difference between a missed
