@@ -258,8 +258,12 @@ def _resolve_target(target: Any) -> dict:
             if w["id"] == wanted:
                 return w
         raise ToolError(
-            f"no window with id {wanted}. Open windows: "
-            + ", ".join(f'{w["id"]} ({w["wm_class"]})' for w in windows)
+            f"no window with id {wanted}. Window ids are not stable: a dialog "
+            "that is closed and reopened -- a file chooser, a save prompt -- comes "
+            "back with a new one, so an id read a few calls ago can already be "
+            "dead. Pass a wm_class or a title fragment instead, which survives it. "
+            "Open windows: "
+            + ", ".join(f'{w["id"]} {w["wm_class"]!r} {w["title"]!r}' for w in windows)
         )
 
     if not isinstance(target, str) or not target.strip():
@@ -1090,8 +1094,22 @@ def _frame_delta(before: bytes, after: bytes) -> dict:
 
 def _frame_change(before: bytes, after: bytes) -> float:
     """Percent of cells that moved more than sensor noise. Kept for callers that
-    only want the one number (region_changed, the settle loop's noise figure)."""
+    only want the one number (the settle loop's noise figure)."""
     return _frame_delta(before, after)["percent"]
+
+
+def _is_change(delta: dict, floor_percent: float = CHANGE_FLOOR_PCT) -> bool:
+    """Whether two frames differ because something HAPPENED.
+
+    The area test needs the contrast test beside it. A click that moved focus
+    repainted 2.6% of a window with a peak difference of 17/255 -- a shadow and
+    a focus ring, nothing a caller would call a change -- and an area-only rule
+    reported it as one. Real content has contrast: the smallest genuine button
+    press measured here peaks at 173.
+    """
+    if delta["strong_cells"] >= STRONG_CELLS_CHANGED:
+        return True
+    return delta["percent"] > max(floor_percent, 1.0) and delta["max_delta"] > 40
 
 
 def _settle(path: Path, region: tuple[int, int, int, int] | None,
@@ -1235,8 +1253,7 @@ def _look(a: dict, result: dict, prepared: _Look) -> dict:
     if before is not None:
         delta = _frame_delta(before, after)
         floor = max(CHANGE_FLOOR_PCT, 2 * settle.get("noise_percent", 0.0))
-        landed = (delta["strong_cells"] >= STRONG_CELLS_CHANGED
-                  or delta["percent"] > floor)
+        landed = _is_change(delta, floor)
         view["changed"] = {"percent": delta["percent"],
                            "strong_cells": delta["strong_cells"],
                            "max_delta": delta["max_delta"]}
@@ -1586,11 +1603,14 @@ def tool_ui_tree(a: dict) -> dict:
 
 def tool_ui_find(a: dict) -> dict:
     text = str(a.get("text") or "")
-    if not text:
-        raise ToolError("text is required")
     role = a.get("role")
     depth = int(a.get("depth") or DEFAULT_FIND_DEPTH)
     actionable_only = bool(a.get("actionable_only", False))
+    if not text and not role and not actionable_only:
+        raise ToolError(
+            "give text, or role, or actionable_only:true. Without any of them this "
+            "would dump the whole tree -- use ui_tree for that."
+        )
 
     roots = [_find_app(str(a["app"]))] if a.get("app") else None
     if roots is None:
@@ -1601,23 +1621,46 @@ def tool_ui_find(a: dict) -> dict:
 
     needle = text.lower()
     hits: list[dict] = []
+    unreachable: list[str] = []
     for root in roots:
+        # One AppArmor-confined snap used to end the whole scan: hitting
+        # snap.telegram-desktop raised out of the loop and ui_find returned
+        # nothing at all, from every other application as well. An app that
+        # cannot be read is a gap in the answer, not the end of it.
+        try:
+            name = root.get_name() or "<unnamed application>"
+        except Exception:
+            name = "<application that would not identify itself>"
         collected: list[dict] = []
-        _walk(root, root.get_name(), 0, depth, collected, cap=MAX_FIND_NODES)
+        try:
+            _walk(root, name, 0, depth, collected, cap=MAX_FIND_NODES)
+        except Exception as e:
+            unreachable.append(f"{name}: {str(e).strip()[:120] or type(e).__name__}")
+            continue
         for node in collected:
-            if needle not in node["name"].lower() and needle not in node["path"].lower():
+            if needle and needle not in node["name"].lower() \
+                    and needle not in node["path"].lower():
                 continue
             if role and node["role"] != role:
                 continue
             if actionable_only and not node.get("actions"):
                 continue
             hits.append(node)
-    return {
-        "query": text, "matches": len(hits), "results": hits[:40],
+    out = {
+        "query": text or (role or "actionable widgets"),
+        "matches": len(hits), "results": hits[:40],
         "hint": ("pass the path plus expect_name or expect_role to ui_press; "
                  "pressing the real widget cannot miss, and paths go stale as soon "
                  "as the tree changes"),
     }
+    if unreachable:
+        out["unreachable_apps"] = unreachable
+        out["unreachable_note"] = (
+            "these applications refused to be read (AppArmor-confined snaps do "
+            "this) and were skipped; anything inside them is not in these results. "
+            "find_text reads them from the pixels instead."
+        )
+    return out
 
 
 def tool_ui_press(a: dict) -> dict:
@@ -2081,6 +2124,365 @@ def tool_wait_for(a: dict) -> dict:
         time.sleep(0.15)
 
 
+# =========================================================================
+# reading the screen without spending a picture on it
+# =========================================================================
+
+OCR_MIN_CONFIDENCE = 55
+OCR_PSM_REGION = 6          # "one uniform block" -- a window or a toolbar
+OCR_PSM_SCREEN = 11         # "sparse text" -- a whole desktop of separate widgets
+OCR_UPSCALE_UNDER = 700     # px on the long edge; below this, OCR needs help
+
+
+def tool_find_text(a: dict) -> dict:
+    """Where a piece of visible text is, in screen coordinates.
+
+    AT-SPI is the right answer and is tried first everywhere else in this file,
+    but Chrome exposes three actionable nodes for an entire browser, Electron
+    two, and Telegram's Qt tree is unreachable behind AppArmor. For those, the
+    only thing that knows where the "Send" button is, is the picture -- and
+    finding it currently means a screenshot, an image Read, and arithmetic on a
+    scaled crop, which is 14 seconds and has put clicks 40px off.
+
+    This is that loop, done here: about 1.5s and no image in the transcript.
+    """
+    needle = str(a.get("text") or "").strip()
+    if not needle:
+        raise ToolError("text is required: the visible string to look for")
+    if not shutil.which("tesseract"):
+        raise ToolError("this needs tesseract (tesseract-ocr) and it is not installed")
+
+    region, window = _screenshot_region(a)
+    path, _ = _shot_path({})
+    _capture(path, region)
+    origin = (region[0], region[1]) if region else (0, 0)
+
+    # Measured 2026-08-22: on a 360x616 window psm 6 reads 35 words against psm
+    # 11's 16; on the whole 1920x1080 desktop psm 6 reads 290 and MISSES the
+    # calculator entirely while psm 11 reads 309 and finds it. One block of text
+    # is what a window is and what a desktop is not.
+    default_psm = OCR_PSM_REGION if region else OCR_PSM_SCREEN
+    words, scale = _ocr_words(path, int(a.get("min_confidence") or OCR_MIN_CONFIDENCE),
+                              int(a.get("psm") or default_psm))
+    matches = _match_phrase(words, needle, bool(a.get("exact")))
+
+    results = []
+    for m in matches:
+        x = origin[0] + m["x"] / scale
+        y = origin[1] + m["y"] / scale
+        w, h = m["width"] / scale, m["height"] / scale
+        results.append({
+            "text": m["text"],
+            "click_at": [round(x + w / 2), round(y + h / 2)],
+            "bounds": {"x": round(x), "y": round(y),
+                       "width": round(w), "height": round(h)},
+            "confidence": m["confidence"],
+        })
+    results.sort(key=lambda r: (-r["confidence"], r["bounds"]["y"]))
+    limit = int(a.get("limit") or 10)
+
+    out: dict[str, Any] = {
+        "query": needle,
+        "matches": len(results),
+        "results": results[:limit],
+        "searched": ({"window": window["wm_class"]} if window else
+                     {"region": list(region)} if region else {"screen": True}),
+        "words_read": len(words),
+    }
+    if not results:
+        out["detail"] = (
+            f"{len(words)} words were read and none matched {needle!r}. OCR misses "
+            "icon-only buttons and low-contrast text entirely; try ui_find if the "
+            "app has an accessibility tree, or take a picture and look."
+        )
+    return out
+
+
+def _ocr_words(path: Path, min_confidence: int,
+               psm: int = OCR_PSM_REGION) -> tuple[list[dict], float]:
+    """Every legible word with its box, plus the factor its coordinates are in.
+
+    Small captures are upscaled first: tesseract wants roughly 300dpi text and
+    UI text at 1:1 is closer to 96, so a 360px-wide dialog reads as noise until
+    it is enlarged. Measured on this machine: a full 1920x1080 screen is 3.7s,
+    half of one is 1.6s.
+    """
+    Image, _ = _pillow()
+    scale = 1.0
+    source = path
+    with Image.open(path) as img:
+        if max(img.size) < OCR_UPSCALE_UNDER:
+            scale = 2.0
+            source = path.with_name(f".{path.name}.ocr.png")
+            img.convert("RGB").resize((int(img.width * scale), int(img.height * scale)),
+                                      Image.LANCZOS).save(source)
+    try:
+        # psm 6 -- "one uniform block of text" -- rather than the default 3.
+        # Measured on a calculator window: psm 3 reads 9 words, psm 6 reads 35.
+        # Page segmentation is looking for paragraphs and columns, and a toolbar
+        # is neither, so it discards most of the interface as non-text.
+        proc = subprocess.run(["tesseract", str(source), "stdout",
+                               "--psm", str(psm), "tsv"],
+                              capture_output=True, text=True, timeout=60)
+    except subprocess.TimeoutExpired:
+        raise ToolError("tesseract did not finish within 60s") from None
+    finally:
+        if source is not path:
+            source.unlink(missing_ok=True)
+    if proc.returncode != 0:
+        raise ToolError(f"tesseract failed: {(proc.stderr or '').strip()[:300]}")
+
+    words = []
+    for line in proc.stdout.splitlines()[1:]:
+        cells = line.split("\t")
+        if len(cells) < 12 or not cells[11].strip():
+            continue
+        try:
+            confidence = float(cells[10])
+        except ValueError:
+            continue
+        if confidence < min_confidence:
+            continue
+        words.append({"text": cells[11], "confidence": round(confidence),
+                      "line": tuple(cells[1:5]),
+                      "x": int(cells[6]), "y": int(cells[7]),
+                      "width": int(cells[8]), "height": int(cells[9])})
+    return words, scale
+
+
+def _match_phrase(words: list[dict], needle: str, exact: bool) -> list[dict]:
+    """Single words, and runs of consecutive words on one line for phrases."""
+    wanted = needle if exact else needle.lower()
+
+    def norm(s: str) -> str:
+        return s if exact else s.lower()
+
+    hits = []
+    for word in words:
+        text = norm(word["text"])
+        if text == wanted or (not exact and wanted in text):
+            hits.append(dict(word))
+
+    if " " in needle:
+        parts = wanted.split()
+        for i in range(len(words) - len(parts) + 1):
+            run = words[i:i + len(parts)]
+            if any(w["line"] != run[0]["line"] for w in run):
+                continue
+            if [norm(w["text"]) for w in run] != parts:
+                continue
+            left = min(w["x"] for w in run)
+            top = min(w["y"] for w in run)
+            hits.append({
+                "text": " ".join(w["text"] for w in run),
+                "confidence": round(sum(w["confidence"] for w in run) / len(run)),
+                "x": left, "y": top,
+                "width": max(w["x"] + w["width"] for w in run) - left,
+                "height": max(w["y"] + w["height"] for w in run) - top,
+            })
+    return hits
+
+
+def tool_region_changed(a: dict) -> dict:
+    """Wait until part of the screen changes, without spending a picture a poll.
+
+    `wait_for` watches windows appearing and focus moving; it has nothing to say
+    about a message arriving in a chat or a spinner finishing. That was polled
+    with blind screenshots -- three full captures plus three image Reads for one
+    15-second reply -- because there was no other way to ask.
+    """
+    timeout = float(a.get("timeout") or 10)
+    if not 0.2 <= timeout <= 300:
+        raise ToolError("timeout must be between 0.2 and 300 seconds")
+    poll = max(0.1, float(a.get("poll_seconds") or 0.3))
+
+    region, window = _screenshot_region(a)
+    path, _ = _shot_path({})
+    _capture(path, region)
+    baseline = _fingerprint(path)
+
+    start = time.monotonic()
+    polls, best = 1, {"percent": 0.0, "strong_cells": 0, "max_delta": 0}
+    while True:
+        waited = time.monotonic() - start
+        if waited >= timeout:
+            return {"changed": False, "waited_seconds": round(waited, 2),
+                    "polls": polls, "largest_change_seen": best,
+                    "watched": (window["wm_class"] if window else
+                                list(region) if region else "whole screen"),
+                    "detail": "nothing changed before the timeout; nothing was altered "
+                              "by waiting"}
+        time.sleep(poll)
+        _capture(path, region)
+        polls += 1
+        delta = _frame_delta(baseline, _fingerprint(path))
+        if delta["strong_cells"] > best["strong_cells"]:
+            best = delta
+        if _is_change(delta):
+            result = {"changed": True, "waited_seconds": round(time.monotonic() - start, 2),
+                      "polls": polls, "change": delta,
+                      "watched": (window["wm_class"] if window else
+                                  list(region) if region else "whole screen")}
+            if a.get("look", True) is not False:
+                _attach_inline(result, path, a)
+                shown = result.get("shown")
+                if isinstance(shown, dict):
+                    origin = (region[0], region[1]) if region else (0, 0)
+                    result["coordinate_note"] = _coordinate_note(
+                        shown["dimensions"], _png_dimensions(path), origin)
+            return result
+
+
+DO_STEPS_MAX = 24
+
+# Verb -> (handler, required keys). Every one of these is an existing tool: a
+# step is not a new capability, it is the same call without its own round trip.
+_STEP_VERBS: dict[str, tuple[str, tuple[str, ...]]] = {
+    "activate": ("activate_window", ("target",)),
+    "click":    ("pointer_click", ()),
+    "move":     ("pointer_move", ()),
+    "drag":     ("pointer_drag", ()),
+    "scroll":   ("pointer_scroll", ()),
+    "type":     ("type_text", ("target", "text")),
+    "key":      ("press_keys", ("target", "combo")),
+    "press":    ("ui_press", ("path",)),
+    "set_text": ("ui_set_text", ("path",)),
+    "wait":     ("wait_for", ("condition",)),
+}
+
+
+def tool_do_steps(a: dict) -> dict:
+    """Run several actions in one call, and look once at the end.
+
+    Every action in a UI sequence used to cost its own model round trip, and the
+    round trip is the expensive part -- median 7.9s against 0.23s of actual
+    work. Typing into a dialog and confirming it was type_text, press_keys,
+    screenshot, Read: four turns, about 35 seconds, for two keystrokes.
+
+    Steps run with their own `look` forced off; the picture is taken once, after
+    the last one, when it is the only picture anybody wanted.
+    """
+    steps = a.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise ToolError('steps must be a non-empty list, e.g. '
+                        '[{"do":"click","x":100,"y":200},{"do":"key","target":"gedit",'
+                        '"combo":"ctrl+s"}]')
+    if len(steps) > DO_STEPS_MAX:
+        raise ToolError(f"{len(steps)} steps is more than the {DO_STEPS_MAX} allowed "
+                        "in one call; a sequence that long should be checked partway")
+
+    stop_on_error = a.get("stop_on_error", True)
+    done: list[dict] = []
+    failed_at: int | None = None
+    last_window: dict | None = None
+
+    # The "before" has to be taken before the first step, not after the last
+    # one, or the change figure measures nothing. Scope it to whatever the first
+    # step names; if the sequence ends up somewhere else, the figure is dropped
+    # rather than quietly reported against the wrong rectangle.
+    first_hint = None
+    for step in steps:
+        if isinstance(step, dict) and step.get("target") is not None:
+            try:
+                first_hint = _resolve_target(step["target"])
+            except ToolError:
+                first_hint = None
+            break
+    first_point = None
+    for step in steps:
+        if isinstance(step, dict) and step.get("x") is not None:
+            first_point = (float(step["x"]), float(step.get("y") or 0))
+            break
+    watching = _look_before(a, hint_window=first_hint, point=first_point)
+
+    for index, step in enumerate(steps):
+        if not isinstance(step, dict):
+            raise ToolError(f"step {index} is not an object")
+        verb = str(step.get("do") or "").strip().lower()
+        if verb == "wait_ms":
+            verb = "sleep"
+        if verb == "sleep":
+            millis = int(step.get("ms") or step.get("wait_ms") or 200)
+            if not 0 < millis <= 10_000:
+                raise ToolError("sleep ms must be between 1 and 10000")
+            time.sleep(millis / 1000)
+            done.append({"step": index, "do": "sleep", "ok": True, "ms": millis})
+            continue
+
+        if verb not in _STEP_VERBS:
+            raise ToolError(f"step {index}: unknown do {verb!r}. Known: sleep, "
+                            + ", ".join(sorted(_STEP_VERBS)))
+        tool_name, required = _STEP_VERBS[verb]
+        missing = [k for k in required if step.get(k) is None]
+        if missing:
+            raise ToolError(f"step {index} ({verb}) needs {', '.join(missing)}")
+
+        args = {k: v for k, v in step.items() if k != "do"}
+        args["look"] = False            # one picture per call, not one per step
+        try:
+            out = HANDLERS[tool_name](args)
+            done.append({"step": index, "do": verb, "ok": True,
+                         "detail": _step_detail(out)})
+            if isinstance(out, dict) and isinstance(out.get("window"), dict):
+                last_window = out["window"]
+            elif step.get("target") is not None:
+                try:
+                    last_window = _resolve_target(step["target"])
+                except ToolError:
+                    pass
+            elif step.get("x") is not None:
+                try:
+                    hit = window_at(float(step["x"]), float(step.get("y") or 0))
+                    covering = hit.get("covering") or []
+                    picked = (hit.get("window") or {}).get("id")
+                    last_window = next((w for w in covering if w["id"] == picked),
+                                       covering[0] if covering else None)
+                except ToolError:
+                    pass
+        except ToolError as e:
+            done.append({"step": index, "do": verb, "ok": False, "error": str(e)})
+            failed_at = index
+            if stop_on_error:
+                break
+
+    result: dict[str, Any] = {
+        "steps_run": len(done),
+        "steps_given": len(steps),
+        "all_ok": failed_at is None and len(done) == len(steps),
+        "results": done,
+    }
+    if failed_at is not None:
+        result["failed_at_step"] = failed_at
+        result["detail"] = (f"step {failed_at} failed; "
+                            + ("the rest were skipped" if stop_on_error
+                               else "the rest still ran"))
+
+    # A failure is exactly when the picture is worth having, so force one.
+    look = dict(a)
+    if failed_at is not None and look.get("look", "auto") == "auto":
+        look["look"] = "window" if last_window else "screen"
+
+    if last_window and (not watching.window
+                        or watching.window.get("id") != last_window.get("id")):
+        # The sequence moved to a different window than the one measured at the
+        # start. Look at where it ended up, and say nothing about "changed".
+        watching = _Look(watching.mode if watching.mode is not False else "window",
+                         (last_window["x"], last_window["y"],
+                          last_window["width"], last_window["height"]),
+                         last_window, None)
+    return _look(look, result, watching)
+
+
+def _step_detail(out: Any) -> str:
+    if not isinstance(out, dict):
+        return str(out)[:160]
+    for key in ("detail", "verdict", "action", "combo"):
+        if out.get(key):
+            return str(out[key])[:160]
+    return json.dumps({k: v for k, v in out.items()
+                       if not k.startswith("_") and k != "look"})[:160]
+
+
 def tool_health(_: dict) -> dict:
     """Whether each mechanism is actually usable right now."""
     report: dict[str, Any] = {}
@@ -2168,6 +2570,34 @@ TARGET_SCHEMA = {
     "anyOf": [{"type": "integer"}, {"type": "string"}],
 }
 
+_LOOK_SCHEMA = {
+    "description": (
+        "What to show you afterwards. Default \"auto\": wait for the screen to "
+        "stop changing, measure how much this action changed, and attach a "
+        "picture of the affected window only if something did change -- so a "
+        "click that hit nothing costs no tokens and says so. \"window\" always "
+        "attaches it, \"screen\" uses the whole desktop (slower, 6x the tokens), "
+        "\"region\" uses look_at, false skips all of it. Use false for the middle "
+        "of a sequence you are going to check at the end anyway."),
+    "anyOf": [{"type": "string", "enum": ["auto", "window", "screen", "region", "none"]},
+              {"type": "boolean"}],
+    "default": "auto",
+}
+
+_SETTLE_SCHEMA = {
+    "type": "number", "default": SETTLE_MAX_S, "minimum": 0.0, "maximum": 20,
+    "description": "How long to wait for the screen to stop changing before "
+                   "looking. Raise it for an app that animates slowly; set it to "
+                   "0 to capture immediately.",
+}
+
+_LOOK_AT_SCHEMA = {
+    "type": "object",
+    "description": 'Rectangle for look:"region", in screen pixels.',
+    "properties": {"x": {"type": "integer"}, "y": {"type": "integer"},
+                   "width": {"type": "integer"}, "height": {"type": "integer"}},
+}
+
 TOOLS: list[dict] = [
     {
         "name": "list_windows",
@@ -2235,6 +2665,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "x": {"type": "number"}, "y": {"type": "number"},
                 "expect_window": {
                     "description": "Refuse the move if this window is not the one at "
@@ -2256,6 +2689,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "x": {"type": "number"}, "y": {"type": "number"},
                 "button": {"type": "string", "enum": ["left", "right", "middle",
                                                       "back", "forward"],
@@ -2281,6 +2717,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "from_x": {"type": "number"}, "from_y": {"type": "number"},
                 "to_x": {"type": "number"}, "to_y": {"type": "number"},
                 "button": {"type": "string", "default": "left"},
@@ -2298,6 +2737,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "x": {"type": "number"}, "y": {"type": "number"},
                 "dy": {"type": "integer", "default": 0},
                 "dx": {"type": "integer", "default": 0},
@@ -2373,6 +2815,101 @@ TOOLS: list[dict] = [
         "annotations": {"readOnlyHint": True},
     },
     {
+        "name": "find_text",
+        "description": "Where a visible piece of text is on screen, in coordinates you "
+                       "can click. Reads the pixels with OCR, so it works in Chrome, "
+                       "Electron and Qt apps, which expose almost nothing to ui_find. "
+                       "Try ui_find FIRST -- pressing a real widget cannot miss -- and "
+                       "come here when it returns nothing. About 1.5s for a window; "
+                       "cheaper and more exact than taking a picture and estimating. "
+                       "Blind to icon-only buttons: there is no text in them to read.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": _s("The visible string to find. A phrase is matched across "
+                           "consecutive words on one line."),
+                "window": {
+                    "description": "Search inside this window only (id, wm_class or "
+                                   "title fragment). Much faster and far fewer false "
+                                   "matches than the whole screen.",
+                    "anyOf": [{"type": "integer"}, {"type": "string"}],
+                },
+                "region": _LOOK_AT_SCHEMA,
+                "exact": {"type": "boolean", "default": False,
+                          "description": "Whole word, case sensitive."},
+                "min_confidence": {"type": "integer", "default": OCR_MIN_CONFIDENCE,
+                                   "minimum": 0, "maximum": 100},
+                "psm": {"type": "integer", "minimum": 0,
+                        "maximum": 13,
+                        "description": "tesseract page segmentation mode. Defaults "
+                                       "to 6 inside a window and 11 for the whole "
+                                       "screen, which is what measured best for each."},
+                "limit": {"type": "integer", "default": 10},
+            },
+            "required": ["text"],
+        },
+        "handler": tool_find_text,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "region_changed",
+        "description": "Wait until a window or rectangle CHANGES, then show it. For "
+                       "anything wait_for cannot express: a reply arriving, a spinner "
+                       "finishing, a download completing. Polls pixels here instead of "
+                       "making you take blind screenshots and look at each one, and "
+                       "returns as soon as it changes.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "region": _LOOK_AT_SCHEMA,
+                "timeout": {"type": "number", "default": 10, "minimum": 0.2,
+                            "maximum": 300},
+                "poll_seconds": {"type": "number", "default": 0.3, "minimum": 0.1},
+                "look": {"type": "boolean", "default": True,
+                         "description": "Attach the picture once it changes."},
+            },
+        },
+        "handler": tool_region_changed,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "do_steps",
+        "description": "Run a short sequence of actions in ONE call and look once at "
+                       "the end. Every separate tool call costs a model round trip of "
+                       "several seconds while the action itself takes milliseconds, so "
+                       "a known sequence -- activate, click, type, press Return, see "
+                       "the result -- belongs here rather than in four calls. Steps run "
+                       "with their own `look` off; the picture is taken after the last "
+                       "one, or at the step that failed. Use single tools when the next "
+                       "action depends on what the last one revealed.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "steps": {
+                    "type": "array",
+                    "maxItems": DO_STEPS_MAX,
+                    "description": (
+                        "Ordered actions. Each is {do: verb, ...the same arguments "
+                        "that tool takes}. Verbs: activate(target), click(x,y), "
+                        "move(x,y), drag(from_x,from_y,to_x,to_y), scroll(x,y,dy), "
+                        "type(target,text), key(target,combo), press(path,expect_name), "
+                        "set_text(path,text), wait(condition,target), sleep(ms)."),
+                    "items": {"type": "object"},
+                },
+                "stop_on_error": {
+                    "type": "boolean", "default": True,
+                    "description": "Stop at the first failing step. Leave this true "
+                                   "unless the steps are genuinely independent.",
+                },
+                "look": _LOOK_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
+            },
+            "required": ["steps"],
+        },
+        "handler": tool_do_steps,
+    },
+    {
         "name": "screencast",
         "description": "Record the screen, or one window, to an h264 mp4. Use this "
                        "instead of screenshot whenever the thing being judged MOVES "
@@ -2433,7 +2970,11 @@ TOOLS: list[dict] = [
         "name": "activate_window",
         "description": "Focus and raise a window, then confirm focus actually landed "
                        "there. Returns an error rather than a false success.",
-        "inputSchema": {"type": "object", "properties": {"target": TARGET_SCHEMA},
+        "inputSchema": {"type": "object",
+                        "properties": {"target": TARGET_SCHEMA,
+                                       "look": _LOOK_SCHEMA,
+                                       "look_at": _LOOK_AT_SCHEMA,
+                                       "settle_max_s": _SETTLE_SCHEMA},
                         "required": ["target"]},
         "handler": tool_activate_window,
     },
@@ -2470,7 +3011,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "text": _s("Substring to look for in widget names"),
+                "text": _s("Substring to look for in widget names. Optional if "
+                           "role or actionable_only is given -- which is how you "
+                           "list the icon-only buttons that have no name to search."),
                 "app": _s("Restrict to one application (much faster)"),
                 "role": _s("Require an exact AT-SPI role, e.g. push_button"),
                 "actionable_only": {"type": "boolean", "default": False,
@@ -2479,7 +3022,6 @@ TOOLS: list[dict] = [
                           "description": "GTK4 nests deeply -- the default is 30 "
                                          "because a text view can sit at depth 23"},
             },
-            "required": ["text"],
         },
         "handler": tool_ui_find,
         "annotations": {"readOnlyHint": True},
@@ -2510,6 +3052,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "text": _s("Text to write"),
                 "app": _s("Application name; its editable text widget is located "
                           "automatically"),
@@ -2531,6 +3076,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "path": _s("Index path from ui_find, e.g. \"gedit/0/3/1\""),
                 "expect_name": _s("Name the widget should still have (substring)"),
                 "expect_role": _s("Role the widget should still have"),
@@ -2553,6 +3101,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "text": _s("Literal text to type"),
                 "target": TARGET_SCHEMA,
                 "key_delay_ms": {"type": "integer", "default": 20},
@@ -2576,6 +3127,9 @@ TOOLS: list[dict] = [
         "inputSchema": {
             "type": "object",
             "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
                 "combo": _s("e.g. 'ctrl+shift+t'"),
                 "target": TARGET_SCHEMA,
                 "via": {"type": "string", "enum": ["auto", "keysym", "ydotool"],
