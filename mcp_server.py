@@ -2049,6 +2049,46 @@ def tool_type_text(a: dict) -> dict:
     )
 
 
+def _window_for_atspi_app(app_name: str) -> dict | None:
+    """The window belonging to an AT-SPI application name.
+
+    The reverse of _atspi_app_for_window, and needed for the same reason: the
+    two names are not the same string. Without it a do_steps sequence made
+    entirely of ui_press steps has no window to look at, falls back to the whole
+    desktop, and reports "nothing changed" for six presses that all worked --
+    because a calculator's answer is 8 cells of 1920x1080 and whatever else is
+    on screen is moving.
+    """
+    def norm(s: str) -> str:
+        return "".join(c for c in (s or "").lower() if c.isalnum())
+
+    wanted = norm(app_name)
+    if not wanted:
+        return None
+    try:
+        windows = list_windows()
+    except ToolError:
+        return None
+    for w in windows:
+        cls = norm(w.get("wm_class"))
+        if cls and (cls in wanted or wanted in cls):
+            return w
+    return None
+
+
+def _step_window_hint(step: dict) -> dict | None:
+    """The window a step will act on, from whichever way it names one."""
+    if step.get("target") is not None:
+        try:
+            return _resolve_target(step["target"])
+        except ToolError:
+            return None
+    path = step.get("path")
+    if isinstance(path, str) and path:
+        return _window_for_atspi_app(path.split("/")[0])
+    return None
+
+
 def _atspi_app_for_window(window: dict) -> str | None:
     """Best-effort map a window's wm_class to an AT-SPI application name.
 
@@ -2566,11 +2606,10 @@ def tool_do_steps(a: dict) -> dict:
     # rather than quietly reported against the wrong rectangle.
     first_hint = None
     for step in steps:
-        if isinstance(step, dict) and step.get("target") is not None:
-            try:
-                first_hint = _resolve_target(step["target"])
-            except ToolError:
-                first_hint = None
+        if not isinstance(step, dict):
+            continue
+        first_hint = _step_window_hint(step)
+        if first_hint:
             break
     first_point = None
     for step in steps:
@@ -2609,11 +2648,8 @@ def tool_do_steps(a: dict) -> dict:
                          "detail": _step_detail(out)})
             if isinstance(out, dict) and isinstance(out.get("window"), dict):
                 last_window = out["window"]
-            elif step.get("target") is not None:
-                try:
-                    last_window = _resolve_target(step["target"])
-                except ToolError:
-                    pass
+            elif step.get("target") is not None or step.get("path") is not None:
+                last_window = _step_window_hint(step) or last_window
             elif step.get("x") is not None:
                 try:
                     hit = window_at(float(step["x"]), float(step.get("y") or 0))

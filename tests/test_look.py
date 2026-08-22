@@ -152,7 +152,17 @@ def main() -> int:
 
             # -- a miss and a hit are different ------------------------------
             # Measured on this window: dead space moves 0 cells by more than
-            # 60/255; the smallest real button press moves 10.
+            # 60/255; the smallest real button press moves 22.
+            #
+            # Clicked TWICE, and only the second click is asserted on. The
+            # display area is inert on the second visit but not the first: the
+            # first click into it places a caret and draws a focus ring, which
+            # measured 261 strong cells and is a real change, correctly
+            # reported. A fixture that calls that a miss would be testing the
+            # wrong thing.
+            s.call("pointer_click", {"x": wx + 180, "y": wy + 150,
+                                     "expect_window": wid, "look": False})
+            time.sleep(0.5)
             miss = s.call("pointer_click", {"x": wx + 180, "y": wy + 150,
                                             "expect_window": wid})
             miss_look = miss.get("look") or {}
@@ -206,6 +216,26 @@ def main() -> int:
             check("do_steps look:false attaches nothing",
                   silent["_images"] == 0 and "look" not in silent,
                   f'blocks={silent["_blocks"]}')
+
+            # A sequence made only of ui_press steps names no window and no
+            # point. It used to fall back to a whole-screen look, where a
+            # calculator's answer is 8 cells of 1920x1080 and anything else
+            # moving on screen buries it -- six presses that all worked,
+            # reported as "nothing changed".
+            buttons = s.call("ui_find", {"app": "gnome-calculator",
+                                         "role": "button"})
+            by_name = {r["name"]: r["path"] for r in buttons.get("results") or []}
+            if {"C", "7", "="} <= set(by_name):
+                pressed = s.call("do_steps", {"steps": [
+                    {"do": "press", "path": by_name["C"], "expect_name": "C"},
+                    {"do": "press", "path": by_name["7"], "expect_name": "7"},
+                    {"do": "press", "path": by_name["="], "expect_name": "="},
+                ]})
+                pressed_look = pressed.get("look") or {}
+                check("do_steps of ui_press steps finds its own window",
+                      pressed.get("all_ok")
+                      and pressed_look.get("of") == win["wm_class"],
+                      f'ok={pressed.get("all_ok")} of={pressed_look.get("of")}')
 
             bad = s.call("do_steps", {"steps": [
                 {"do": "activate", "target": wid},
