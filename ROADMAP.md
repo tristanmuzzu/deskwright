@@ -311,17 +311,131 @@ one action can't destroy the machine, everything leaves evidence.
 - **Vendor-style "watch mode" ideas** → never adopted. Evidence after
   the fact (journal, indicator) replaces supervision during.
 
-## Suggested testing order (everything reversible)
+## Build plan — two sessions, subagent-parallel where safe
 
-1. **Autonomy quick wins:** #4 #5 #10 #11 #13 #15 (days, zero risk).
-2. **Recovery spine as one release:** #1 error codes → #2 retry → #3
-   wait_for → #7 assert_state. This is the release that changes how runs
-   feel.
-3. **The two moats, spiked in parallel:** headless session (#19) and
-   portal backend (#32) — one-file experiments, kept only if they prove.
-4. **#20 allowlist + #6 what-changed-as-text** — biggest felt-autonomy
-   movers per line of code.
-5. **P0 mechanical pass** (#26–#31) when publishing gets real.
-6. **Backstop trio** (#40 #41 #42) before the repo goes public.
-7. **Benchmark (#54) + launch material (#49 #50)** last, real numbers in
-   hand.
+Written 2026-08-23 for execution starting the next session. Ordering is
+driven by four hard constraints, stated once so every phase makes sense:
+
+- **C1 — The desktop is a serialized test resource.** Any number of
+  subagents can write code in parallel (git worktrees), but only ONE
+  thing at a time may drive the real desktop. All live verification runs
+  through the main session via `tests/mcpdrv.py` (the server Claude Code
+  itself holds is stale-on-disk; mcpdrv speaks to a fresh one).
+- **C2 — Extension changes need a re-login, and only one is available
+  per session boundary.** Every extension-touching item must land in a
+  single batch at the END of session 1; Tristan logs out/in before
+  session 2; session 2 opens by verifying the batch.
+- **C3 — The module split must precede parallel work.** Subagents
+  editing one 3,705-line file collide; after the split they own separate
+  files.
+- **C4 — The machine must remain working at every commit.** Full
+  `--self-test` + test suite after every phase; every phase is a
+  separate commit; anything that fails verification is reverted, not
+  parked half-done.
+
+### Session 1 — foundation, autonomy core, extension batch
+
+**Phase 0 — baseline (main thread, ~minutes).**
+Run the full existing suite + `--self-test`, record results as the
+regression baseline. Nothing is attempted on a broken baseline.
+
+**Phase 1 — module split, #28 (main thread, serial).**
+`mcp_server.py` → `capture.py` / `input.py` / `atspi.py` / `ocr.py` /
+`guards.py` / `steps.py` / `server.py`. Pure mechanical move, zero
+behavior change, tool surface identical. Full suite must pass bit-for-
+bit. Commit. This unlocks every parallel phase after it.
+
+**Phase 2 — error-code pass, #1 (main thread, serial).**
+Cross-cutting by nature (touches every guard), so it cannot be
+parallelized and must precede the items that branch on codes (#2, #41).
+Codes added alongside existing prose, nothing removed. Commit.
+
+**Phase 3 — parallel subagent wave (worktree isolation, code only).**
+Independent files after the split; none may touch the live desktop —
+they write code + unit tests, main thread verifies live afterward:
+- Agent A (`steps.py`): #4 up-front `do_steps` validation + the
+  `look: "region"`/`look_at` bug, #5 `wait_for` step type replacing the
+  sleep cap.
+- Agent B (`input.py`): #10 clipboard tools, #15 hold_key / key and
+  pointer down-up, #16 drag verification.
+- Agent C (`capture.py`/`ocr.py`): #13 `zoom` tool, #6 "what changed"
+  as text in action results.
+- Agent D (`atspi.py`): #11 `launch_app`, #8 scroll-into-view.
+- Agent E (docs, no code): #20 recommended auto-approval
+  `settings.json` allowlist + documentation page.
+Merge one branch at a time; after each merge the MAIN thread runs live
+verification through mcpdrv (C1). Commit per merge.
+
+**Phase 4 — recovery spine, #2 #3 #7 (main thread, sequential).**
+Retry policy (needs #1's codes) → richer `wait_for` conditions →
+`assert_state`. Live-verified as one flow: a deliberately flaky
+`do_steps` run that recovers by itself and proves its own completion.
+This is the release that changes how runs feel; verify it end to end.
+
+**Phase 5 — the extension batch (main thread, LAST in session 1, C2).**
+All shell-side work in one go, in the bundled-extension layout (#27):
+- #26 namespace rename (D-Bus name + UUID + error strings) — name
+  decision (#60) needed here; if none exists yet, pick the working name
+  and record it, renaming again is cheap before publish.
+- #12 window-management verbs (extension D-Bus methods).
+- #40 kill-switch keybinding + flag.
+- #44 "agent active" indicator.
+- Plus the already-written-but-never-loaded methods from the last round
+  (`Pointer`, `WindowAt`, `ScreenshotArea`, `ScreenshotWindow`).
+Server-side counterparts written and unit-tested, live verification
+IMPOSSIBLE until re-login — explicitly deferred to session 2. Session 1
+ends with: "log out and back in before the next session."
+
+### Session 2 — verify, moats, publish mechanics
+
+**Phase 6 — post-relogin verification (main thread, first thing).**
+`desktop_health` must list every new extension method; then live-verify
+the whole Phase 5 batch + a full regression run. Anything broken gets
+fixed before new work starts.
+
+**Phase 7 — the two moat spikes (timeboxed, main thread one at a time).**
+Both are experiments kept only if they prove; both need the real
+machine and possibly consent dialogs, so they cannot be subagented:
+- #19 headless second session: can `gnome-remote-desktop` headless /
+  `mutter --headless` + virtual monitor run one full `do_steps` flow?
+  Measure RAM against the 8 GB budget. Timebox ~1h; a clean
+  yes/no/blocked-at-layer-X finding is the deliverable either way.
+- #32 portal backend: one-file spike — portal `RemoteDesktop` +
+  `ScreenCast` session, one click + one capture through it,
+  `restore_token` persistence (#23) checked. Same timebox, same
+  finding-shaped deliverable.
+Whichever proves out becomes the headline roadmap item for session 3+;
+neither blocks publishing.
+
+**Phase 8 — parallel subagent wave 2 (worktree, code only).**
+- Agent F: #14 Set-of-Mark refs in `screen_map` + ref-accepting click
+  path (`atspi.py`/`capture.py`).
+- Agent G: #41 irreversibility backstop + #42 injection tripwire
+  (`guards.py`/`ocr.py`).
+- Agent H: #25 action journal (new `journal.py`, hooks into `server.py`).
+- Agent I: #29 installer/`setup` command + packaging skeleton.
+- Agent J: #49 public README restructure + #31 de-Tristanized docs +
+  #30 license/CONTRIBUTING/SECURITY.
+Same merge discipline: one at a time, live verification between merges.
+
+**Phase 9 — wrap (main thread).**
+#52 portable-witness test pass over everything new; re-measure the
+latency table (#55) and update the README numbers; final full suite +
+`--self-test`; update this file's checkboxes; commit, push.
+
+### Explicitly NOT in these two sessions
+
+KDE/wlroots/X11 backends (#33–#35, need the portal spike's outcome
+first), HiDPI/multi-monitor (#36, needs hardware or virtual-monitor
+work), CI-on-virtual-GNOME (#53), OSWorld benchmark (#54), MCP
+registry/plugin shipping (#46–#47), opt-in policy config (#45). All
+deliberately session 3+; none block a working, publishable core.
+
+### Standing rules for the run
+
+- Branch-per-agent, merge serially, live-verify per merge (C1, C4).
+- Commit after every verified phase; push at session end.
+- A spike that fails is a finding, not a failure — write it down
+  (which layer said no, what it would cost) and move on.
+- Scope discipline: anything discovered mid-run that is not on this
+  plan goes to FINDINGS.md or this file, not into the working tree.
