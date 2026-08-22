@@ -2856,7 +2856,6 @@ TOOLS: list[dict] = [
                 "app": _s("AT-SPI application name for annotate.widgets, if the "
                           "focused window is not the one to map."),
             },
-            "required": ["path"],
         },
         "handler": tool_screenshot,
     },
@@ -3393,10 +3392,15 @@ def _content_blocks(result: Any) -> list[dict]:
 
     blocks: list[dict] = [{"type": "text", "text": json.dumps(result, indent=1)}]
     for image in images:
+        # MCP's ImageContent is {type, data, mimeType} -- flat, and mimeType is
+        # camelCase. It is NOT the Anthropic Messages API's nested
+        # {type, source:{type, media_type, data}}; that is the shape the HOST
+        # converts this into afterwards, which is what a transcript shows and
+        # what this was first written against. The host rejects the wrong one
+        # outright with a union-validation error naming every content type.
         blocks.append({"type": "image",
-                       "source": {"type": "base64",
-                                  "media_type": image["media_type"],
-                                  "data": image["data"]}})
+                       "data": image["data"],
+                       "mimeType": image["media_type"]})
     return blocks
 
 

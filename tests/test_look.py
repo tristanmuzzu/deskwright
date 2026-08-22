@@ -109,6 +109,21 @@ def main() -> int:
                   "image" in shot["_blocks"] and shot["_image_bytes"] > 2000,
                   f'blocks={shot["_blocks"]} bytes={shot["_image_bytes"]}')
 
+            # The exact wire shape, asserted against the raw protocol reply.
+            # MCP ImageContent is FLAT -- {type, data, mimeType}. The first
+            # version of this server sent the Anthropic Messages API shape
+            # instead ({type, source:{type, media_type, data}}), copied from a
+            # transcript, which shows what the host produces AFTER converting.
+            # Every test passed, because the driver read it back the same wrong
+            # way. Only the real host rejected it, and only once it was live.
+            raw = s._rpc("tools/call", {"name": "screenshot",
+                                        "arguments": {"window": wid}})
+            blocks = (raw.get("result") or {}).get("content") or []
+            images = [b for b in blocks if b.get("type") == "image"]
+            check("the image block is MCP ImageContent, not the API's shape",
+                  bool(images) and set(images[0]) == {"type", "data", "mimeType"},
+                  f"keys={sorted(images[0]) if images else None}")
+
             # A window costs a fraction of the whole screen. Measured: 295
             # tokens for this window against 1843 for the desktop.
             full = s.call("screenshot", {})

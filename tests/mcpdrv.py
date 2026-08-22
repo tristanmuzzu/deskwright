@@ -118,11 +118,15 @@ class Server:
         payload["_text"] = text
         payload["_is_error"] = bool(result.get("isError"))
         payload["_images"] = len(images)
-        payload["_image_bytes"] = (
-            len(base64.b64decode(images[0]["source"]["data"])) if images else 0)
-        payload["_image_b64_len"] = len(images[0]["source"]["data"]) if images else 0
-        payload["_media_type"] = images[0]["source"]["media_type"] if images else None
-        payload["_image_data"] = images[0]["source"]["data"] if images else None
+        # MCP ImageContent is flat: {type, data, mimeType}. This driver used to
+        # read the Anthropic API's nested source{} instead, which meant it
+        # validated the server's wrong wire format as enthusiastically as the
+        # server produced it. The host was the only thing that noticed.
+        first = images[0] if images else {}
+        payload["_image_bytes"] = len(base64.b64decode(first["data"])) if images else 0
+        payload["_image_b64_len"] = len(first.get("data", "")) if images else 0
+        payload["_media_type"] = first.get("mimeType") if images else None
+        payload["_image_data"] = first.get("data") if images else None
         return payload
 
 
