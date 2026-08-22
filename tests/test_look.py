@@ -31,22 +31,72 @@ def check(label: str, ok: bool, detail: str) -> None:
 
 
 def calculator(server: Server) -> dict:
+    """The TOPMOST calculator window.
+
+    list_windows is bottom of the stack first, so taking the first match picks
+    the oldest instance. With a stray calculator left over from an earlier run
+    that is the one underneath, every click then gets refused by expect_window
+    for landing on the other one -- which is correct behaviour and a broken
+    test.
+    """
     for _ in range(20):
-        for w in server.call("list_windows", {})["windows"]:
-            if "Calculator" in (w["wm_class"] or ""):
-                return w
+        found = [w for w in server.call("list_windows", {})["windows"]
+                 if "Calculator" in (w["wm_class"] or "")]
+        if len(found) > 1:
+            # Two calculator windows are cascaded 50px apart and overlap. Every
+            # click then gets refused by expect_window for landing on the other
+            # one, which is the guard working exactly as intended and a test
+            # that cannot say so. Skip with the reason rather than fail with
+            # four mysteries.
+            raise SystemExit(
+                f"SKIP: {len(found)} calculator windows are open "
+                f"({', '.join(str(w['id']) for w in found)}). Close the extra one; "
+                "this test needs an unambiguous target."
+            )
+        if found:
+            return found[0]
         time.sleep(0.5)
     raise SystemExit("SKIP: gnome-calculator never appeared")
 
 
+def focused_calculator(server: Server) -> dict | None:
+    for _ in range(10):
+        for w in server.call("list_windows", {})["windows"]:
+            if "Calculator" in (w["wm_class"] or "") and w.get("focused"):
+                return w
+        time.sleep(0.3)
+    return None
+
+
 def main() -> int:
+    # Check BEFORE launching, not after. Checking afterwards is a race: the
+    # stray window is already there and gets returned on the first look, while
+    # this test's own window appears a second later, and then every click is
+    # refused for landing on the wrong one.
+    with Server() as probe:
+        existing = [w for w in probe.call("list_windows", {})["windows"]
+                    if "Calculator" in (w["wm_class"] or "")]
+    if existing:
+        raise SystemExit(
+            f"SKIP: {len(existing)} calculator window(s) already open "
+            f"({', '.join(str(w['id']) for w in existing)}). This test needs an "
+            "unambiguous target -- close them and run it again."
+        )
+
     launched = subprocess.Popen(["gnome-calculator"],
                                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         with Server() as s:
             win = calculator(s)
+            s.call("activate_window", {"target": win["id"], "look": False})
+            # Re-resolve AFTER activating, and take the one that actually has
+            # focus. gnome-calculator is single-instance: launching it again
+            # raises whichever window already existed rather than making a new
+            # one, so the window this test then drives need not be the window it
+            # thought it launched. Every click was correctly refused by
+            # expect_window for landing on the other instance.
+            win = focused_calculator(s) or win
             wid, wx, wy = win["id"], win["x"], win["y"]
-            s.call("activate_window", {"target": wid, "look": False})
             # A window that has just been mapped is still animating in, and one
             # run in six saw region_changed fire on the tail of that. Waiting is
             # the honest fix here: the thing being tested is whether a QUIET
