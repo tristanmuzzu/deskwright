@@ -60,6 +60,23 @@ KEYS.update({
 })
 KEYS.update({f"f{n}": code for n, code in enumerate(range(59, 71), start=1)})
 KEYS.update({"f11": 87, "f12": 88})
+# Digits and the punctuation an application is most likely to bind. Their
+# absence meant press_keys could not send `ctrl+1` to switch a tab or `7` to a
+# calculator, and the error listed only the letters, as though digits were exotic.
+KEYS.update({"1": 2, "2": 3, "3": 4, "4": 5, "5": 6,
+             "6": 7, "7": 8, "8": 9, "9": 10, "0": 11})
+#
+# The names here must match remote_input.KEYSYMS exactly. parse_combo is the
+# gatekeeper and reads this table; what actually gets injected is the keysym. A
+# name in one table and not the other is accepted and then refused, which reads
+# as a bug in the compositor. tests/test_key_tables.py holds them level.
+KEYS.update({"minus": 12, "equal": 13, "comma": 51, "period": 52,
+             "slash": 53, "semicolon": 39, "apostrophe": 40, "grave": 41,
+             "backslash": 43, "bracketleft": 26, "bracketright": 27,
+             "plus": 78,                      # keypad plus; the only bare one
+             "capslock": 58, "numlock": 69, "scrolllock": 70,
+             "print": 99, "pause": 119, "menu": 127,
+             "rightctrl": 97, "rightshift": 54, "rightalt": 100, "altgr": 100})
 
 MODIFIERS = {"ctrl", "control", "leftctrl", "shift", "leftshift", "alt",
              "leftalt", "super", "meta", "win"}

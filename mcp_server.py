@@ -739,8 +739,20 @@ def tool_list_windows(_: dict) -> dict:
     return {"count": len(windows), "windows": windows}
 
 
-def tool_screenshot(a: dict) -> dict:
-    path = Path(os.path.expanduser(str(a.get("path") or ""))).absolute()
+SHOT_CACHE = Path(os.path.expanduser("~/.cache/wayland-computer-use/shots"))
+SHOT_CACHE_KEEP = 40
+
+
+def _shot_path(a: dict) -> tuple[Path, bool]:
+    """Where the PNG goes. Naming one is now optional, because inventing a
+    throwaway /tmp path was pure ceremony on every single call."""
+    raw = str(a.get("path") or "").strip()
+    if not raw:
+        SHOT_CACHE.mkdir(parents=True, exist_ok=True)
+        _prune_shot_cache()
+        return SHOT_CACHE / f"shot-{time.time():.3f}.png", False
+
+    path = Path(os.path.expanduser(raw)).absolute()
     if path.is_dir():
         raise ToolError(f"{path} is a directory; give a file path ending in .png")
     # The suffix check is load-bearing, not cosmetic: this used to unlink whatever
@@ -750,11 +762,26 @@ def tool_screenshot(a: dict) -> dict:
     if path.suffix.lower() != ".png":
         raise ToolError(f"path must end in .png, got {path.name!r}")
     path.parent.mkdir(parents=True, exist_ok=True)
+    return path, True
 
-    region = _screenshot_region(a)
 
-    # Capture to a temp file beside the target and rename on success, so an
-    # existing file is only ever replaced by a real screenshot.
+def _prune_shot_cache() -> None:
+    try:
+        shots = sorted(SHOT_CACHE.glob("shot-*.png"), key=lambda p: p.stat().st_mtime)
+        for old in shots[:-SHOT_CACHE_KEEP]:
+            old.unlink(missing_ok=True)
+    except Exception:                                       # pragma: no cover
+        pass                                                # housekeeping only
+
+
+def _capture(path: Path, region: tuple[int, int, int, int] | None = None,
+             include_cursor: bool = False) -> bool:
+    """Put a PNG of `region` (or the whole screen) at `path`.
+
+    Returns whether gnome-shell did the cropping. Capture goes to a temp file
+    beside the target and is renamed on success, so an existing file is only
+    ever replaced by a real screenshot.
+    """
     tmp = path.with_name(f".{path.name}.capturing")
     tmp.unlink(missing_ok=True)
     try:
@@ -762,19 +789,68 @@ def tool_screenshot(a: dict) -> dict:
             _gdbus("ScreenshotArea", *(str(int(v)) for v in region), str(tmp))
             cropped_in_shell = True
         else:
-            _gdbus("Screenshot", str(tmp),
-                   "true" if a.get("include_cursor") else "false")
+            _gdbus("Screenshot", str(tmp), "true" if include_cursor else "false")
             cropped_in_shell = False
         if not tmp.exists() or tmp.stat().st_size == 0:
             raise ToolError("the call returned but no image was written")
+        with tmp.open("rb") as fh:
+            if fh.read(8) != b"\x89PNG\r\n\x1a\n":
+                raise ToolError("the capture was written but is not a PNG")
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
-    with path.open("rb") as fh:
-        if fh.read(8) != b"\x89PNG\r\n\x1a\n":
-            raise ToolError(f"{path} was written but is not a PNG")
+    return cropped_in_shell
+
+
+def _occlusion(window: dict) -> dict | None:
+    """How much of `window` is covered by windows above it in the stack.
+
+    Captures come from the screen, so a covered window returns whatever is in
+    front of it and looks exactly like the target having the wrong content. That
+    cost a wasted capture and a wasted Read on 2026-08-20; saying so is free.
+    """
+    try:
+        windows = list_windows()
+    except ToolError:
+        return None
+    seen, above = False, []
+    for w in windows:                                       # bottom of stack first
+        if w["id"] == window["id"]:
+            seen = True
+            continue
+        if seen and not w.get("minimized"):
+            above.append(w)
+    if not seen or not above:
+        return None
+
+    area = max(1, window["width"] * window["height"])
+    covered = 0
+    for w in above:
+        overlap_w = min(window["x"] + window["width"], w["x"] + w["width"]) - max(window["x"], w["x"])
+        overlap_h = min(window["y"] + window["height"], w["y"] + w["height"]) - max(window["y"], w["y"])
+        if overlap_w > 0 and overlap_h > 0:
+            covered += overlap_w * overlap_h
+    if covered <= 0:
+        return None
+    percent = round(min(100.0, 100.0 * covered / area), 1)
+    return {
+        "occluded_percent": percent,
+        "by": [w["wm_class"] for w in above][:4],
+        "detail": (f"{percent}% of this window is behind another one, so the capture "
+                   "shows what is in front of it. activate_window first if that is "
+                   "not what you wanted."),
+    }
+
+
+def tool_screenshot(a: dict) -> dict:
+    path, persistent = _shot_path(a)
+    region, window = _screenshot_region(a)
+
+    cropped_in_shell = _capture(path, region, bool(a.get("include_cursor")))
 
     result: dict[str, Any] = {"path": str(path)}
+    if not persistent:
+        result["path_note"] = "kept in the shot cache; pass path= to keep it somewhere"
     origin = (region[0], region[1]) if region else (0, 0)
     if region and not cropped_in_shell:
         _crop(path, region)
@@ -782,35 +858,78 @@ def tool_screenshot(a: dict) -> dict:
     if region:
         result["region"] = {"x": region[0], "y": region[1],
                             "width": region[2], "height": region[3]}
+    if window is not None:
+        occlusion = _occlusion(window)
+        if occlusion:
+            result["occluded"] = occlusion
 
     scale = float(a.get("scale") or 1.0)
-    if scale != 1.0:
-        if not 0.05 <= scale <= 1.0:
-            raise ToolError("scale must be between 0.05 and 1.0")
-        _rescale(path, scale)
+    if not 0.05 <= scale <= 4.0:
+        raise ToolError("scale must be between 0.05 and 4.0")
+
+    annotate = a.get("annotate")
+    inline = a.get("inline", True)
+
+    # When the image is being handed over inline, resizing the PNG first is
+    # wasted work -- measured 0.51s for scale:0.5 versus 0.32s for the full
+    # capture, because it costs a decode and a PNG re-encode. The inline encoder
+    # has to resize anyway, so scale is folded into its target size instead and
+    # the file on disk stays at native resolution.
+    if scale != 1.0 and not inline:
+        _rescale(path, min(scale, 1.0))
         result["scale"] = scale
 
-    # Annotation goes on AFTER the resize, or the labels shrink with the image
-    # and the grid you added to make coordinates readable is unreadable.
-    annotate = a.get("annotate")
+    # Annotation goes on at native resolution and is labelled in SCREEN
+    # coordinates, so it survives whatever the image is scaled to afterwards.
     if annotate:
-        result["annotated"] = _annotate(path, origin, annotate, a, scale)
+        result["annotated"] = _annotate(path, origin, annotate, a,
+                                        1.0 if inline else min(scale, 1.0))
 
-    if scale != 1.0:
-        result["coordinate_note"] = (
-            f"this image is {scale:g}x, so a pixel in it is at "
-            f"screen ({origin[0]} + px/{scale:g}, {origin[1]} + py/{scale:g}). "
-            "Any drawn labels are already in screen coordinates."
-        )
+    native = _png_dimensions(path)
+    result["bytes"] = path.stat().st_size
+    result["dimensions"] = native
+
+    if inline:
+        native_long = max(_dimension_pair(native) or (MODEL_MAX_EDGE, 0))
+        target_edge = max(16, min(MODEL_MAX_EDGE, int(native_long * scale)))
+        _attach_inline(result, path, {**a, "max_edge": target_edge,
+                                      "upscale": scale > 1.0})
+        shown = result.get("shown")
+        if isinstance(shown, dict):
+            result["coordinate_note"] = _coordinate_note(shown["dimensions"],
+                                                         native, origin)
     elif region:
         result["coordinate_note"] = (
             f"pixel (px, py) in this image is screen "
             f"({origin[0]} + px, {origin[1]} + py)."
         )
-
-    result["bytes"] = path.stat().st_size
-    result["dimensions"] = _png_dimensions(path)
     return result
+
+
+def _dimension_pair(text: str) -> tuple[int, int] | None:
+    m = re.fullmatch(r"(\d+)x(\d+)", text or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _coordinate_note(shown: str, native: str, origin: tuple[int, int]) -> str:
+    """How to turn a pixel in the image the model is looking at into a click.
+
+    This has to describe the IMAGE THAT WAS SENT, not the file on disk. They are
+    different sizes now, and a note about the wrong one is worse than no note:
+    it produces confident clicks in the wrong place.
+    """
+    shown_wh, native_wh = _dimension_pair(shown), _dimension_pair(native)
+    ox, oy = origin
+    if not shown_wh or not native_wh:                       # pragma: no cover
+        return f"this image starts at screen ({ox}, {oy})."
+    factor = native_wh[0] / shown_wh[0] if shown_wh[0] else 1.0
+    if abs(factor - 1.0) < 0.005:
+        if not ox and not oy:
+            return "this image is 1:1 with the screen; pixel (px, py) is screen (px, py)."
+        return f"pixel (px, py) in this image is screen ({ox} + px, {oy} + py)."
+    return (f"this image is {shown} for a {native} area, so pixel (px, py) is screen "
+            f"({ox} + px*{factor:.3f}, {oy} + py*{factor:.3f}). "
+            "Any drawn labels are already in screen coordinates.")
 
 
 def _png_dimensions(path: Path) -> str:
@@ -839,21 +958,355 @@ def _pillow():
     return Image, ImageDraw
 
 
-def _screenshot_region(a: dict) -> tuple[int, int, int, int] | None:
-    """The rectangle to capture, from either `window` or `region`."""
-    if a.get("window") is not None and a.get("region") is not None:
-        raise ToolError("give window or region, not both")
-    if a.get("window") is not None:
-        win = _resolve_target(a["window"])
-        if win.get("minimized"):
-            raise ToolError(
-                f'{win["wm_class"]} is minimized, so there is nothing on screen to '
-                "capture. Activate it first."
-            )
-        return win["x"], win["y"], win["width"], win["height"]
-    region = a.get("region")
-    if region is None:
-        return None
+# =========================================================================
+# handing an image to the model instead of a path to one
+# =========================================================================
+#
+# Measured on this machine, 2026-08-22, from real session transcripts: a
+# screenshot that returns a path is followed by a Read of that path 61 times out
+# of 62, and screenshot->Read->next-action takes a median of 14.0s. The same
+# session's browser tool, which returns the image inline, went screenshot->next
+# action in 7.9s. The capture itself is 0.23s. So essentially all of the cost of
+# "look at the screen" is the extra model round trip, and removing it is worth
+# more than every other optimisation in this file combined.
+#
+# The size rules are not arbitrary. Anthropic downscales any image whose long
+# edge exceeds 1568px and bills roughly width*height/750 tokens, so sending a
+# 1920x1080 PNG pays for a resize that happens anyway. Doing it here costs 40ms
+# and turns 1843 tokens into what the caller actually needs.
+
+MODEL_MAX_EDGE = 1568      # above this the API downscales anyway
+INLINE_QUALITY = 75        # JPEG; 60 starts to smear small UI text
+INLINE_MAX_BYTES = 3_500_000
+_INLINE_KEY = "__inline_image__"
+
+
+def _estimate_tokens(width: int, height: int) -> int:
+    return int(width * height / 750)
+
+
+def _encode_inline(path: Path, max_edge: int = MODEL_MAX_EDGE,
+                   quality: int = INLINE_QUALITY, upscale: bool = False) -> dict:
+    """A PNG on disk, as a JPEG the model can be handed directly.
+
+    RGBA -> RGB is required, not cosmetic: the extension writes RGBA and JPEG
+    has no alpha channel, so this raises OSError without it.
+
+    LANCZOS rather than BILINEAR: this is a picture of TEXT, and the whole point
+    is to still be able to read a menu item after the resize. Measured at 40ms
+    for a full screen, which is not worth trading legibility for.
+    """
+    import base64
+    Image, _ = _pillow()
+    with Image.open(path) as img:
+        img = img.convert("RGB")
+        width, height = img.size
+        longest = max(width, height)
+        if longest > max_edge or (upscale and longest < max_edge):
+            factor = max_edge / longest
+            width, height = max(1, int(width * factor)), max(1, int(height * factor))
+            img = img.resize((width, height), Image.LANCZOS)
+
+        import io
+        for attempt_quality in (quality, 55, 40):
+            buf = io.BytesIO()
+            img.save(buf, "JPEG", quality=attempt_quality)
+            raw = buf.getvalue()
+            if len(raw) <= INLINE_MAX_BYTES:
+                break
+        else:                                               # pragma: no cover
+            raise ToolError("this image will not compress to a sane size")
+
+    return {
+        "data": base64.b64encode(raw).decode("ascii"),
+        "media_type": "image/jpeg",
+        "dimensions": f"{width}x{height}",
+        "bytes": len(raw),
+        "tokens_estimate": _estimate_tokens(width, height),
+        "quality": attempt_quality,
+    }
+
+
+# =========================================================================
+# watching the screen settle, and telling a hit from a miss
+# =========================================================================
+#
+# This exists because `pointer_click` reports focus:"unchanged" for both a
+# successful press of a button that never takes focus (every Telegram inline
+# button) and a click that hit dead space. They were indistinguishable without a
+# second capture and a human look; now they differ by a number.
+#
+# Which number matters. Measured on a calculator window, 240x135 cells,
+# 2026-08-22 -- the first two columns are what a "percent of cells that moved"
+# metric sees, the last two are what this uses instead:
+#
+#                       cells>12   percent   cells>60   max delta
+#   nothing happening          0     0.00%          0           0
+#   click into dead space      0     0.00%          0          10
+#   button press: clear       24     0.07%         16         180
+#   button press: digit 7     16     0.05%         10         196
+#   button press: digit 5     24     0.07%         15         173
+#
+# A percentage cannot separate those: a real button press moves 0.05% of a
+# window and the first threshold tried (0.5%) called every one of them "nothing
+# happened" -- confidently, in the result the model reads. The strong-cell count
+# separates them by an order of magnitude, because UI changes are small in area
+# and enormous in contrast: text appears, a button lights up, a menu opens.
+
+FINGERPRINT = (240, 135)     # 32400 cells; ~8ms to compare in pure Python
+CELL_NOISE = 12              # 0-255; below this is encoder and antialiasing jitter
+STRONG_DELTA = 60            # a cell this different is new content, not jitter
+STRONG_CELLS_STABLE = 2      # a blinking caret is one or two cells; ignore it
+STRONG_CELLS_CHANGED = 4     # measured: a miss is 0, the smallest real hit is 10
+STABLE_CHANGED_PCT = 0.1     # two frames this close are the same frame
+CHANGE_FLOOR_PCT = 0.06      # backstop for a large, low-contrast change
+SETTLE_MAX_S = 1.5
+SETTLE_POLL_S = 0.12
+
+
+def _fingerprint(path: Path) -> bytes:
+    """A greyscale thumbnail, as bytes. Cheap enough to take every frame."""
+    Image, _ = _pillow()
+    with Image.open(path) as img:
+        return img.convert("L").resize(FINGERPRINT, Image.BOX).tobytes()
+
+
+def _frame_delta(before: bytes, after: bytes) -> dict:
+    """How different two frames are, in the three ways that turn out to matter."""
+    if len(before) != len(after) or not before:
+        return {"percent": 100.0, "strong_cells": len(after or b""), "max_delta": 255}
+    moved = strong = peak = 0
+    for x, y in zip(before, after):
+        delta = x - y if x > y else y - x
+        if delta > CELL_NOISE:
+            moved += 1
+            if delta > STRONG_DELTA:
+                strong += 1
+        if delta > peak:
+            peak = delta
+    return {"percent": round(100.0 * moved / len(before), 3),
+            "strong_cells": strong, "max_delta": peak}
+
+
+def _frame_change(before: bytes, after: bytes) -> float:
+    """Percent of cells that moved more than sensor noise. Kept for callers that
+    only want the one number (region_changed, the settle loop's noise figure)."""
+    return _frame_delta(before, after)["percent"]
+
+
+def _settle(path: Path, region: tuple[int, int, int, int] | None,
+            max_wait: float = SETTLE_MAX_S) -> dict:
+    """Capture until two consecutive frames agree, then return the last one.
+
+    A fixed sleep is either too short (and catches a half-drawn menu) or too long
+    (and is pure latency). Foreground `sleep` is blocked on this machine anyway.
+    """
+    start = time.monotonic()
+    previous, frames, noise = None, 0, 0.0
+    while True:
+        _capture(path, region)
+        frames += 1
+        current = _fingerprint(path)
+        waited = time.monotonic() - start
+        if previous is not None:
+            delta = _frame_delta(previous, current)
+            noise = delta["percent"]
+            if (delta["strong_cells"] <= STRONG_CELLS_STABLE
+                    and noise <= STABLE_CHANGED_PCT):
+                # The delta between the two frames that finally agreed IS the
+                # live noise floor for this exact rectangle -- a blinking cursor,
+                # a ticking clock. Reporting it lets the verdict adapt instead of
+                # trusting one constant for a 360px dialog and a 1920px desktop.
+                return {"settled": True, "frames": frames, "noise_percent": noise,
+                        "waited_seconds": round(waited, 2), "fingerprint": current}
+        previous = current
+        if waited >= max_wait:
+            return {"settled": False, "frames": frames, "noise_percent": noise,
+                    "waited_seconds": round(waited, 2), "fingerprint": current,
+                    "detail": "still changing when time ran out; the image is the last frame"}
+        time.sleep(SETTLE_POLL_S)
+
+
+def _look_region(a: dict, hint_window: dict | None,
+                 point: tuple[float, float] | None) -> tuple[Any, tuple | None, dict | None]:
+    """Resolve `look` into a rectangle. Returns (mode, region, window)."""
+    look = a.get("look", "auto")
+    if look is False or look == "none":
+        return False, None, None
+    if look is True:
+        look = "auto"
+    if look not in ("auto", "window", "screen", "region"):
+        raise ToolError("look must be auto, window, screen, region, or false")
+
+    if look == "screen":
+        return look, None, None
+    if look == "region":
+        region = a.get("look_at") or a.get("region")
+        if region is None:
+            raise ToolError('look:"region" needs look_at: {x, y, width, height}')
+        return look, _parse_region(region), None
+
+    window = hint_window
+    if window is None and a.get("expect_window") is not None:
+        try:
+            window = _resolve_target(a["expect_window"])
+        except ToolError:
+            window = None
+    if window is None and point is not None:
+        try:
+            hit = window_at(point[0], point[1])
+            # window_at answers {"window": {...}, "covering": [...]}. The
+            # compositor's pick is the authority on WHICH window, but it carries
+            # no geometry -- only id, class, title, focused. Taking it at face
+            # value left every click looking at the whole screen instead of the
+            # window it hit: 6x the tokens, 7x the wall clock, and a change
+            # figure diluted until a real hit read as a miss.
+            covering = hit.get("covering") or []
+            picked = hit.get("window") or {}
+            window = next((w for w in covering if w["id"] == picked.get("id")), None)
+            if window is None:
+                window = covering[0] if covering else None
+        except ToolError:
+            window = None
+    if not window or window.get("width") is None:
+        return look, None, None                             # fall back to the screen
+    return look, (window["x"], window["y"], window["width"], window["height"]), window
+
+
+class _Look:
+    """The before-half of a look, carried across the action to the after-half.
+
+    Resolving the rectangle costs two D-Bus round trips, so it is done once here
+    rather than again on the way out.
+    """
+
+    __slots__ = ("mode", "region", "window", "before")
+
+    def __init__(self, mode: Any, region: tuple | None, window: dict | None,
+                 before: bytes | None):
+        self.mode, self.region, self.window, self.before = mode, region, window, before
+
+
+def _look_before(a: dict, hint_window: dict | None = None,
+                 point: tuple[float, float] | None = None) -> _Look:
+    """The screen as it was, so the action's effect can be measured."""
+    try:
+        mode, region, window = _look_region(a, hint_window, point)
+    except ToolError:
+        raise
+    except Exception:                                       # pragma: no cover
+        return _Look(False, None, None, None)
+    if mode is False:
+        return _Look(False, None, None, None)
+    try:
+        path, _ = _shot_path({})
+        _capture(path, region)
+        return _Look(mode, region, window, _fingerprint(path))
+    except Exception:
+        # Never let the measurement break the action it is measuring.
+        return _Look(mode, region, window, None)
+
+
+def _look(a: dict, result: dict, prepared: _Look) -> dict:
+    """Attach what the screen looks like now, and how much the action changed it.
+
+    `look:"auto"` (the default) always reports the change figure -- it costs one
+    capture -- but only spends the tokens on an image when something actually
+    moved. A click that changed nothing is the case you most need told about and
+    the one you least need a picture of.
+    """
+    mode, region, window, before = (prepared.mode, prepared.region,
+                                    prepared.window, prepared.before)
+    if mode is False:
+        return result
+
+    path, _ = _shot_path({})
+    settle = _settle(path, region, float(a.get("settle_max_s") or SETTLE_MAX_S))
+    after = settle.pop("fingerprint")
+
+    view: dict[str, Any] = {"of": (window["wm_class"] if window else "whole screen"),
+                            "settled": settle["settled"],
+                            "frames": settle["frames"],
+                            "waited_seconds": settle["waited_seconds"]}
+    if settle.get("detail"):
+        view["detail"] = settle["detail"]
+
+    landed = None
+    if before is not None:
+        delta = _frame_delta(before, after)
+        floor = max(CHANGE_FLOOR_PCT, 2 * settle.get("noise_percent", 0.0))
+        landed = (delta["strong_cells"] >= STRONG_CELLS_CHANGED
+                  or delta["percent"] > floor)
+        view["changed"] = {"percent": delta["percent"],
+                           "strong_cells": delta["strong_cells"],
+                           "max_delta": delta["max_delta"]}
+        view["verdict"] = (
+            "the screen changed, so this landed on something"
+            if landed else
+            "NOTHING on screen changed -- if this was meant to press something, it missed"
+        )
+
+    show = mode != "auto" or landed is None or landed
+    if show:
+        origin = (region[0], region[1]) if region else (0, 0)
+        native = _png_dimensions(path)
+        _attach_inline(result, path, a)
+        shown = result.get("shown")
+        if isinstance(shown, dict):
+            view["coordinate_note"] = _coordinate_note(shown["dimensions"], native, origin)
+    else:
+        view["image"] = "not attached: nothing changed, so there is nothing new to see"
+    view["path"] = str(path)
+    result["look"] = view
+    return result
+
+
+def _look_typed(a: dict, result: dict, window: dict, prepared: _Look) -> dict:
+    """Prove typing landed with a picture, when AT-SPI readback is not available.
+
+    Telegram, Chrome and Electron expose no editable text widget, so `type_text`
+    returned verified:false and the caller spent a screenshot plus an image Read
+    proving 20 characters arrived -- three sessions running, 12 wasted calls in
+    one of them. The picture is the proof, so take it here rather than making
+    the caller ask for it.
+    """
+    if prepared.mode is False:
+        return result
+    forced = {**a, "look": "window" if a.get("look", "auto") == "auto" else a["look"]}
+    result = _look(forced, result, prepared)
+    view = result.get("look")
+    if isinstance(view, dict):
+        view["why"] = ("attached because AT-SPI could not read the text back; "
+                       "this picture is the only proof the characters arrived")
+    return result
+
+
+def _attach_inline(result: dict, path: Path, a: dict) -> dict:
+    """Put the picture in the result unless the caller said not to."""
+    if not a.get("inline", True):
+        result["inline"] = False
+        return result
+    try:
+        image = _encode_inline(
+            path,
+            max_edge=int(a.get("max_edge") or MODEL_MAX_EDGE),
+            quality=int(a.get("quality") or INLINE_QUALITY),
+            upscale=bool(a.get("upscale")),
+        )
+    except ToolError:
+        raise
+    except Exception as e:
+        # An image that cannot be encoded must not lose the caller the capture:
+        # the path is still on disk and still readable.
+        result["inline"] = f"could not encode for inline viewing ({e}); Read {path}"
+        return result
+    result[_INLINE_KEY] = {"data": image.pop("data"),
+                           "media_type": image["media_type"]}
+    result["shown"] = image
+    return result
+
+
+def _parse_region(region: Any) -> tuple[int, int, int, int]:
     if isinstance(region, dict):
         try:
             values = (region["x"], region["y"], region["width"], region["height"])
@@ -867,6 +1320,48 @@ def _screenshot_region(a: dict) -> tuple[int, int, int, int] | None:
     if width <= 0 or height <= 0:
         raise ToolError(f"refusing to capture a {width}x{height} region")
     return x, y, width, height
+
+
+def _screenshot_region(a: dict) -> tuple[tuple[int, int, int, int] | None, dict | None]:
+    """The rectangle to capture, and the window it came from if there was one.
+
+    `window` and `region` together used to be refused. They now mean "this
+    rectangle, measured inside that window", which is the shape the caller
+    actually wanted every time it was refused: a 1200x100 chat composer strip is
+    160 tokens against the 1843 of a full screen, and hand-converting it to
+    absolute coordinates on every call is how clicks end up 40px off.
+    """
+    win = None
+    if a.get("window") is not None:
+        win = _resolve_target(a["window"])
+        if win.get("minimized"):
+            raise ToolError(
+                f'{win["wm_class"]} is minimized, so there is nothing on screen to '
+                "capture. Activate it first."
+            )
+
+    region = a.get("region")
+    if region is None:
+        if win is None:
+            return None, None
+        return (win["x"], win["y"], win["width"], win["height"]), win
+
+    x, y, width, height = _parse_region(region)
+    if win is None:
+        return (x, y, width, height), None
+
+    # window-relative, clamped to the window so a sloppy strip cannot wander
+    # onto whatever is next to it.
+    x, y = win["x"] + x, win["y"] + y
+    width = min(width, win["x"] + win["width"] - x)
+    height = min(height, win["y"] + win["height"] - y)
+    if width <= 0 or height <= 0:
+        raise ToolError(
+            f'region does not fall inside {win["wm_class"]} '
+            f'({win["width"]}x{win["height"]}); it is measured from the window\'s '
+            "top-left corner when window= is given"
+        )
+    return (x, y, width, height), win
 
 
 def _crop(path: Path, region: tuple[int, int, int, int]) -> None:
@@ -1057,7 +1552,15 @@ def tool_frames(a: dict) -> dict:
 
 
 def tool_activate_window(a: dict) -> dict:
-    return focus_window(a.get("target"))
+    watching = _look_before(a)
+    result = focus_window(a.get("target"))
+    if watching.mode is not False:
+        # Look at the window that was just raised, not whatever was in front
+        # when the call started.
+        watching.window = result["window"]
+        watching.region = (result["window"]["x"], result["window"]["y"],
+                           result["window"]["width"], result["window"]["height"])
+    return _look(a, result, watching)
 
 
 def tool_ui_apps(_: dict) -> dict:
@@ -1159,12 +1662,14 @@ def tool_ui_press(a: dict) -> dict:
             f"so action_index {index} does not exist"
         )
     action_name = node.get_localized_name(index)
+    watching = _look_before(a)
     ok = node.do_action(index)
     if not ok:
         raise ToolError(f"do_action({index}) on {path} returned false; nothing happened")
-    return {"path": path, "widget": actual_name, "role": actual_role,
-            "action": action_name,
-            "detail": f"pressed {action_name!r} on {actual_name!r} [{actual_role}]"}
+    result = {"path": path, "widget": actual_name, "role": actual_role,
+              "action": action_name,
+              "detail": f"pressed {action_name!r} on {actual_name!r} [{actual_role}]"}
+    return _look(a, result, watching)
 
 
 def tool_ui_read_text(a: dict) -> dict:
@@ -1249,6 +1754,7 @@ def tool_type_text(a: dict) -> dict:
         )
     focus = focus_window(target)
     delay = int(a.get("key_delay_ms") or 20)
+    watching = _look_before(a, hint_window=focus["window"])
 
     # Read the widget BEFORE typing so we can tell what this call actually added.
     app_hint = a.get("verify_app") or _atspi_app_for_window(focus["window"])
@@ -1289,25 +1795,28 @@ def tool_type_text(a: dict) -> dict:
     # right characters arrived, and on a non-US layout they demonstrably do not.
     if before is None:
         result["verified"] = False
-        result["detail"] += (" -- COULD NOT VERIFY: no readable AT-SPI text widget, "
-                            "so there is no proof these characters arrived intact"
-                            + (f". {hazard}" if hazard else ""))
-        return result
+        result["detail"] += (" -- no readable AT-SPI text widget (Qt, Electron and "
+                             "Chrome expose none), so this is verified by picture "
+                             "instead of by readback"
+                             + (f". {hazard}" if hazard else ""))
+        return _look_typed(a, result, focus["window"], watching)
 
     time.sleep(0.4)
     try:
         after = _read_text(_find_text_widget(str(app_hint), None))
     except ToolError:
         result["verified"] = False
-        result["detail"] += " -- could not re-read the widget to verify"
-        return result
+        result["detail"] += " -- could not re-read the widget; verified by picture instead"
+        return _look_typed(a, result, focus["window"], watching)
 
     added = after[len(before):] if after.startswith(before) else after
     if text in added or text in after[len(before):]:
         result["verified"] = True
         result["detail"] = (f'typed {len(text)} characters into '
                             f'{focus["window"]["wm_class"]} and read them back')
-        return result
+        # Readback already proved it; a picture would be pure token spend.
+        return _look(a, result, watching) if a.get("look") not in (None, "auto") \
+            else result
 
     raise ToolError(
         f"{used} reported success but the wrong characters arrived. Sent {text!r}, "
@@ -1354,6 +1863,7 @@ def tool_press_keys(a: dict) -> dict:
         )
     codes = parse_combo(combo)          # validate BEFORE stealing focus
     focus = focus_window(target)
+    watching = _look_before(a, hint_window=focus["window"])
 
     # Same reasoning as type_text: a keysym is the key the user means, a keycode
     # is a position on a US keyboard that may hold a different key here.
@@ -1371,8 +1881,9 @@ def tool_press_keys(a: dict) -> dict:
     if used == "ydotool":
         sequence = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
         _ydotool("key", "--key-delay", "40", *sequence)
-    return {"combo": combo, "focus": focus["detail"], "via": used,
-            "detail": f'sent {combo} to {focus["window"]["wm_class"]}'}
+    result = {"combo": combo, "focus": focus["detail"], "via": used,
+              "detail": f'sent {combo} to {focus["window"]["wm_class"]}'}
+    return _look(a, result, watching)
 
 
 def _pointer_result(x: float, y: float, action: str, guard: dict | None) -> dict:
@@ -1385,8 +1896,10 @@ def _pointer_result(x: float, y: float, action: str, guard: dict | None) -> dict
 def tool_pointer_move(a: dict) -> dict:
     x, y = _point(a)
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+    watching = _look_before(a, point=(x, y))
     _pointer().move_to(x, y)
-    return _pointer_result(x, y, "moved", guard)
+    result = _pointer_result(x, y, "moved", guard)
+    return _look(a, result, watching)
 
 
 def tool_pointer_click(a: dict) -> dict:
@@ -1396,26 +1909,39 @@ def tool_pointer_click(a: dict) -> dict:
     if not 1 <= count <= 3:
         raise ToolError("count must be 1, 2 or 3")
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+    watching = _look_before(a, point=(x, y))
     before = [w for w in list_windows() if w.get("focused")]
     _pointer().click(x, y, button=button, count=count)
-    time.sleep(0.25)
-    after = [w for w in list_windows() if w.get("focused")]
+
     result = _pointer_result(x, y, f"{button} click x{count}", guard)
+    # Settling before reading focus is both more accurate and cheaper than the
+    # fixed 0.25s sleep this used to take: a window that is going to take focus
+    # has finished drawing by the time two frames agree.
+    if watching.mode is False:
+        time.sleep(0.25)
+    else:
+        _look(a, result, watching)
+        watching = _Look(False, None, None, None)
+    after = [w for w in list_windows() if w.get("focused")]
     # Whether the keyboard moved is the single most useful consequence of a
-    # click and the caller cannot see it any other way.
+    # click and the caller cannot see it any other way. It is not sufficient on
+    # its own: a Telegram inline button never takes focus, so a successful press
+    # and a click into dead space both read "unchanged" here. `look` settles that.
     was = before[0]["wm_class"] if before else None
     now = after[0]["wm_class"] if after else None
     result["focus"] = ("unchanged: " + str(now)) if was == now else f"moved {was} -> {now}"
-    return result
+    return _look(a, result, watching)
 
 
 def tool_pointer_drag(a: dict) -> dict:
     x1, y1 = _point(a, "from_x", "from_y")
     x2, y2 = _point(a, "to_x", "to_y")
     guard = _guard_point(x1, y1, a["expect_window"]) if a.get("expect_window") else None
+    watching = _look_before(a, point=(x2, y2))
     _pointer().drag(x1, y1, x2, y2, button=str(a.get("button") or "left"),
                            steps=int(a.get("steps") or 24))
-    return {"action": "drag", "from": [x1, y1], "to": [x2, y2], "guard": guard}
+    result = {"action": "drag", "from": [x1, y1], "to": [x2, y2], "guard": guard}
+    return _look(a, result, watching)
 
 
 def tool_pointer_scroll(a: dict) -> dict:
@@ -1426,8 +1952,10 @@ def tool_pointer_scroll(a: dict) -> dict:
     if max(abs(dy), abs(dx)) > 30:
         raise ToolError("more than 30 wheel clicks at once is almost always a typo")
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+    watching = _look_before(a, point=(x, y))
     _pointer().scroll(x, y, dy=dy, dx=dx)
-    return {"action": "scroll", "x": x, "y": y, "dy": dy, "dx": dx, "guard": guard}
+    result = {"action": "scroll", "x": x, "y": y, "dy": dy, "dx": dx, "guard": guard}
+    return _look(a, result, watching)
 
 
 def tool_pointer_position(_: dict) -> dict:
@@ -2077,6 +2605,33 @@ TOOL_SCHEMAS = [
 ]
 
 
+def _content_blocks(result: Any) -> list[dict]:
+    """Split a handler's return value into what the model reads and what it sees.
+
+    Handlers stash images under `_INLINE_KEY` (and, for do_steps, a list of them
+    under `_INLINE_KEY + "s"`) rather than building content blocks themselves, so
+    that every tool describes itself as plain JSON and only this function knows
+    the wire format.
+    """
+    images: list[dict] = []
+    if isinstance(result, dict):
+        result = dict(result)
+        one = result.pop(_INLINE_KEY, None)
+        many = result.pop(_INLINE_KEY + "s", None)
+        if one:
+            images.append(one)
+        if many:
+            images.extend(many)
+
+    blocks: list[dict] = [{"type": "text", "text": json.dumps(result, indent=1)}]
+    for image in images:
+        blocks.append({"type": "image",
+                       "source": {"type": "base64",
+                                  "media_type": image["media_type"],
+                                  "data": image["data"]}})
+    return blocks
+
+
 def _respond(msg_id: Any, result: Any) -> None:
     sys.stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg_id, "result": result}) + "\n")
     sys.stdout.flush()
@@ -2114,8 +2669,7 @@ def handle(msg: dict) -> None:
             return
         try:
             result = handler(params.get("arguments") or {})
-            _respond(msg_id, {"content": [{"type": "text",
-                                           "text": json.dumps(result, indent=1)}]})
+            _respond(msg_id, {"content": _content_blocks(result)})
         except ToolError as e:
             # A tool-level failure is a result the model must see and reason
             # about, not a protocol error that hides the reason.
@@ -2163,7 +2717,8 @@ def self_test() -> int:
     run("ui_tree(gnome-shell)",
         lambda: f'{tool_ui_tree({"app": "gnome-shell", "depth": 5})["nodes"]} nodes')
     run("screenshot", lambda: json.dumps(
-        tool_screenshot({"path": "/tmp/wcu-selftest.png"})))
+        {k: v for k, v in tool_screenshot({"path": "/tmp/wcu-selftest.png"}).items()
+         if k != _INLINE_KEY}))          # 200KB of base64 is not a test report
     run("ui_find(actionable)", lambda: (
         f'{tool_ui_find({"text": "/", "app": "gnome-shell", "actionable_only": True})["matches"]}'
         " actionable widgets"))
