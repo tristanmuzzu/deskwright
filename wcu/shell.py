@@ -11,18 +11,55 @@ from typing import Any
 
 from .errors import ToolError
 
-BUS_NAME = "org.tristan.MigrationHelpers"
-OBJ_PATH = "/org/tristan/MigrationHelpers"
-EXTENSION_UUID = "migration-helpers@tristan.local"
+# Two extensions can serve this server. The bundled one (extension/ in this
+# repo) is preferred; the legacy migration-helpers bus keeps everything
+# working on a machine that has not loaded it yet. The pick happens once per
+# process, on first use -- gnome-shell cannot gain or lose an extension
+# without a re-login anyway, so probing more often buys nothing.
+NEW_BUS = "org.wcu.Helpers"
+NEW_PATH = "/org/wcu/Helpers"
+NEW_UUID = "wcu@wayland-computer-use"
+OLD_BUS = "org.tristan.MigrationHelpers"
+OLD_PATH = "/org/tristan/MigrationHelpers"
+OLD_UUID = "migration-helpers@tristan.local"
+
+BUS_NAME = OLD_BUS
+OBJ_PATH = OLD_PATH
+EXTENSION_UUID = OLD_UUID
+_BUS_PROBED = False
 
 FOCUS_TIMEOUT_S = 3.0
 FOCUS_POLL_S = 0.1
+
+
+def _introspect_methods(bus: str, path: str) -> set[str]:
+    try:
+        xml = subprocess.run(
+            ["gdbus", "introspect", "--session", "--dest", bus,
+             "--object-path", path, "--xml"],
+            capture_output=True, text=True, timeout=15).stdout
+        return set(re.findall(r'<method name="([^"]+)"', xml))
+    except Exception:
+        return set()
+
+
+def _pick_bus() -> None:
+    """Prefer the bundled extension's bus; fall back to migration-helpers."""
+    global BUS_NAME, OBJ_PATH, EXTENSION_UUID, _BUS_PROBED, _EXTENSION_METHODS
+    if _BUS_PROBED:
+        return
+    _BUS_PROBED = True
+    methods = _introspect_methods(NEW_BUS, NEW_PATH)
+    if methods:
+        BUS_NAME, OBJ_PATH, EXTENSION_UUID = NEW_BUS, NEW_PATH, NEW_UUID
+        _EXTENSION_METHODS = methods
 
 
 # =========================================================================
 # transport-independent capability layer
 # =========================================================================
 def _gdbus(method: str, *args: str, timeout: float = 30.0) -> str:
+    _pick_bus()
     if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
         raise ToolError(
             "DBUS_SESSION_BUS_ADDRESS is not set, so the session bus is "
@@ -140,15 +177,9 @@ def extension_methods() -> set[str]:
     that assumes otherwise fails with UnknownMethod and no explanation.
     """
     global _EXTENSION_METHODS
+    _pick_bus()
     if _EXTENSION_METHODS is None:
-        try:
-            xml = subprocess.run(
-                ["gdbus", "introspect", "--session", "--dest", BUS_NAME,
-                 "--object-path", OBJ_PATH, "--xml"],
-                capture_output=True, text=True, timeout=15).stdout
-            _EXTENSION_METHODS = set(re.findall(r'<method name="([^"]+)"', xml))
-        except Exception:
-            _EXTENSION_METHODS = set()
+        _EXTENSION_METHODS = _introspect_methods(BUS_NAME, OBJ_PATH)
     return _EXTENSION_METHODS
 
 
@@ -513,3 +544,90 @@ def tool_assert_state(a: dict) -> dict:
             "checks": checks,
             "detail": (f'{sum(c["passed"] for c in checks)}/{len(checks)} '
                        "assertions hold")}
+
+
+def halt_active() -> bool:
+    """Whether the human kill switch is engaged.
+
+    Only the bundled extension has it; on a shell that has not loaded it yet
+    this is a cached no at zero cost. Any probe failure counts as not-halted:
+    the switch exists to let a human stop the server, never to let a D-Bus
+    hiccup stop it.
+    """
+    if "HaltActive" not in extension_methods():
+        return False
+    try:
+        return "true" in _gdbus("HaltActive", timeout=5.0).lower()
+    except ToolError:
+        return False
+
+
+_WINDOW_VERBS = {
+    "move_resize": ("MoveResize", ("x", "y", "width", "height")),
+    "close":       ("Close", ()),
+    "minimize":    ("Minimize", ()),
+    "unminimize":  ("Unminimize", ()),
+    "maximize":    ("Maximize", ()),
+    "unmaximize":  ("Maximize", ()),
+    "workspace":   ("SetWorkspace", ("index",)),
+    "above":       ("SetAbove", ()),
+}
+
+
+def tool_window_manage(a: dict) -> dict:
+    """Move, resize, close, (un)minimize, (un)maximize, re-workspace or pin a
+    window -- through the compositor, where these are ordinary calls."""
+    action = str(a.get("action") or "").strip()
+    if action not in _WINDOW_VERBS:
+        raise ToolError("action must be one of: "
+                        + ", ".join(sorted(_WINDOW_VERBS)), code="bad_args")
+    if a.get("target") is None:
+        raise ToolError("target is required (window id, wm_class or title "
+                        "fragment)", code="bad_args")
+    method, needs = _WINDOW_VERBS[action]
+    missing = [k for k in needs if a.get(k) is None]
+    if missing:
+        raise ToolError(f"{action} needs {', '.join(missing)}",
+                        code="bad_args")
+    if method not in extension_methods():
+        raise ToolError(_needs_relogin(method), code="needs_relogin")
+
+    window = _resolve_target(a["target"])
+    wid = window["id"]
+    args: list[str] = [str(wid)]
+    if action == "move_resize":
+        args += [str(int(a[k])) for k in ("x", "y", "width", "height")]
+    elif action == "workspace":
+        args += [str(int(a["index"]))]
+    elif action in ("maximize", "unmaximize"):
+        args += ["true" if action == "maximize" else "false"]
+    elif action == "above":
+        args += ["true" if a.get("above", True) else "false"]
+    out = _gdbus(method, *args)
+    if "true" not in out.lower():
+        raise ToolError(
+            f"{action} on {window['wm_class']} (id {wid}) was refused by the "
+            "compositor -- the id may have gone stale, or the window does not "
+            "support it (a non-resizable dialog, an out-of-range workspace)",
+            code="window_not_found",
+        )
+
+    # Report the world as it IS afterwards, not the call as it was sent.
+    time.sleep(0.3)
+    now = next((w for w in list_windows() if w["id"] == wid), None)
+    result: dict[str, Any] = {"action": action, "id": wid,
+                              "wm_class": window["wm_class"]}
+    if action == "close":
+        result["closed"] = now is None
+        result["detail"] = ("window is gone" if now is None else
+                            "close was accepted but the window is still here "
+                            "-- an unsaved-changes dialog is the usual reason")
+    elif now is None:
+        result["detail"] = "the window vanished after the action"
+    else:
+        result["window"] = now
+        result["detail"] = (f'{action} done; geometry now '
+                            f'{now["width"]}x{now["height"]}+{now["x"]}+{now["y"]}'
+                            + (", minimized" if now.get("minimized") else "")
+                            + (", above" if now.get("above") else ""))
+    return result

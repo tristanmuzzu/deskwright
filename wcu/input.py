@@ -115,6 +115,20 @@ def parse_combo(combo: str) -> list[int]:
             "power-off. There is no flag to override this.",
             code="refused_combo",
         )
+    # The human halt combo may never be injected. The extension's 2s debounce
+    # already blocks the instant-double-press; this guard closes the other
+    # route -- an agent clearing its own halt through this server. A different
+    # client could still inject it, which is stated honestly in the extension
+    # source; this server at least is not that client.
+    has_super = bool({"super", "meta", "leftmeta"} & mods)
+    if has_super and has_ctrl and "escape" in set(parts) - mods:
+        raise ToolError(
+            f"refusing to inject {combo!r}. Super+Ctrl+Escape is the human halt "
+            "switch: it exists so a person can stop this server, and a server "
+            "that can press it can un-press it. There is no flag to override "
+            "this.",
+            code="refused_combo",
+        )
     # Same failure class, different key: Ctrl+Alt+Delete is bound to `logout` on
     # this machine (verified via org.gnome.settings-daemon.plugins.media-keys).
     # It tears the session down, takes unsaved work with it, and an injecting
@@ -689,6 +703,20 @@ def _wl(binary: str, *args: str, stdin: bytes | None = None,
 
 def _read_clipboard_text() -> tuple[str | None, str]:
     """The clipboard as text, or (None, why). why == "empty" is the clean case."""
+    # The bundled extension reads the clipboard from inside gnome-shell, which
+    # keeps working while the screen is locked -- wl-paste does not. Prefer it
+    # when the loaded extension has it; fall through on any wobble.
+    if "GetClipboardText" in extension_methods():
+        try:
+            reply = _gdbus("GetClipboardText", timeout=5.0)
+            parsed = ast.literal_eval(
+                reply.replace("true", "True").replace("false", "False"))
+            if isinstance(parsed, tuple) and len(parsed) == 2:
+                ok, text = parsed
+                if ok:
+                    return str(text), ""
+        except (ToolError, SyntaxError, ValueError):
+            pass
     proc = _wl("wl-paste", "--no-newline")
     if proc.returncode != 0:
         err = (proc.stderr or b"").decode(errors="replace").strip()

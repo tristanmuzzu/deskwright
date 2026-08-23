@@ -57,11 +57,13 @@ from .shell import (
     _needs_relogin,
     extension_methods,
     list_windows,
+    halt_active,
     tool_activate_window,
     tool_assert_state,
     tool_list_windows,
     tool_wait_for,
     tool_window_at,
+    tool_window_manage,
     window_at,
 )
 from .steps import DO_STEPS_MAX, tool_do_steps
@@ -685,6 +687,37 @@ TOOLS: list[dict] = [
         "handler": tool_activate_window,
     },
     {
+        "name": "window_manage",
+        "description": "Move, resize, close, (un)minimize, (un)maximize, "
+                       "re-workspace or pin a window -- through the "
+                       "compositor, where these are ordinary calls. The "
+                       "result reports the window as it IS afterwards (new "
+                       "geometry, or gone), not just that the call was sent. "
+                       "close that leaves the window standing names the "
+                       "usual reason: an unsaved-changes dialog.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string",
+                           "enum": ["move_resize", "close", "minimize",
+                                    "unminimize", "maximize", "unmaximize",
+                                    "workspace", "above"]},
+                "target": {"anyOf": [{"type": "integer"}, {"type": "string"}],
+                           "description": "Window id, wm_class or title "
+                                          "fragment."},
+                "x": {"type": "integer"}, "y": {"type": "integer"},
+                "width": {"type": "integer"}, "height": {"type": "integer"},
+                "index": {"type": "integer",
+                          "description": "Workspace index, for action: "
+                                         "workspace"},
+                "above": {"type": "boolean", "default": True,
+                          "description": "For action: above -- pin or unpin."},
+            },
+            "required": ["action", "target"],
+        },
+        "handler": tool_window_manage,
+    },
+    {
         "name": "launch_app",
         "description": "Start an application and confirm it actually arrived: "
                        "the result carries the NEW window's dict (or, while the "
@@ -949,6 +982,8 @@ TOOLS: list[dict] = [
 ]
 
 HANDLERS: dict[str, Callable[[dict], Any]] = {t["name"]: t["handler"] for t in TOOLS}
+_READ_ONLY_TOOLS = {t["name"] for t in TOOLS
+                    if (t.get("annotations") or {}).get("readOnlyHint")}
 TOOL_SCHEMAS = [
     {k: v for k, v in t.items() if k != "handler"} for t in TOOLS
 ]
@@ -1022,6 +1057,16 @@ def handle(msg: dict) -> None:
             _error(msg_id, -32602, f"unknown tool {name!r}")
             return
         try:
+            # The kill switch gates every state-changing tool at one choke
+            # point. Reading tools keep working while halted -- a human who
+            # stopped the hands still wants the eyes.
+            if name not in _READ_ONLY_TOOLS and halt_active():
+                raise ToolError(
+                    "the human halt switch is engaged (Super+Ctrl+Escape). "
+                    "Nothing will be injected until a human presses it again "
+                    "or calls ClearHalt. Reading tools still work.",
+                    code="halted",
+                )
             result = handler(params.get("arguments") or {})
             _respond(msg_id, {"content": _content_blocks(result)})
         except ToolError as e:

@@ -46,6 +46,10 @@ CODES = {
     # Time ran out on an honest wait.
     "timeout":             "the awaited condition did not occur in time",
 
+    # A human pressed the kill switch. Nothing injects until a human clears
+    # it; retrying, waiting, or switching route are all the wrong response.
+    "halted":              "the human halt switch is engaged",
+
     # Everything not yet classified. Raise sites should not choose this;
     # it is the default for a bare ToolError until every site is tagged.
     "unclassified":        "failure without a specific code",
