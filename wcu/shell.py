@@ -28,20 +28,23 @@ def _gdbus(method: str, *args: str, timeout: float = 30.0) -> str:
             "DBUS_SESSION_BUS_ADDRESS is not set, so the session bus is "
             "unreachable. This server has to run inside Tristan's graphical "
             "session -- it cannot work over a bare ssh login or from a system "
-            "service."
+            "service.",
+            code="extension_unavailable",
         )
     cmd = ["gdbus", "call", "--session", "--dest", BUS_NAME,
            "--object-path", OBJ_PATH, "--method", f"{BUS_NAME}.{method}", *args]
     try:
         proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        raise ToolError(f"{method} did not answer within {timeout:.0f}s") from None
+        raise ToolError(f"{method} did not answer within {timeout:.0f}s",
+                        code="extension_unavailable") from None
     if proc.returncode != 0:
         err = (proc.stderr or "").strip()
         if "ServiceUnknown" in err or "was not provided" in err or "NoReply" in err:
             raise ToolError(
                 f"the {EXTENSION_UUID} extension is not answering on D-Bus.\n"
-                f"  {_extension_diagnosis()}"
+                f"  {_extension_diagnosis()}",
+                code="extension_unavailable",
             )
         raise ToolError(err or f"{method} failed with rc={proc.returncode}")
     return proc.stdout.strip()
@@ -108,9 +111,11 @@ def _unwrap_gvariant_string(raw: str) -> str:
     try:
         value = ast.literal_eval(raw.strip())
     except (SyntaxError, ValueError) as exc:
-        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}") from exc
+        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}",
+                        code="extension_unavailable") from exc
     if not (isinstance(value, tuple) and len(value) == 1 and isinstance(value[0], str)):
-        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}")
+        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}",
+                        code="extension_unavailable")
     return value[0]
 
 
@@ -161,10 +166,12 @@ def _resolve_target(target: Any) -> dict:
     """Turn a window id, wm_class, or title fragment into exactly one window."""
     windows = list_windows()
     if not windows:
-        raise ToolError("no windows are open, so there is nothing to target")
+        raise ToolError("no windows are open, so there is nothing to target",
+                        code="window_not_found")
 
     if isinstance(target, bool):
-        raise ToolError("target must be a window id or a name, not a boolean")
+        raise ToolError("target must be a window id or a name, not a boolean",
+                        code="bad_args")
 
     if isinstance(target, int) or (isinstance(target, str) and target.isdigit()):
         wanted = int(target)
@@ -177,11 +184,13 @@ def _resolve_target(target: Any) -> dict:
             "back with a new one, so an id read a few calls ago can already be "
             "dead. Pass a wm_class or a title fragment instead, which survives it. "
             "Open windows: "
-            + ", ".join(f'{w["id"]} {w["wm_class"]!r} {w["title"]!r}' for w in windows)
+            + ", ".join(f'{w["id"]} {w["wm_class"]!r} {w["title"]!r}' for w in windows),
+            code="window_not_found",
         )
 
     if not isinstance(target, str) or not target.strip():
-        raise ToolError("target must be a window id, a wm_class, or a title fragment")
+        raise ToolError("target must be a window id, a wm_class, or a title fragment",
+                        code="bad_args")
 
     needle = target.strip().lower()
     exact = [w for w in windows if (w["wm_class"] or "").lower() == needle]
@@ -194,12 +203,14 @@ def _resolve_target(target: Any) -> dict:
     if not matches:
         raise ToolError(
             f"nothing matches {target!r}. Open windows: "
-            + ", ".join(f'{w["id"]} {w["wm_class"]!r} {w["title"]!r}' for w in windows)
+            + ", ".join(f'{w["id"]} {w["wm_class"]!r} {w["title"]!r}' for w in windows),
+            code="window_not_found",
         )
     if len(matches) > 1:
         raise ToolError(
             f"{target!r} matches {len(matches)} windows; pass an id instead: "
-            + ", ".join(f'{w["id"]} {w["title"]!r}' for w in matches)
+            + ", ".join(f'{w["id"]} {w["title"]!r}' for w in matches),
+            code="bad_args",
         )
     return matches[0]
 
@@ -235,16 +246,19 @@ def focus_window(target: Any) -> dict:
     raise ToolError(
         f'activated window {wid} ({window["wm_class"]}) but it is still {state} after '
         f"{FOCUS_TIMEOUT_S:.0f}s. Nothing was typed. A window that refuses focus is "
-        "usually minimized on another workspace, or a modal dialog owns the focus."
+        "usually minimized on another workspace, or a modal dialog owns the focus.",
+        code="focus_not_acquired",
     )
 
 
 def _point(a: dict, xk: str = "x", yk: str = "y") -> tuple[float, float]:
     for key in (xk, yk):
         if a.get(key) is None:
-            raise ToolError(f"{xk} and {yk} are required, in screen pixels")
+            raise ToolError(f"{xk} and {yk} are required, in screen pixels",
+                            code="bad_args")
         if isinstance(a[key], bool) or not isinstance(a[key], (int, float)):
-            raise ToolError(f"{key} must be a number, got {a[key]!r}")
+            raise ToolError(f"{key} must be a number, got {a[key]!r}",
+                            code="bad_args")
     return float(a[xk]), float(a[yk])
 
 
@@ -312,14 +326,16 @@ def tool_wait_for(a: dict) -> dict:
     """Poll a desktop condition instead of sleeping and hoping."""
     timeout = float(a.get("timeout") or 10)
     if not 0.2 <= timeout <= 120:
-        raise ToolError("timeout must be between 0.2 and 120 seconds")
+        raise ToolError("timeout must be between 0.2 and 120 seconds",
+                        code="bad_args")
     condition = str(a.get("condition") or "").strip()
     target = a.get("target")
     known = {"window_focused", "window_exists", "window_gone", "focus_changes"}
     if condition not in known:
-        raise ToolError(f"condition must be one of: {', '.join(sorted(known))}")
+        raise ToolError(f"condition must be one of: {', '.join(sorted(known))}",
+                        code="bad_args")
     if condition != "focus_changes" and target is None:
-        raise ToolError(f"{condition} needs a target window")
+        raise ToolError(f"{condition} needs a target window", code="bad_args")
 
     def matches(w: dict) -> bool:
         if isinstance(target, int) or (isinstance(target, str) and str(target).isdigit()):

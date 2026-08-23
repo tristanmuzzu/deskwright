@@ -73,27 +73,31 @@ def layout_hazard() -> str:
 
 def _ydotool(*args: str, timeout: float = 30.0) -> None:
     if not shutil.which("ydotool"):
-        raise ToolError("ydotool is not installed, so no input can be injected")
+        raise ToolError("ydotool is not installed, so no input can be injected",
+                        code="input_backend_failed")
     if not os.path.exists(YDOTOOL_SOCKET):
         raise ToolError(
             f"{YDOTOOL_SOCKET} is missing -- ydotoold is not running. It must be a "
             "SYSTEM service (systemctl status ydotoold); a user service cannot open "
-            "/dev/uinput when the session predates the groupadd."
+            "/dev/uinput when the session predates the groupadd.",
+            code="input_backend_failed",
         )
     env = dict(os.environ, YDOTOOL_SOCKET=YDOTOOL_SOCKET)
     try:
         proc = subprocess.run(["ydotool", *args], env=env, capture_output=True,
                               text=True, timeout=timeout)
     except subprocess.TimeoutExpired:
-        raise ToolError(f"ydotool did not finish within {timeout:.0f}s") from None
+        raise ToolError(f"ydotool did not finish within {timeout:.0f}s",
+                        code="input_backend_failed") from None
     if proc.returncode != 0:
-        raise ToolError(f"ydotool failed: {(proc.stderr or '').strip()[:200]}")
+        raise ToolError(f"ydotool failed: {(proc.stderr or '').strip()[:200]}",
+                        code="input_backend_failed")
 
 
 def parse_combo(combo: str) -> list[int]:
     parts = [p.strip().lower() for p in str(combo).split("+") if p.strip()]
     if not parts:
-        raise ToolError("empty key combination")
+        raise ToolError("empty key combination", code="bad_args")
 
     mods = {p for p in parts if p in MODIFIERS}
     has_ctrl = bool({"ctrl", "control", "leftctrl"} & mods)
@@ -105,7 +109,8 @@ def parse_combo(combo: str) -> list[int]:
             "mutter: it throws the desktop onto a VT login screen that is "
             "indistinguishable from a frozen machine, and subsequent keystrokes go "
             "into a password box. This happened on 2026-08-08 and cost a hard "
-            "power-off. There is no flag to override this."
+            "power-off. There is no flag to override this.",
+            code="refused_combo",
         )
     # Same failure class, different key: Ctrl+Alt+Delete is bound to `logout` on
     # this machine (verified via org.gnome.settings-daemon.plugins.media-keys).
@@ -116,13 +121,15 @@ def parse_combo(combo: str) -> list[int]:
             f"refusing to inject {combo!r}. Ctrl+Alt+Delete is bound to logout here: "
             "it ends the session, discards unsaved work, and leaves an injecting "
             "client with no way to observe that anything happened. There is no flag "
-            "to override this."
+            "to override this.",
+            code="refused_combo",
         )
     codes = []
     for part in parts:
         if part not in KEYS:
             raise ToolError(
-                f"unknown key {part!r}. Known: {', '.join(sorted(KEYS)[:24])}, ..."
+                f"unknown key {part!r}. Known: {', '.join(sorted(KEYS)[:24])}, ...",
+                code="bad_args",
             )
         codes.append(KEYS[part])
     return codes
@@ -141,7 +148,8 @@ def combo_keysyms(combo: str) -> list[int]:
     for part in [p.strip().lower() for p in str(combo).split("+") if p.strip()]:
         sym = remote_input.KEYSYMS.get(part)
         if sym is None:
-            raise ToolError(f"no keysym known for {part!r}")
+            raise ToolError(f"no keysym known for {part!r}",
+                            code="input_backend_failed")
         syms.append(sym)
     return syms
 
@@ -159,7 +167,8 @@ def _input():
     except Exception as e:                                  # pragma: no cover
         raise ToolError(
             f"the pointer layer is unavailable ({type(e).__name__}: {e}). "
-            "It needs PyGObject (python3-gi) and a session bus."
+            "It needs PyGObject (python3-gi) and a session bus.",
+            code="input_backend_failed",
         ) from None
     return remote_input
 
@@ -186,7 +195,7 @@ class _InputProxy:
                 return attr(*args, **kwargs)
             except Exception as e:
                 if type(e).__name__ == "InputError":
-                    raise ToolError(str(e)) from None
+                    raise ToolError(str(e), code="input_backend_failed") from None
                 raise
         return wrapped
 
@@ -217,7 +226,8 @@ def pointer_position() -> dict:
         }
     raise ToolError(
         "nothing knows where the pointer is: this server has not moved it, and "
-        + _needs_relogin("Pointer")
+        + _needs_relogin("Pointer"),
+        code="needs_relogin",
     )
 
 
@@ -242,7 +252,8 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
         raise ToolError(
             f"({x:.0f}, {y:.0f}) is inside {wanted['wm_class']}'s rectangle but the "
             "compositor routes no click there -- the window is click-through at "
-            "that point. Nothing was clicked."
+            "that point. Nothing was clicked.",
+            code="occluded",
         )
     # Include the id. Two windows of the same application read as
     # "expected org.gnome.Calculator but org.gnome.Calculator is there", which
@@ -253,20 +264,22 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
         f'refusing to click ({x:.0f}, {y:.0f}): expected {wanted["wm_class"]} '
         f'(id {wanted["id"]}) but {found} is there. Nothing was clicked. '
         f"Pass expect_window=null to click anyway, or check screen_map for where "
-        f"the window actually is."
+        f"the window actually is.",
+        code="occluded",
     )
 
 
 def tool_type_text(a: dict) -> dict:
     text = a.get("text")
     if not isinstance(text, str) or text == "":
-        raise ToolError("text is required")
+        raise ToolError("text is required", code="bad_args")
     target = a.get("target")
     if target is None:
         raise ToolError(
             "target is required. ydotool injection is focus-blind, so typing "
             "without naming a window means typing into whatever is in front. Pass a "
-            "window id or wm_class from list_windows."
+            "window id or wm_class from list_windows.",
+            code="no_expectation",
         )
     focus = focus_window(target)
     delay = int(a.get("key_delay_ms") or 20)
@@ -286,7 +299,7 @@ def tool_type_text(a: dict) -> dict:
     # function still has a verification pass at all.
     via = str(a.get("via") or "auto").lower()
     if via not in ("auto", "keysym", "ydotool"):
-        raise ToolError("via must be auto, keysym or ydotool")
+        raise ToolError("via must be auto, keysym or ydotool", code="bad_args")
     used = "ydotool"
     if via in ("auto", "keysym"):
         try:
@@ -294,7 +307,8 @@ def tool_type_text(a: dict) -> dict:
             used = "compositor keysyms"
         except Exception as e:
             if via == "keysym":
-                raise ToolError(f"keysym typing failed: {e}") from None
+                raise ToolError(f"keysym typing failed: {e}",
+                                code="input_backend_failed") from None
             _ydotool("type", "--key-delay", str(delay), text,
                      timeout=max(30.0, len(text) * delay / 1000 + 15))
     else:
@@ -339,19 +353,21 @@ def tool_type_text(a: dict) -> dict:
         f"the widget gained {added!r}. Nothing here is retryable -- with ydotool "
         f"this is the keycode/layout mismatch, not a race. {hazard or ''} "
         "Use ui_set_text instead: it hands characters to the widget and cannot be "
-        "transposed."
+        "transposed.",
+        code="input_backend_failed",
     )
 
 
 def tool_press_keys(a: dict) -> dict:
     combo = a.get("combo")
     if not combo:
-        raise ToolError("combo is required, e.g. 'ctrl+s'")
+        raise ToolError("combo is required, e.g. 'ctrl+s'", code="bad_args")
     target = a.get("target")
     if target is None:
         raise ToolError(
             "target is required. Key injection is focus-blind; a combo sent at the "
-            "wrong window can do real damage. Pass a window id or wm_class."
+            "wrong window can do real damage. Pass a window id or wm_class.",
+            code="no_expectation",
         )
     codes = parse_combo(combo)          # validate BEFORE stealing focus
     focus = focus_window(target)
@@ -368,7 +384,8 @@ def tool_press_keys(a: dict) -> dict:
             used = "compositor keysyms"
         except Exception as e:
             if via == "keysym":
-                raise ToolError(f"keysym combo failed: {e}") from None
+                raise ToolError(f"keysym combo failed: {e}",
+                                code="input_backend_failed") from None
             used = "ydotool"
     if used == "ydotool":
         sequence = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
@@ -399,7 +416,7 @@ def tool_pointer_click(a: dict) -> dict:
     button = str(a.get("button") or "left")
     count = int(a.get("count") or 1)
     if not 1 <= count <= 3:
-        raise ToolError("count must be 1, 2 or 3")
+        raise ToolError("count must be 1, 2 or 3", code="bad_args")
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
     watching = _look_before(a, point=(x, y))
     before = [w for w in list_windows() if w.get("focused")]
@@ -440,9 +457,11 @@ def tool_pointer_scroll(a: dict) -> dict:
     x, y = _point(a)
     dy, dx = int(a.get("dy") or 0), int(a.get("dx") or 0)
     if not dy and not dx:
-        raise ToolError("give dy (down is positive) or dx (right is positive)")
+        raise ToolError("give dy (down is positive) or dx (right is positive)",
+                        code="bad_args")
     if max(abs(dy), abs(dx)) > 30:
-        raise ToolError("more than 30 wheel clicks at once is almost always a typo")
+        raise ToolError("more than 30 wheel clicks at once is almost always a typo",
+                        code="bad_args")
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
     watching = _look_before(a, point=(x, y))
     _pointer().scroll(x, y, dy=dy, dx=dx)

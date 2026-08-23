@@ -24,7 +24,8 @@ def _atspi():
         gi.require_version("Atspi", "2.0")
         from gi.repository import Atspi
     except Exception as e:
-        raise ToolError(f"AT-SPI is unavailable ({type(e).__name__}: {e})") from None
+        raise ToolError(f"AT-SPI is unavailable ({type(e).__name__}: {e})",
+                        code="atspi_unavailable") from None
     Atspi.init()
     return Atspi
 
@@ -109,7 +110,8 @@ def _find_app(app_name: str):
                 return app
         raise ToolError(
             f"no application {wanted!r} with pid {wanted_pid} on the AT-SPI bus. "
-            "Check list_windows -- it reports the pid of every window."
+            "Check list_windows -- it reports the pid of every window.",
+            code="app_not_on_bus",
         )
 
     if not matches:
@@ -117,7 +119,8 @@ def _find_app(app_name: str):
             f"no application named {app_name!r} on the AT-SPI bus. Present: "
             + ", ".join(repr(n) for n in names)
             + ". An app started while toolkit-accessibility was false exposes a "
-              "stunted tree for its whole life -- restart the app, not the setting."
+              "stunted tree for its whole life -- restart the app, not the setting.",
+            code="app_not_on_bus",
         )
     if len(matches) > 1:
         listed = ", ".join(f"{n!r}#{_app_pid(a)}" for n, a in matches)
@@ -125,7 +128,8 @@ def _find_app(app_name: str):
             f"{len(matches)} applications match {app_name!r}, and an index path is "
             f"only meaningful inside one of them: {listed}. Pass the pid form, e.g. "
             f"app: \"{matches[0][0]}#{_app_pid(matches[0][1])}\". list_windows "
-            "reports the pid of every window, so you can pick the right one."
+            "reports the pid of every window, so you can pick the right one.",
+            code="bad_args",
         )
     return matches[0][1]
 
@@ -165,7 +169,8 @@ def _read_text(node) -> str:
     if text_iface is None:
         raise ToolError(
             f"{node.get_role_name()} {node.get_name()!r} exposes no AT-SPI text "
-            "interface, so its content cannot be read"
+            "interface, so its content cannot be read",
+            code="widget_missing",
         )
     count = Atspi.Text.get_character_count(text_iface)
     return Atspi.Text.get_text(text_iface, 0, count) if count else ""
@@ -184,7 +189,8 @@ def _find_text_widget(app_name: str, path: str | None):
             f"no text widget in {app_name!r} after reading {len(collected)} nodes to "
             f"depth {DEFAULT_FIND_DEPTH}. If the app was started while "
             "toolkit-accessibility was false its tree is stunted for its whole "
-            "life -- restart the app."
+            "life -- restart the app.",
+            code="widget_missing",
         )
 
     # The FOCUSED one first. "The app's first text widget" is the wrong document
@@ -231,11 +237,13 @@ def _resolve_path(path: str):
         try:
             node = node.get_child_at_index(int(part))
         except (ValueError, TypeError):
-            raise ToolError(f"{path!r} is not a valid index path") from None
+            raise ToolError(f"{path!r} is not a valid index path",
+                            code="bad_args") from None
         if node is None:
             raise ToolError(
                 f"{path!r} no longer resolves -- the tree changed since it was found. "
-                "Call ui_find again; paths are never cacheable."
+                "Call ui_find again; paths are never cacheable.",
+                code="widget_missing",
             )
     return node
 
@@ -272,7 +280,8 @@ def tool_ui_apps(_: dict) -> dict:
 def tool_ui_tree(a: dict) -> dict:
     app = str(a.get("app") or "")
     if not app:
-        raise ToolError("app is required (see ui_apps for the names on the bus)")
+        raise ToolError("app is required (see ui_apps for the names on the bus)",
+                        code="bad_args")
     depth = int(a.get("depth") or DEFAULT_TREE_DEPTH)
     node = _find_app(app)
     out: list[dict] = []
@@ -293,7 +302,8 @@ def tool_ui_find(a: dict) -> dict:
     if not text and not role and not actionable_only:
         raise ToolError(
             "give text, or role, or actionable_only:true. Without any of them this "
-            "would dump the whole tree -- use ui_tree for that."
+            "would dump the whole tree -- use ui_tree for that.",
+            code="bad_args",
         )
 
     if a.get("app"):
@@ -354,7 +364,7 @@ def tool_ui_find(a: dict) -> dict:
 def tool_ui_press(a: dict) -> dict:
     path = str(a.get("path") or "")
     if not path:
-        raise ToolError("path is required (get one from ui_find)")
+        raise ToolError("path is required (get one from ui_find)", code="bad_args")
     expect_name = a.get("expect_name")
     expect_role = a.get("expect_role")
     # An empty expect_name defeats the whole check, because "" is a substring of
@@ -369,7 +379,8 @@ def tool_ui_press(a: dict) -> dict:
             "expect_name or expect_role is required, and neither may be blank. An "
             "AT-SPI index path is only valid while the tree is unchanged, so acting "
             "on one without checking what it now points at is how you press the "
-            "wrong widget."
+            "wrong widget.",
+            code="no_expectation",
         )
     index = int(a.get("action_index") or 0)
 
@@ -379,24 +390,28 @@ def tool_ui_press(a: dict) -> dict:
     if expect_name is not None and str(expect_name).lower() not in actual_name.lower():
         raise ToolError(
             f"refusing to act: {path} now points at {actual_name!r} [{actual_role}], "
-            f"not {expect_name!r}. The tree moved -- call ui_find again."
+            f"not {expect_name!r}. The tree moved -- call ui_find again.",
+            code="widget_moved",
         )
     if expect_role is not None and expect_role != actual_role:
         raise ToolError(
-            f"refusing to act: {path} is a {actual_role}, not a {expect_role}."
+            f"refusing to act: {path} is a {actual_role}, not a {expect_role}.",
+            code="widget_moved",
         )
 
     n_actions = node.get_n_actions() if node.get_action_iface() else 0
     if n_actions <= index:
         raise ToolError(
             f"{path} ({actual_name!r} [{actual_role}]) exposes {n_actions} action(s), "
-            f"so action_index {index} does not exist"
+            f"so action_index {index} does not exist",
+            code="bad_args",
         )
     action_name = node.get_localized_name(index)
     watching = _look_before(a)
     ok = node.do_action(index)
     if not ok:
-        raise ToolError(f"do_action({index}) on {path} returned false; nothing happened")
+        raise ToolError(f"do_action({index}) on {path} returned false; nothing happened",
+                        code="atspi_write_failed")
     result = {"path": path, "widget": actual_name, "role": actual_role,
               "action": action_name,
               "detail": f"pressed {action_name!r} on {actual_name!r} [{actual_role}]"}
@@ -407,7 +422,7 @@ def tool_ui_read_text(a: dict) -> dict:
     app = str(a.get("app") or "")
     path = a.get("path")
     if not app and not path:
-        raise ToolError("app or path is required")
+        raise ToolError("app or path is required", code="bad_args")
     node = _find_text_widget(app, path)
     content = _read_text(node)
     return {"path": path or "auto-located", "role": node.get_role_name(),
@@ -425,11 +440,11 @@ def tool_ui_set_text(a: dict) -> dict:
     """
     text = a.get("text")
     if not isinstance(text, str):
-        raise ToolError("text is required")
+        raise ToolError("text is required", code="bad_args")
     app = str(a.get("app") or "")
     path = a.get("path")
     if not app and not path:
-        raise ToolError("app or path is required")
+        raise ToolError("app or path is required", code="bad_args")
     replace = bool(a.get("replace", False))
 
     node = _find_text_widget(app, path)
@@ -439,7 +454,8 @@ def tool_ui_set_text(a: dict) -> dict:
         raise ToolError(
             f"{node.get_role_name()} {node.get_name()!r} is not editable through "
             "AT-SPI. Use type_text with an explicit target window instead, "
-            "accepting that injection is focus-blind."
+            "accepting that injection is focus-blind.",
+            code="widget_missing",
         )
 
     before = _read_text(node)
@@ -447,14 +463,16 @@ def tool_ui_set_text(a: dict) -> dict:
         Atspi.EditableText.delete_text(editable, 0, len(before))
     offset = 0 if replace else Atspi.Text.get_character_count(text_iface)
     if not node.insert_text(offset, text, len(text)):
-        raise ToolError("insert_text returned false; nothing was written")
+        raise ToolError("insert_text returned false; nothing was written",
+                        code="atspi_write_failed")
 
     time.sleep(0.2)
     after = _read_text(node)
     if text not in after:
         raise ToolError(
             "insert_text reported success but the text is not in the widget "
-            f"(now {len(after)} chars). Treat this as a failure, not a success."
+            f"(now {len(after)} chars). Treat this as a failure, not a success.",
+            code="atspi_write_failed",
         )
     # With replace=True, `text in after` is too weak: a no-op delete_text leaves
     # the old content, the new text is found anyway, and the tool would report
@@ -464,7 +482,8 @@ def tool_ui_set_text(a: dict) -> dict:
             f"replace=True did not clear the widget: it holds {len(after)} chars "
             f"but {len(text)} were written. delete_text appears to be a no-op on "
             f"this widget ({node.get_role_name()}); content now starts "
-            f"{after[:60]!r}."
+            f"{after[:60]!r}.",
+            code="atspi_write_failed",
         )
     return {"role": node.get_role_name(), "wrote": len(text),
             "characters_before": len(before), "characters_after": len(after),

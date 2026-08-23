@@ -29,13 +29,14 @@ def _shot_path(a: dict) -> tuple[Path, bool]:
 
     path = Path(os.path.expanduser(raw)).absolute()
     if path.is_dir():
-        raise ToolError(f"{path} is a directory; give a file path ending in .png")
+        raise ToolError(f"{path} is a directory; give a file path ending in .png",
+                        code="bad_args")
     # The suffix check is load-bearing, not cosmetic: this used to unlink whatever
     # already existed at the caller-supplied path before capturing, so
     # screenshot{"path": "~/system/healthcheck.sh"} deleted that file -- and if the
     # capture then failed (a locked screen is enough), it was simply gone.
     if path.suffix.lower() != ".png":
-        raise ToolError(f"path must end in .png, got {path.name!r}")
+        raise ToolError(f"path must end in .png, got {path.name!r}", code="bad_args")
     path.parent.mkdir(parents=True, exist_ok=True)
     return path, True
 
@@ -67,10 +68,12 @@ def _capture(path: Path, region: tuple[int, int, int, int] | None = None,
             _gdbus("Screenshot", str(tmp), "true" if include_cursor else "false")
             cropped_in_shell = False
         if not tmp.exists() or tmp.stat().st_size == 0:
-            raise ToolError("the call returned but no image was written")
+            raise ToolError("the call returned but no image was written",
+                            code="capture_failed")
         with tmp.open("rb") as fh:
             if fh.read(8) != b"\x89PNG\r\n\x1a\n":
-                raise ToolError("the capture was written but is not a PNG")
+                raise ToolError("the capture was written but is not a PNG",
+                                code="capture_failed")
         os.replace(tmp, path)
     finally:
         tmp.unlink(missing_ok=True)
@@ -140,7 +143,7 @@ def tool_screenshot(a: dict) -> dict:
 
     scale = float(a.get("scale") or 1.0)
     if not 0.05 <= scale <= 4.0:
-        raise ToolError("scale must be between 0.05 and 4.0")
+        raise ToolError("scale must be between 0.05 and 4.0", code="bad_args")
 
     annotate = a.get("annotate")
     inline = a.get("inline", True)
@@ -228,7 +231,8 @@ def _pillow():
         from PIL import Image, ImageDraw
     except Exception:                                       # pragma: no cover
         raise ToolError(
-            "this needs Pillow (python3-pil) for image work and it is not installed"
+            "this needs Pillow (python3-pil) for image work and it is not installed",
+            code="capture_failed",
         ) from None
     return Image, ImageDraw
 
@@ -290,7 +294,8 @@ def _encode_inline(path: Path, max_edge: int = MODEL_MAX_EDGE,
             if len(raw) <= INLINE_MAX_BYTES:
                 break
         else:                                               # pragma: no cover
-            raise ToolError("this image will not compress to a sane size")
+            raise ToolError("this image will not compress to a sane size",
+                            code="capture_failed")
 
     return {
         "data": base64.b64encode(raw).decode("ascii"),
@@ -488,14 +493,16 @@ def _look_region(a: dict, hint_window: dict | None,
     if look is True:
         look = "auto"
     if look not in ("auto", "window", "screen", "region"):
-        raise ToolError("look must be auto, window, screen, region, or false")
+        raise ToolError("look must be auto, window, screen, region, or false",
+                        code="bad_args")
 
     if look == "screen":
         return look, None, None
     if look == "region":
         region = a.get("look_at") or a.get("region")
         if region is None:
-            raise ToolError('look:"region" needs look_at: {x, y, width, height}')
+            raise ToolError('look:"region" needs look_at: {x, y, width, height}',
+                            code="bad_args")
         return look, _parse_region(region), None
 
     window = hint_window
@@ -692,14 +699,18 @@ def _parse_region(region: Any) -> tuple[int, int, int, int]:
         try:
             values = (region["x"], region["y"], region["width"], region["height"])
         except KeyError:
-            raise ToolError("region needs x, y, width, height") from None
+            raise ToolError("region needs x, y, width, height",
+                            code="bad_args") from None
     elif isinstance(region, (list, tuple)) and len(region) == 4:
         values = tuple(region)
     else:
-        raise ToolError("region must be [x, y, width, height] or an object with those keys")
+        raise ToolError(
+            "region must be [x, y, width, height] or an object with those keys",
+            code="bad_args")
     x, y, width, height = (int(v) for v in values)
     if width <= 0 or height <= 0:
-        raise ToolError(f"refusing to capture a {width}x{height} region")
+        raise ToolError(f"refusing to capture a {width}x{height} region",
+                        code="bad_args")
     return x, y, width, height
 
 
@@ -718,7 +729,8 @@ def _screenshot_region(a: dict) -> tuple[tuple[int, int, int, int] | None, dict 
         if win.get("minimized"):
             raise ToolError(
                 f'{win["wm_class"]} is minimized, so there is nothing on screen to '
-                "capture. Activate it first."
+                "capture. Activate it first.",
+                code="occluded",
             )
 
     region = a.get("region")
@@ -740,7 +752,8 @@ def _screenshot_region(a: dict) -> tuple[tuple[int, int, int, int] | None, dict 
         raise ToolError(
             f'region does not fall inside {win["wm_class"]} '
             f'({win["width"]}x{win["height"]}); it is measured from the window\'s '
-            "top-left corner when window= is given"
+            "top-left corner when window= is given",
+            code="bad_args",
         )
     return (x, y, width, height), win
 
@@ -751,7 +764,8 @@ def _crop(path: Path, region: tuple[int, int, int, int]) -> None:
     with Image.open(path) as img:
         box = (max(0, x), max(0, y), min(img.width, x + width), min(img.height, y + height))
         if box[2] <= box[0] or box[3] <= box[1]:
-            raise ToolError(f"region {region} does not overlap the screen")
+            raise ToolError(f"region {region} does not overlap the screen",
+                            code="off_screen")
         img.crop(box).save(path)
 
 
@@ -869,14 +883,16 @@ def tool_screencast(a: dict) -> dict:
     # block this server's stdio loop for the entire duration.
     path = Path(os.path.expanduser(str(a.get("path") or ""))).absolute()
     if path.is_dir():
-        raise ToolError(f"{path} is a directory; give a file path ending in .mp4")
+        raise ToolError(f"{path} is a directory; give a file path ending in .mp4",
+                        code="bad_args")
     if path.suffix.lower() != ".mp4":
-        raise ToolError(f"path must end in .mp4, got {path.name!r}")
+        raise ToolError(f"path must end in .mp4, got {path.name!r}", code="bad_args")
     path.parent.mkdir(parents=True, exist_ok=True)
 
     seconds = float(a.get("seconds", 10))
     if not 0.5 <= seconds <= 120:
-        raise ToolError(f"seconds must be between 0.5 and 120, got {seconds}")
+        raise ToolError(f"seconds must be between 0.5 and 120, got {seconds}",
+                        code="bad_args")
 
     cmd = [sys.executable, str(HERE / "screencast.py"),
            "--seconds", str(seconds), "--fps", str(int(a.get("fps", 30)))]
@@ -894,7 +910,7 @@ def tool_screencast(a: dict) -> dict:
             detail = json.loads(detail).get("error", detail)
         except (ValueError, AttributeError):
             pass
-        raise ToolError(f"recording failed: {detail[:400]}")
+        raise ToolError(f"recording failed: {detail[:400]}", code="capture_failed")
     result = json.loads(proc.stdout)
     # An mp4 is opaque to a model, so a bare path is a dead end -- the caller
     # would either try to Read the video or fall back to guessing. Name the
@@ -909,9 +925,9 @@ def tool_screencast(a: dict) -> dict:
 def _frames_once(a: dict, raw: Any) -> dict:
     path = Path(os.path.expanduser(str(raw or ""))).absolute()
     if not path.exists():
-        raise ToolError(f"{path} does not exist")
+        raise ToolError(f"{path} does not exist", code="bad_args")
     if path.suffix.lower() not in (".mp4", ".mkv", ".webm", ".mov"):
-        raise ToolError(f"expected a video file, got {path.name!r}")
+        raise ToolError(f"expected a video file, got {path.name!r}", code="bad_args")
 
     outdir = a.get("outdir")
     outdir = (Path(os.path.expanduser(str(outdir))).absolute() if outdir
@@ -919,7 +935,8 @@ def _frames_once(a: dict, raw: Any) -> dict:
 
     cols, rows = int(a.get("cols", 4)), int(a.get("rows", 3))
     if not (1 <= cols <= 8 and 1 <= rows <= 8):
-        raise ToolError(f"cols and rows must each be 1-8, got {cols}x{rows}")
+        raise ToolError(f"cols and rows must each be 1-8, got {cols}x{rows}",
+                        code="bad_args")
 
     cmd = [sys.executable, str(HERE / "frames.py"),
            str(path), str(outdir), "--cols", str(cols), "--rows", str(rows),
@@ -931,7 +948,8 @@ def _frames_once(a: dict, raw: Any) -> dict:
     proc = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
     if proc.returncode != 0:
         raise ToolError("frame extraction failed: "
-                        f"{(proc.stderr or proc.stdout or '').strip()[:400]}")
+                        f"{(proc.stderr or proc.stdout or '').strip()[:400]}",
+                        code="capture_failed")
     return json.loads(proc.stdout)
 
 
@@ -999,7 +1017,8 @@ def tool_region_changed(a: dict) -> dict:
     """
     timeout = float(a.get("timeout") or 10)
     if not 0.2 <= timeout <= 300:
-        raise ToolError("timeout must be between 0.2 and 300 seconds")
+        raise ToolError("timeout must be between 0.2 and 300 seconds",
+                        code="bad_args")
     poll = max(0.1, float(a.get("poll_seconds") or 0.3))
 
     region, window = _screenshot_region(a)

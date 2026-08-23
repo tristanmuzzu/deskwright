@@ -841,8 +841,9 @@ def handle(msg: dict) -> None:
             _respond(msg_id, {"content": _content_blocks(result)})
         except ToolError as e:
             # A tool-level failure is a result the model must see and reason
-            # about, not a protocol error that hides the reason.
-            _respond(msg_id, {"content": [{"type": "text", "text": str(e)}],
+            # about, not a protocol error that hides the reason. The [code]
+            # prefix is the machine-readable half (see wcu/errors.py).
+            _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()}],
                               "isError": True})
         except Exception as e:
             _respond(msg_id, {"content": [{"type": "text",

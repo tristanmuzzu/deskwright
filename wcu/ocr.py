@@ -32,9 +32,11 @@ def tool_find_text(a: dict) -> dict:
     """
     needle = str(a.get("text") or "").strip()
     if not needle:
-        raise ToolError("text is required: the visible string to look for")
+        raise ToolError("text is required: the visible string to look for",
+                        code="bad_args")
     if not shutil.which("tesseract"):
-        raise ToolError("this needs tesseract (tesseract-ocr) and it is not installed")
+        raise ToolError("this needs tesseract (tesseract-ocr) and it is not installed",
+                        code="capture_failed")
 
     region, window = _screenshot_region(a)
     path, _ = _shot_path({})
@@ -109,12 +111,14 @@ def _ocr_words(path: Path, min_confidence: int,
                                "--psm", str(psm), "tsv"],
                               capture_output=True, text=True, timeout=60)
     except subprocess.TimeoutExpired:
-        raise ToolError("tesseract did not finish within 60s") from None
+        raise ToolError("tesseract did not finish within 60s",
+                        code="capture_failed") from None
     finally:
         if source is not path:
             source.unlink(missing_ok=True)
     if proc.returncode != 0:
-        raise ToolError(f"tesseract failed: {(proc.stderr or '').strip()[:300]}")
+        raise ToolError(f"tesseract failed: {(proc.stderr or '').strip()[:300]}",
+                        code="capture_failed")
 
     words = []
     for line in proc.stdout.splitlines()[1:]:

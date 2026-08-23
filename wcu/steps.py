@@ -57,10 +57,11 @@ def tool_do_steps(a: dict) -> dict:
     if not isinstance(steps, list) or not steps:
         raise ToolError('steps must be a non-empty list, e.g. '
                         '[{"do":"click","x":100,"y":200},{"do":"key","target":"gedit",'
-                        '"combo":"ctrl+s"}]')
+                        '"combo":"ctrl+s"}]', code="bad_args")
     if len(steps) > DO_STEPS_MAX:
         raise ToolError(f"{len(steps)} steps is more than the {DO_STEPS_MAX} allowed "
-                        "in one call; a sequence that long should be checked partway")
+                        "in one call; a sequence that long should be checked partway",
+                        code="bad_args")
 
     stop_on_error = a.get("stop_on_error", True)
     done: list[dict] = []
@@ -87,25 +88,27 @@ def tool_do_steps(a: dict) -> dict:
 
     for index, step in enumerate(steps):
         if not isinstance(step, dict):
-            raise ToolError(f"step {index} is not an object")
+            raise ToolError(f"step {index} is not an object", code="bad_args")
         verb = str(step.get("do") or "").strip().lower()
         if verb == "wait_ms":
             verb = "sleep"
         if verb == "sleep":
             millis = int(step.get("ms") or step.get("wait_ms") or 200)
             if not 0 < millis <= 10_000:
-                raise ToolError("sleep ms must be between 1 and 10000")
+                raise ToolError("sleep ms must be between 1 and 10000",
+                                code="bad_args")
             time.sleep(millis / 1000)
             done.append({"step": index, "do": "sleep", "ok": True, "ms": millis})
             continue
 
         if verb not in _STEP_VERBS:
             raise ToolError(f"step {index}: unknown do {verb!r}. Known: sleep, "
-                            + ", ".join(sorted(_STEP_VERBS)))
+                            + ", ".join(sorted(_STEP_VERBS)), code="bad_args")
         tool_name, required = _STEP_VERBS[verb]
         missing = [k for k in required if step.get(k) is None]
         if missing:
-            raise ToolError(f"step {index} ({verb}) needs {', '.join(missing)}")
+            raise ToolError(f"step {index} ({verb}) needs {', '.join(missing)}",
+                            code="bad_args")
 
         args = {k: v for k, v in step.items() if k != "do"}
         args["look"] = False            # one picture per call, not one per step
