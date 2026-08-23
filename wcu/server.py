@@ -50,6 +50,8 @@ from .input import (
     tool_screen_map,
     tool_type_text,
 )
+from .journal import record as journal_record
+from .journal import tool_journal
 from .ocr import OCR_MIN_CONFIDENCE, tool_find_text
 from .shell import (
     _extension_diagnosis,
@@ -343,6 +345,13 @@ TOOLS: list[dict] = [
                 "look_at": _LOOK_AT_SCHEMA,
                 "settle_max_s": _SETTLE_SCHEMA,
                 "x": {"type": "number"}, "y": {"type": "number"},
+                "ref": {"type": "integer",
+                        "description": "A widget number from the last screen_map "
+                                       "-- the click lands at that widget's "
+                                       "CURRENT position after its identity is "
+                                       "re-verified, no coordinates needed. Give "
+                                       "ref OR x/y, never both. Refs die at the "
+                                       "next screen_map call."},
                 "button": {"type": "string", "enum": ["left", "right", "middle",
                                                       "back", "forward"],
                            "default": "left"},
@@ -355,7 +364,7 @@ TOOLS: list[dict] = [
                     "anyOf": [{"type": "integer"}, {"type": "string"}],
                 },
             },
-            "required": ["x", "y"],
+            "required": [],
         },
         "handler": tool_pointer_click,
     },
@@ -431,7 +440,11 @@ TOOLS: list[dict] = [
                        "its centre point, where the pointer is, and every pressable "
                        "widget of the focused application with the exact pixel to "
                        "click it at. This is the one call that turns 'click the Save "
-                       "button' into a number without looking at an image.",
+                       "button' into a number without looking at an image. Every "
+                       "widget also carries a ref: N -- pass it straight to "
+                       "ui_press(ref) or pointer_click(ref); refs are valid until "
+                       "the next screen_map call, and the result's refs_generation "
+                       "says which call issued them.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -848,11 +861,16 @@ TOOLS: list[dict] = [
                 "look_at": _LOOK_AT_SCHEMA,
                 "settle_max_s": _SETTLE_SCHEMA,
                 "path": _s("Index path from ui_find, e.g. \"gedit/0/3/1\""),
+                "ref": {"type": "integer",
+                        "description": "A widget number from the last "
+                                       "screen_map; path, expect_name and "
+                                       "expect_role are filled from it. Give "
+                                       "ref OR path, never both."},
                 "expect_name": _s("Name the widget should still have (substring)"),
                 "expect_role": _s("Role the widget should still have"),
                 "action_index": {"type": "integer", "default": 0},
             },
-            "required": ["path"],
+            "required": [],
         },
         "handler": tool_ui_press,
     },
@@ -981,6 +999,30 @@ TOOLS: list[dict] = [
         "handler": tool_health,
         "annotations": {"readOnlyHint": True},
     },
+    {
+        "name": "journal",
+        "description": "Read back the trail of acted tool calls -- every "
+                       "state-changing call is journaled with its arguments, "
+                       "outcome, hit/miss verdict and screenshot hash. Use it to "
+                       "reconstruct what already happened after context loss, or "
+                       "to review an unattended run. Reading tools are not in it.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "tail": {"type": "integer", "default": 20, "minimum": 1,
+                         "maximum": 1000,
+                         "description": "How many of the most recent entries to "
+                                        "return, oldest first."},
+                "session": {"type": "string", "enum": ["current", "all"],
+                            "default": "current",
+                            "description": "current: only this server process's "
+                                           "actions. all: every session in the "
+                                           "14-day retention window."},
+            },
+        },
+        "handler": tool_journal,
+        "annotations": {"readOnlyHint": True},
+    },
 ]
 
 HANDLERS: dict[str, Callable[[dict], Any]] = {t["name"]: t["handler"] for t in TOOLS}
@@ -1058,26 +1100,39 @@ def handle(msg: dict) -> None:
         if handler is None:
             _error(msg_id, -32602, f"unknown tool {name!r}")
             return
+        args = params.get("arguments") or {}
+        acted = name not in _READ_ONLY_TOOLS
         try:
             # The kill switch gates every state-changing tool at one choke
             # point. Reading tools keep working while halted -- a human who
             # stopped the hands still wants the eyes.
-            if name not in _READ_ONLY_TOOLS and halt_active():
+            if acted and halt_active():
                 raise ToolError(
                     "the human halt switch is engaged (Super+Ctrl+Escape). "
                     "Nothing will be injected until a human presses it again "
                     "or calls ClearHalt. Reading tools still work.",
                     code="halted",
                 )
-            result = handler(params.get("arguments") or {})
+            result = handler(args)
+            # Evidence, not surveillance: every acted call leaves a trail a
+            # human can review after an unattended run and an agent can
+            # re-read after context loss. record() never raises.
+            if acted:
+                journal_record(name, args, result)
             _respond(msg_id, {"content": _content_blocks(result)})
         except ToolError as e:
             # A tool-level failure is a result the model must see and reason
             # about, not a protocol error that hides the reason. The [code]
             # prefix is the machine-readable half (see wcu/errors.py).
+            if acted:
+                journal_record(name, args, {"error": str(e), "code": e.code})
             _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()}],
                               "isError": True})
         except Exception as e:
+            if acted:
+                journal_record(name, args,
+                               {"error": f"{type(e).__name__}: {e}",
+                                "code": "crash"})
             _respond(msg_id, {"content": [{"type": "text",
                                            "text": f"{type(e).__name__}: {e}"}],
                               "isError": True})

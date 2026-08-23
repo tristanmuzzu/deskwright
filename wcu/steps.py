@@ -123,6 +123,15 @@ def _validate_step(index: int, step: Any, schemas: dict[str, dict]) -> None:
     if missing:
         raise ToolError(f"step {index} ({verb}) needs {', '.join(missing)}",
                         code="bad_args")
+    # click/move take a point OR a screen_map ref -- the tool schema relaxed
+    # its `required` to allow the ref, so the "must have coordinates" check
+    # moved here where the alternatives are known. Without it a coordinate-
+    # less click would pass validation and fail mid-run, which is exactly the
+    # half-executed sequence this function exists to prevent.
+    if verb in ("click", "move") and step.get("ref") is None \
+            and (step.get("x") is None or step.get("y") is None):
+        raise ToolError(f"step {index} ({verb}) needs x and y, or a ref from "
+                        "screen_map", code="bad_args")
     allowed = set(schema.get("properties") or {}) | {"do", "retry"}
     unknown = sorted(set(step) - allowed)
     if unknown:
