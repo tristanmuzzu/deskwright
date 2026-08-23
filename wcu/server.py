@@ -271,6 +271,7 @@ TOOLS: list[dict] = [
             },
         },
         "handler": tool_screenshot,
+        "annotations": {"readOnlyHint": True},
     },
     {
         "name": "zoom",
@@ -636,6 +637,7 @@ TOOLS: list[dict] = [
             "required": ["path"],
         },
         "handler": tool_screencast,
+        "annotations": {"readOnlyHint": True},
     },
     {
         "name": "frames",

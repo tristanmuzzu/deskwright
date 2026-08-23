@@ -612,9 +612,29 @@ def tool_window_manage(a: dict) -> dict:
             code="window_not_found",
         )
 
-    # Report the world as it IS afterwards, not the call as it was sent.
-    time.sleep(0.3)
-    now = next((w for w in list_windows() if w["id"] == wid), None)
+    # Report the world as it IS afterwards, not the call as it was sent --
+    # and poll for it rather than guessing a settle: measured 2026-08-23, a
+    # MoveResize is applied but still reports the OLD geometry at 0.3s and
+    # the new one by 1.5s.
+    before_geo = {k: window[k] for k in ("x", "y", "width", "height")}
+    deadline = time.monotonic() + 2.0
+    now = None
+    while time.monotonic() < deadline:
+        time.sleep(0.25)
+        now = next((w for w in list_windows() if w["id"] == wid), None)
+        if action == "close" and now is None:
+            break
+        if now is not None:
+            changed = {k: now[k] for k in before_geo} != before_geo
+            state_done = ((action == "minimize" and now.get("minimized"))
+                          or (action == "unminimize" and not now.get("minimized"))
+                          or (action == "above" and bool(now.get("above"))
+                              == bool(a.get("above", True))))
+            if action in ("move_resize", "maximize", "unmaximize",
+                          "workspace") and changed:
+                break
+            if state_done:
+                break
     result: dict[str, Any] = {"action": action, "id": wid,
                               "wm_class": window["wm_class"]}
     if action == "close":
