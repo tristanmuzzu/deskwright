@@ -781,7 +781,19 @@ def _changed_text(path: Path, box: dict,
             int((box["x"] - rx + box["width"] + pad_x) * fx),
             int((box["y"] - ry + box["height"] + pad_y) * fy))
     from .ocr import ocr_snippet                    # late: ocr imports this module
-    return ocr_snippet(path, crop, budget_s=CHANGE_OCR_BUDGET_S)
+    snippet = ocr_snippet(path, crop, budget_s=CHANGE_OCR_BUDGET_S)
+    # Additive tripwire on whatever the changed area now says; a tripwire
+    # failure must never break the look it decorates.
+    warning = None
+    try:
+        if isinstance(snippet, dict) and snippet.get("text"):
+            from .tripwire import check as _injection_check
+            warning = _injection_check(str(snippet["text"]))
+    except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+        warning = None
+    if warning:
+        snippet["injection_warning"] = warning
+    return snippet
 
 
 def _look_before(a: dict, hint_window: dict | None = None,
