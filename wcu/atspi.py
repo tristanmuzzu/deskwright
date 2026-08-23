@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import os
+import subprocess
 import time
+from pathlib import Path
 from typing import Any
 
 from .capture import _look, _look_before
@@ -177,9 +180,32 @@ def _read_text(node) -> str:
 
 
 def _find_text_widget(app_name: str, path: str | None):
-    """The editable text widget of an app, or the one at an explicit path."""
+    """The editable text widget of an app, or the one at an explicit path.
+
+    Thin wrapper over _locate_text_widget for callers that only want the
+    widget -- input.py's type_text verification reads through this. New code
+    should use _locate_text_widget and keep the path: that is the document
+    identity, and dropping it is how write and readback end up in different
+    tabs.
+    """
+    node, _path = _locate_text_widget(app_name, path)
+    return node
+
+
+def _locate_text_widget(app_name: str, path: str | None):
+    """(widget, path) -- an app's editable text widget, or the one at an
+    explicit path.
+
+    The path comes back WITH the widget so the caller can hand it to whoever
+    reads or writes next. Returning only the widget was the root of the
+    document-identity bug: ui_set_text picked a document, ui_read_text picked
+    its own, and nothing tied the two picks together. Now both tools return the
+    resolved path, and a caller that passes it back is guaranteed to be talking
+    about one document -- or to get a loud widget_missing when the tree changed
+    underneath it, which is the honest version of "not the same document".
+    """
     if path:
-        return _resolve_path(path)
+        return _resolve_path(path), str(path)
     app = _find_app(app_name)
     collected: list[dict] = []
     _walk(app, app.get_name(), 0, DEFAULT_FIND_DEPTH, collected, cap=MAX_FIND_NODES)
@@ -197,8 +223,10 @@ def _find_text_widget(app_name: str, path: str | None):
     # the moment an editor has two tabs open, which on a real desktop it usually
     # does: typing goes to the visible tab and the readback came from whichever
     # tab happened to be first in the tree, so type_text reported that the wrong
-    # characters had arrived when they had arrived perfectly. Documented as a
-    # known fragility in tests/test_e2e_real_task.py since 2026-08-17.
+    # characters had arrived when they had arrived perfectly. The read side got
+    # this preference on 2026-08-22; since 2026-08-23 the write side shares it
+    # AND both return the path they picked, which is what actually closes the
+    # fragility documented in tests/test_e2e_real_task.py since 2026-08-17.
     live_candidates = []
     for node in candidates:
         try:
@@ -206,18 +234,20 @@ def _find_text_widget(app_name: str, path: str | None):
         except ToolError:
             continue
         _, editable = _text_ifaces(live)
-        live_candidates.append((live, editable is not None, _is_focused(live)))
+        live_candidates.append((live, node["path"], editable is not None,
+                                _is_focused(live)))
 
     for want_focus in (True, False):
-        for live, editable, focused in live_candidates:
+        for live, live_path, editable, focused in live_candidates:
             if editable and focused == want_focus:
-                return live
-    for live, _editable, focused in live_candidates:
+                return live, live_path
+    for live, live_path, _editable, focused in live_candidates:
         if focused:
-            return live
+            return live, live_path
     if live_candidates:
-        return live_candidates[0][0]
-    return _resolve_path(candidates[0]["path"])
+        live, live_path, _editable, _focused = live_candidates[0]
+        return live, live_path
+    return _resolve_path(candidates[0]["path"]), candidates[0]["path"]
 
 
 def _is_focused(node) -> bool:
@@ -361,6 +391,97 @@ def tool_ui_find(a: dict) -> dict:
     return out
 
 
+def _frame_ancestor(node):
+    """The top-level frame/window/dialog this widget lives in, or None."""
+    cur = node
+    for _ in range(64):                     # a tree this deep is a cycle, not GTK
+        if cur is None:
+            return None
+        try:
+            role = cur.get_role_name()
+        except Exception:
+            return None
+        if role in ("frame", "window", "dialog"):
+            return cur
+        try:
+            cur = cur.get_parent()
+        except Exception:
+            return None
+    return None
+
+
+def _extents_problem(node) -> str | None:
+    """Why this widget's screen extents cannot be trusted, or None if they can.
+
+    Two distinct failure shapes, both meaning "scrolled out of view" in
+    practice: DEGENERATE extents (zero or negative size -- GTK reports these
+    for a widget in a collapsed or unscrolled-to region), and extents that lie
+    entirely OUTSIDE the widget's own top-level frame (a row far down a long
+    list keeps its real size but sits below the window's rectangle).
+    """
+    try:
+        ext = node.get_extents(0)           # 0 == Atspi.CoordType.SCREEN
+    except Exception:
+        return "extents are unreadable"
+    if ext.width <= 0 or ext.height <= 0:
+        return f"degenerate extents {ext.width}x{ext.height}"
+    frame = _frame_ancestor(node)
+    if frame is None or frame is node:
+        return None
+    try:
+        fx = frame.get_extents(0)
+    except Exception:
+        return None
+    if fx.width <= 0 or fx.height <= 0:
+        return None
+    outside = (ext.x + ext.width <= fx.x or ext.x >= fx.x + fx.width
+               or ext.y + ext.height <= fx.y or ext.y >= fx.y + fx.height)
+    if outside:
+        return (f"at ({ext.x}, {ext.y}) {ext.width}x{ext.height}, entirely "
+                f"outside its window at ({fx.x}, {fx.y}) {fx.width}x{fx.height}")
+    return None
+
+
+def _scroll_into_view(node) -> dict:
+    """Bring an off-view widget on screen before pressing it, when possible.
+
+    Empty dict when the extents are already sane. Otherwise: try the widget's
+    own Component ScrollTo with SCROLL_ANYWHERE -- the toolkit scrolls its own
+    container, no wheel events, no pointer -- re-check the extents, and report
+    `scrolled: true`. A widget with no usable ScrollTo is pressed anyway with
+    an honest note: do_action does not need the widget visible, but anything
+    watching the screen for the result will not see it happen there.
+    """
+    problem = _extents_problem(node)
+    if problem is None:
+        return {}
+    try:
+        component = node.get_component_iface()
+    except Exception:
+        component = None
+    off_note = (f"widget is off-view ({problem}); pressing anyway -- the AT-SPI "
+                "action does not need it visible, but it will not be where the "
+                "extents say it is")
+    if component is None:
+        return {"note": off_note + ". It exposes no Component interface to "
+                                   "scroll it into view."}
+    Atspi = _atspi()
+    if not hasattr(Atspi.Component, "scroll_to"):
+        return {"note": off_note + ". This Atspi has no ScrollTo."}
+    try:
+        ok = bool(Atspi.Component.scroll_to(component, Atspi.ScrollType.ANYWHERE))
+    except Exception as e:
+        return {"note": off_note + f". ScrollTo raised {type(e).__name__}: {e}."}
+    if not ok:
+        return {"note": off_note + ". ScrollTo returned false."}
+    still = _extents_problem(node)
+    out: dict[str, Any] = {"scrolled": True}
+    if still:
+        out["note"] = (f"ScrollTo reported success but the widget is still "
+                       f"off-view ({still}); pressed it anyway")
+    return out
+
+
 def tool_ui_press(a: dict) -> dict:
     path = str(a.get("path") or "")
     if not path:
@@ -407,6 +528,7 @@ def tool_ui_press(a: dict) -> dict:
             code="bad_args",
         )
     action_name = node.get_localized_name(index)
+    visibility = _scroll_into_view(node)
     watching = _look_before(a)
     ok = node.do_action(index)
     if not ok:
@@ -415,6 +537,7 @@ def tool_ui_press(a: dict) -> dict:
     result = {"path": path, "widget": actual_name, "role": actual_role,
               "action": action_name,
               "detail": f"pressed {action_name!r} on {actual_name!r} [{actual_role}]"}
+    result.update(visibility)
     return _look(a, result, watching)
 
 
@@ -423,9 +546,10 @@ def tool_ui_read_text(a: dict) -> dict:
     path = a.get("path")
     if not app and not path:
         raise ToolError("app or path is required", code="bad_args")
-    node = _find_text_widget(app, path)
+    node, resolved = _locate_text_widget(app, path)
     content = _read_text(node)
-    return {"path": path or "auto-located", "role": node.get_role_name(),
+    return {"path": resolved, "role": node.get_role_name(),
+            "focused": _is_focused(node),
             "characters": len(content), "text": content}
 
 
@@ -437,6 +561,12 @@ def tool_ui_set_text(a: dict) -> dict:
     activated first and can still lose the race. AT-SPI hands the characters
     straight to the widget: it works on an unfocused window, works while the
     screen is locked, and can be verified by reading the widget back.
+
+    The result carries the resolved `path` of the widget that was written.
+    Pass that path to ui_read_text (or back into this tool) to stay on the
+    SAME document: with `app` alone each call picks its own widget --
+    focused-editable first -- and in a multi-tab editor two independent picks
+    were how text landed in one tab and was read back out of another.
     """
     text = a.get("text")
     if not isinstance(text, str):
@@ -447,7 +577,7 @@ def tool_ui_set_text(a: dict) -> dict:
         raise ToolError("app or path is required", code="bad_args")
     replace = bool(a.get("replace", False))
 
-    node = _find_text_widget(app, path)
+    node, resolved = _locate_text_widget(app, path)
     Atspi = _atspi()
     text_iface, editable = _text_ifaces(node)
     if editable is None:
@@ -485,10 +615,188 @@ def tool_ui_set_text(a: dict) -> dict:
             f"{after[:60]!r}.",
             code="atspi_write_failed",
         )
-    return {"role": node.get_role_name(), "wrote": len(text),
+    return {"path": resolved, "role": node.get_role_name(),
+            "focused": _is_focused(node), "wrote": len(text),
             "characters_before": len(before), "characters_after": len(after),
             "verified": True,
-            "detail": f"wrote {len(text)} chars and read them back out of the widget"}
+            "detail": (f"wrote {len(text)} chars and read them back out of the "
+                       f"widget at {resolved}; pass that path to ui_read_text to "
+                       "verify the SAME document later")}
+
+
+# ---- launching applications ----------------------------------------------
+LAUNCH_TIMEOUT_DEFAULT_S = 15.0
+LAUNCH_POLL_S = 0.25
+
+
+def _desktop_file_dirs() -> list[Path]:
+    """Where .desktop files live, in XDG precedence order."""
+    data_home = Path(os.environ.get("XDG_DATA_HOME")
+                     or Path.home() / ".local/share")
+    dirs = [data_home / "applications"]
+    data_dirs = os.environ.get("XDG_DATA_DIRS") or "/usr/local/share:/usr/share"
+    dirs += [Path(d) / "applications" for d in data_dirs.split(":") if d]
+    snap = Path("/var/lib/snapd/desktop/applications")
+    if snap not in dirs:
+        dirs.append(snap)
+    return dirs
+
+
+def _resolve_desktop_file(desktop_id: str) -> Path:
+    """The .desktop file for an id, with or without the '.desktop' suffix.
+
+    `gio launch` takes a FILE, not an id -- handed a bare id it looks in the
+    current directory, finds nothing, and fails with a message that suggests
+    the app is not installed. So the XDG lookup happens here, and an id that
+    resolves nowhere fails naming the directories that were searched.
+    """
+    name = str(desktop_id).strip()
+    if not name:
+        raise ToolError("desktop_id must not be empty", code="bad_args")
+    if "/" in name:
+        raise ToolError(
+            f"desktop_id must be a bare id like 'org.gnome.TextEditor', not a "
+            f"path: {name!r}", code="bad_args")
+    if not name.endswith(".desktop"):
+        name += ".desktop"
+    searched = _desktop_file_dirs()
+    for d in searched:
+        candidate = d / name
+        if candidate.is_file():
+            return candidate
+    raise ToolError(
+        f"no desktop file {name!r} in " + ", ".join(str(d) for d in searched)
+        + ". Check the id with `gio launch` in mind: it is the .desktop file "
+          "name, e.g. 'org.gnome.TextEditor', not the binary name.",
+        code="bad_args")
+
+
+def tool_launch_app(a: dict) -> dict:
+    """Launch an application and CONFIRM it arrived, instead of assuming.
+
+    Confirmation is a diff, not a guess: window ids are snapshotted before the
+    launch and a NEW id is what counts as arrival -- an app that was already
+    running cannot satisfy it by accident. When the shell extension cannot
+    enumerate windows (locked screen), the same diff runs against the AT-SPI
+    bus instead, and the result names which mechanism confirmed.
+    """
+    desktop_id = a.get("desktop_id")
+    command = a.get("command")
+    if (desktop_id is None) == (command is None):
+        raise ToolError(
+            "give exactly one of desktop_id (a .desktop id for `gio launch`) or "
+            "command (an argv list)", code="bad_args")
+    file = a.get("file")
+    if file is not None and not isinstance(file, str):
+        raise ToolError("file must be a path string", code="bad_args")
+    wait_window = bool(a.get("wait_window", True))
+    timeout = float(a.get("timeout") or LAUNCH_TIMEOUT_DEFAULT_S)
+    if not 0.5 <= timeout <= 120:
+        raise ToolError("timeout must be between 0.5 and 120 seconds",
+                        code="bad_args")
+
+    if command is not None:
+        if (not isinstance(command, list) or not command
+                or not all(isinstance(c, str) and c for c in command)):
+            raise ToolError(
+                "command must be a non-empty argv list of strings, e.g. "
+                '["gnome-text-editor", "--new-window"] -- not a shell string',
+                code="bad_args")
+        argv = list(command) + ([file] if file else [])
+        what = command[0]
+    else:
+        desktop_path = _resolve_desktop_file(str(desktop_id))
+        argv = ["gio", "launch", str(desktop_path)] + ([file] if file else [])
+        what = desktop_path.name
+
+    # Snapshots BEFORE the launch, so "new" means new. Either mechanism may be
+    # down; which one answered is part of the result.
+    window_ids: set | None = None
+    atspi_before: set | None = None
+    if wait_window:
+        try:
+            window_ids = {w["id"] for w in list_windows()}
+        except ToolError:
+            window_ids = None
+        try:
+            atspi_before = {(app["name"], app["pid"])
+                            for app in list_atspi_apps()}
+        except ToolError:
+            atspi_before = None
+
+    if command is not None:
+        try:
+            proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
+                                    stderr=subprocess.DEVNULL,
+                                    start_new_session=True)
+        except OSError as e:
+            raise ToolError(f"could not start {argv[0]!r}: {e}",
+                            code="bad_args") from None
+        launched: dict[str, Any] = {"launched": what, "via": "command",
+                                    "argv": argv, "pid": proc.pid}
+    else:
+        try:
+            proc = subprocess.run(argv, capture_output=True, text=True,
+                                  timeout=30, check=False)
+        except subprocess.TimeoutExpired:
+            raise ToolError("gio launch did not return within 30s",
+                            code="timeout") from None
+        if proc.returncode != 0:
+            err = (proc.stderr or proc.stdout or "").strip()
+            raise ToolError(
+                f"gio launch {what} failed (rc={proc.returncode}): {err[:300]}",
+                code="bad_args")
+        launched = {"launched": what, "via": "gio launch",
+                    "desktop_file": argv[2]}
+    if file:
+        launched["file"] = file
+
+    if not wait_window:
+        return {**launched, "confirmed": False,
+                "detail": "launched; arrival not awaited (wait_window: false)"}
+
+    if window_ids is None and atspi_before is None:
+        return {**launched, "confirmed": False,
+                "detail": ("launched, but neither the shell extension nor the "
+                           "AT-SPI bus could be read before the launch, so "
+                           "arrival cannot be confirmed by diff")}
+
+    awaited = (f"a new window after launching {what}" if window_ids is not None
+               else f"a new AT-SPI application after launching {what}")
+    start = time.monotonic()
+    while time.monotonic() - start < timeout:
+        if window_ids is not None:
+            try:
+                for w in list_windows():
+                    if w["id"] not in window_ids:
+                        return {**launched, "confirmed": True,
+                                "confirmed_by": "window", "window": w,
+                                "waited_seconds": round(time.monotonic() - start, 2)}
+            except ToolError:
+                # The extension died mid-wait (a lock, most likely). Fall back
+                # to the AT-SPI diff rather than failing a launch that worked.
+                window_ids = None
+                awaited = f"a new AT-SPI application after launching {what}"
+        if window_ids is None and atspi_before is not None:
+            try:
+                for app in list_atspi_apps():
+                    if (app["name"], app["pid"]) not in atspi_before:
+                        return {**launched, "confirmed": True,
+                                "confirmed_by": "atspi_bus", "app": app,
+                                "waited_seconds": round(time.monotonic() - start, 2),
+                                "note": ("confirmed on the AT-SPI bus; the shell "
+                                         "extension was unavailable (locked "
+                                         "screen?), so there is no window dict "
+                                         "to return")}
+            except ToolError:
+                pass
+        time.sleep(LAUNCH_POLL_S)
+    raise ToolError(
+        f"timed out after {timeout:.0f}s waiting for {awaited}. The launch "
+        "itself did not report failure -- the app may be slow to start, "
+        "single-instance (it raised an EXISTING window instead of opening a "
+        "new one), or it crashed after starting.",
+        code="timeout")
 
 
 def _window_for_atspi_app(app_name: str) -> dict | None:

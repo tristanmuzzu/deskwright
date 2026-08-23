@@ -22,27 +22,31 @@ Two tiers, because half the stack survives a locked screen and half does not.
 Guards are asserted in both tiers: typing with no target, pressing a widget
 without stating what you expect, a widget whose identity moved, and Ctrl+Alt+F2.
 
-KNOWN FRAGILITY, MEASURED 2026-08-17
+DOCUMENT IDENTITY -- fragility measured 2026-08-17, fixed 2026-08-23
 
-"injected keystrokes actually landed" fails whenever gnome-text-editor already
-has other tabs open, which on a real desktop it usually does. TIER 1 writes
-through AT-SPI, which addresses a document directly; typed keys go to whatever
-tab is VISIBLE; and `ui_read_text` then reads the first text widget in the
-tree, which need be neither. The failure message is "the widget gained ''".
+This test used to fail whenever gnome-text-editor already had other tabs open,
+which on a real desktop it usually does. Three independent widget picks were in
+play: TIER 1 wrote through AT-SPI to "the app's first text widget", typed keys
+went to whatever tab was VISIBLE, and `ui_read_text` re-picked its own widget.
+No shared document, and the failure message -- "the widget gained ''" --
+blamed the injection, which was innocent (it failed identically through
+ydotool and compositor keysyms, which two unrelated paths cannot do at once).
 
-It is not the injection. With a single-tab editor the same sequence
-(ui_set_text, then type_text) verifies itself, and the characters are there in
-a screenshot. It also fails identically with ydotool and with compositor
-keysyms, which is the tell: two unrelated injection paths cannot be broken in
-the same way at the same moment. Fixing it means addressing ONE document
-rather than "the app's first text widget".
+The fix is one explicit identity. Half landed 2026-08-22: `_find_text_widget`
+prefers the widget AT-SPI reports as FOCUSED, on the read side. The other half
+landed 2026-08-23: `ui_set_text` shares that picker, and BOTH tools now return
+the resolved `path` of the widget they touched. This test uses it: TIER 1
+passes the path returned by `ui_set_text` into its readback, and TIER 2 pins
+the focused document's path before typing and reads back through it.
 
-Half of that landed on 2026-08-22: `_find_text_widget` now prefers the widget
-AT-SPI reports as FOCUSED, which is the one keystrokes go to. That fixes the
-readback for an editor with several tabs. It does not fix this test, because
-TIER 1 here writes through `ui_set_text` to a document that is not the focused
-one, so the two halves still address different tabs. The remaining half is
-`ui_set_text` and `type_text` taking the same document identity.
+Remaining honest caveat: a pinned path is an index path, valid only while the
+tree is unchanged. A tab opened or closed between write and readback
+invalidates the pin -- deliberately: `_resolve_path` raises `widget_missing`
+rather than silently reading whichever document now sits at those indices, so
+the failure names itself instead of masquerading as lost keystrokes. And
+focused-first still needs something to BE focused: if the editor never held
+focus, the picker falls back to the first editable widget -- the returned path
+makes that pick visible, it does not make it the visible tab.
 
     ./tests/test_e2e_real_task.py
     ./tests/test_e2e_real_task.py --keep     # leave the editor open to look at
@@ -170,8 +174,17 @@ def tier1_atspi(client: Client) -> None:
     wrote = check("ui_set_text writes without focus", ok and res.get("verified"),
                   res.get("detail") if ok else res)
 
-    # THE proof: read the widget back out of the tree.
-    ok, res = client.call("ui_read_text", {"app": EDITOR_APP})
+    # The write names the document it landed in. That path is the whole
+    # document-identity fix: the readback below addresses THIS document, not
+    # whichever text widget a fresh pick would fancy.
+    doc_path = res.get("path") if ok and isinstance(res, dict) else None
+    check("ui_set_text names the document it wrote", bool(doc_path),
+          f"path={doc_path}")
+
+    # THE proof: read the SAME widget back out of the tree, pinned by path.
+    ok, res = client.call("ui_read_text",
+                          {"path": doc_path} if doc_path
+                          else {"app": EDITOR_APP})
     content = res.get("text", "") if ok else ""
     check("the text is really IN the widget", ok and marker in content,
           f"{len(content)} chars, marker present: {marker in content}")
@@ -242,13 +255,25 @@ def tier2_extension(client: Client, health: dict) -> None:
     check("focus is confirmed, not assumed", ok and "focus" in json.dumps(res),
           res.get("detail") if ok else res)
 
+    # Pin the FOCUSED document before typing. Keystrokes go to the keyboard
+    # focus, so the readback must address that exact document -- re-picking
+    # after the fact is how this test used to blame the innocent injection.
+    ok, res = client.call("ui_read_text", {"app": EDITOR_APP})
+    focused = res if ok and isinstance(res, dict) else {}
+    focused_path = focused.get("path")
+    check("the focused document has an address",
+          bool(focused_path) and bool(focused.get("focused")),
+          f'path={focused_path} focused={focused.get("focused", "?")}')
+
     # Focus-verified injection, then verified by reading the widget back.
     typed = f" typed-{uuid.uuid4().hex[:6]}"
     ok, res = client.call("type_text", {"text": typed, "target": window["id"]})
     check("type_text reports proven focus", ok and isinstance(res, dict),
           res.get("focus") if ok else res)
     time.sleep(1.2)
-    ok, res = client.call("ui_read_text", {"app": EDITOR_APP})
+    ok, res = client.call("ui_read_text",
+                          {"path": focused_path} if focused_path
+                          else {"app": EDITOR_APP})
     check("injected keystrokes actually landed",
           ok and typed.strip() in res.get("text", ""),
           f'widget holds {res.get("text", "")[:40]!r}' if ok else res)
