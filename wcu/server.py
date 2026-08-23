@@ -11,6 +11,7 @@ from .atspi import (
     DEFAULT_FIND_DEPTH,
     DEFAULT_TREE_DEPTH,
     list_atspi_apps,
+    tool_launch_app,
     tool_ui_apps,
     tool_ui_find,
     tool_ui_press,
@@ -25,6 +26,7 @@ from .capture import (
     tool_region_changed,
     tool_screencast,
     tool_screenshot,
+    tool_zoom,
 )
 from .config import KEYS, MODIFIERS
 from .errors import ToolError
@@ -36,6 +38,9 @@ from .input import (
     layout_hazard,
     parse_combo,
     pointer_position,
+    tool_clipboard_read,
+    tool_clipboard_write,
+    tool_hold_key,
     tool_pointer_click,
     tool_pointer_drag,
     tool_pointer_move,
@@ -173,10 +178,18 @@ _SETTLE_SCHEMA = {
 }
 
 _LOOK_AT_SCHEMA = {
-    "type": "object",
-    "description": 'Rectangle for look:"region", in screen pixels.',
-    "properties": {"x": {"type": "integer"}, "y": {"type": "integer"},
-                   "width": {"type": "integer"}, "height": {"type": "integer"}},
+    "description": 'Rectangle for look:"region", in screen pixels. Object form '
+                   '{x, y, width, height} or array form [x, y, width, height].',
+    # _parse_region has always accepted both forms; the schema said object-only,
+    # so a strictly-validating host rejected the array form the code supports.
+    "anyOf": [
+        {"type": "object",
+         "properties": {"x": {"type": "integer"}, "y": {"type": "integer"},
+                        "width": {"type": "integer"},
+                        "height": {"type": "integer"}}},
+        {"type": "array", "items": {"type": "integer"},
+         "minItems": 4, "maxItems": 4},
+    ],
 }
 
 TOOLS: list[dict] = [
@@ -255,6 +268,34 @@ TOOLS: list[dict] = [
             },
         },
         "handler": tool_screenshot,
+    },
+    {
+        "name": "zoom",
+        "description": "Look closer at a small area at FULL resolution -- never "
+                       "scaled, unlike screenshot, which fits everything to the "
+                       "model's 1568px ceiling. For a tiny glyph, a hairline "
+                       "border, an icon. Refuses more than half the desktop: "
+                       "zoom exists to spend tokens on FEW pixels.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "region": {"description": "Rectangle in screen pixels, [x, y, "
+                                          "width, height] or {x, y, width, "
+                                          "height}. With window=, measured "
+                                          "inside that window.",
+                           "anyOf": [{"type": "array"}, {"type": "object"}]},
+                "window": {"description": "Zoom into this window (id, wm_class "
+                                          "or title fragment).",
+                           "anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "pad": {"type": "integer", "default": 0, "minimum": 0,
+                        "description": "Extra pixels of context on every side."},
+                "path": {"type": "string",
+                         "description": "Where to keep the PNG; defaults to "
+                                        "the shot cache"},
+            },
+        },
+        "handler": tool_zoom,
+        "annotations": {"readOnlyHint": True},
     },
     {
         "name": "pointer_move",
@@ -487,7 +528,8 @@ TOOLS: list[dict] = [
                        "the result -- belongs here rather than in four calls. Steps run "
                        "with their own `look` off; the picture is taken after the last "
                        "one, or at the step that failed. Use single tools when the next "
-                       "action depends on what the last one revealed.",
+                       "action depends on what the last one revealed. The sequence is "
+                       "validated up front -- a call that cannot finish never starts.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -499,9 +541,14 @@ TOOLS: list[dict] = [
                         "that tool takes}. Verbs: activate(target), click(x,y), "
                         "move(x,y), drag(from_x,from_y,to_x,to_y), scroll(x,y,dy), "
                         "type(target,text), key(target,combo), press(path,expect_name), "
-                        "set_text(path,text), wait(condition,target), sleep(ms)."),
+                        "set_text(path,text), wait_for(condition,target,timeout) -- "
+                        "same arguments as the wait_for tool; 'wait' is an alias -- "
+                        "and sleep(ms, 1-60000; prefer a wait_for condition over a "
+                        "guessed duration). A malformed step anywhere refuses the "
+                        "whole call naming that step, and nothing executes."),
                     "items": {"type": "object"},
                 },
+                "look_at": _LOOK_AT_SCHEMA,
                 "stop_on_error": {
                     "type": "boolean", "default": True,
                     "description": "Stop at the first failing step. Leave this true "
@@ -588,6 +635,33 @@ TOOLS: list[dict] = [
         "handler": tool_activate_window,
     },
     {
+        "name": "launch_app",
+        "description": "Start an application and confirm it actually arrived: "
+                       "the result carries the NEW window's dict (or, while the "
+                       "screen is locked, the new AT-SPI app) and names which "
+                       "mechanism confirmed. Every real task starts with an app "
+                       "that is not running yet; this is that step, inside the "
+                       "protocol instead of a shell command.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "desktop_id": _s("Desktop id for `gio launch`, with or without "
+                                 "'.desktop', e.g. 'org.gnome.TextEditor'"),
+                "command": {"type": "array", "items": {"type": "string"},
+                            "description": "Argv list, not a shell string. "
+                                           "Exactly one of desktop_id/command."},
+                "file": _s("Optional file for the app to open"),
+                "wait_window": {"type": "boolean", "default": True,
+                                "description": "Confirm arrival by a NEW window "
+                                               "id (or a new AT-SPI app when "
+                                               "the extension is down)."},
+                "timeout": {"type": "number", "default": 15, "minimum": 0.5,
+                            "maximum": 120},
+            },
+        },
+        "handler": tool_launch_app,
+    },
+    {
         "name": "ui_apps",
         "description": "Applications currently on the AT-SPI bus. These names are "
                        "what ui_tree and ui_find take.",
@@ -645,7 +719,7 @@ TOOLS: list[dict] = [
             "properties": {
                 "app": _s("Application name; its editable text widget is located "
                           "automatically"),
-                "path": _s("Or an exact index path from ui_find"),
+                "path": _s("Or an exact index path. Both tools return the resolved path -- pass it back to address the SAME document across write and read; without it, both prefer the focused text widget."),
             },
         },
         "handler": tool_ui_read_text,
@@ -667,7 +741,7 @@ TOOLS: list[dict] = [
                 "text": _s("Text to write"),
                 "app": _s("Application name; its editable text widget is located "
                           "automatically"),
-                "path": _s("Or an exact index path from ui_find"),
+                "path": _s("Or an exact index path. Both tools return the resolved path -- pass it back to address the SAME document across write and read; without it, both prefer the focused text widget."),
                 "replace": {"type": "boolean", "default": False,
                             "description": "Clear existing content first"},
             },
@@ -729,6 +803,44 @@ TOOLS: list[dict] = [
         "handler": tool_type_text,
     },
     {
+        "name": "clipboard_write",
+        "description": "Put text or a file's bytes on the clipboard, and PROVE it "
+                       "landed by reading it back. Goes through the gnome-shell "
+                       "extension so the compositor sets the clipboard itself -- "
+                       "mutter has a measured bug (S-018) where an external "
+                       "client's offer can serve wrong bytes to text requests, so "
+                       "wl-copy is only the fallback and says so when used.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "text": _s("Text to place on the clipboard. Give this OR "
+                           "path+mimetype, not both."),
+                "path": _s("File whose bytes go on the clipboard, e.g. a PNG"),
+                "mimetype": _s("The type those bytes are offered as, "
+                               "e.g. image/png. Required with path."),
+            },
+        },
+        "handler": tool_clipboard_write,
+    },
+    {
+        "name": "clipboard_read",
+        "description": "What is on the clipboard. Text by default; types:true "
+                       "lists the offered mimetypes instead. An empty clipboard "
+                       "is a clean result, not an error, and a clipboard owner "
+                       "that never serves its offer is reported after a short "
+                       "deadline instead of hanging.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "types": {"type": "boolean", "default": False,
+                          "description": "List offered mimetypes instead of "
+                                         "reading text."},
+            },
+        },
+        "handler": tool_clipboard_read,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
         "name": "press_keys",
         "description": "Send a key combination to a named window, e.g. ctrl+s. Chain "
                        "several with do_steps rather than one call each. Focus "
@@ -748,6 +860,29 @@ TOOLS: list[dict] = [
             "required": ["combo", "target"],
         },
         "handler": tool_press_keys,
+    },
+    {
+        "name": "hold_key",
+        "description": "Hold ONE key down for a duration, then release it -- a "
+                       "real press and a separate release, not a tap. For "
+                       "shift-selection, held-key scrolling and games. Blocks "
+                       "for the whole duration; press_keys is the tool for "
+                       "combinations.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "look": _LOOK_SCHEMA,
+                "look_at": _LOOK_AT_SCHEMA,
+                "settle_max_s": _SETTLE_SCHEMA,
+                "key": _s("One key, e.g. 'shift', 'down', 'w'. No combos."),
+                "seconds": {"type": "number", "minimum": 0.05, "maximum": 300,
+                            "description": "How long to hold. The call blocks "
+                                           "for this long."},
+                "target": TARGET_SCHEMA,
+            },
+            "required": ["key", "seconds"],
+        },
+        "handler": tool_hold_key,
     },
     {
         "name": "desktop_health",

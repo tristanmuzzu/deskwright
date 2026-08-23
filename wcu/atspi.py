@@ -250,6 +250,39 @@ def _locate_text_widget(app_name: str, path: str | None):
     return _resolve_path(candidates[0]["path"]), candidates[0]["path"]
 
 
+def ensure_widget_focus(app_name: str, path: str | None = None) -> dict:
+    """Make sure SOME text widget in this app holds the keyboard, and say how.
+
+    Window focus is not widget focus. Measured 2026-08-23: after ui_press
+    opens and closes a popover (gnome-text-editor's Main Menu), the window
+    still reports focused=true to the compositor while NO widget holds
+    keyboard focus -- compositor keysyms are then delivered to the window
+    and consumed by nothing, so type_text sends characters into a void and
+    its own verification catches the loss afterwards. Grabbing focus on the
+    preferred text widget BEFORE typing turns that silent loss into typing
+    that lands.
+
+    Returns {"state": "already" | "grabbed" | "grab_failed" | "no_widget",
+             "path": resolved-or-None}. Never raises: a window without an
+    AT-SPI text widget (a terminal, Chrome) is a normal case the caller
+    already handles by picture-verification.
+    """
+    try:
+        node, resolved = _locate_text_widget(app_name, path)
+    except ToolError:
+        return {"state": "no_widget", "path": None}
+    if _is_focused(node):
+        return {"state": "already", "path": resolved}
+    try:
+        comp = node.get_component_iface()
+        grabbed = bool(comp and _atspi().Component.grab_focus(comp))
+    except Exception:
+        grabbed = False
+    if grabbed and _is_focused(node):
+        return {"state": "grabbed", "path": resolved}
+    return {"state": "grab_failed", "path": resolved}
+
+
 def _is_focused(node) -> bool:
     """Whether this widget holds the keyboard, according to AT-SPI."""
     try:

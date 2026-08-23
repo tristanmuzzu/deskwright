@@ -261,8 +261,13 @@ def tier2_extension(client: Client, health: dict) -> None:
     ok, res = client.call("ui_read_text", {"app": EDITOR_APP})
     focused = res if ok and isinstance(res, dict) else {}
     focused_path = focused.get("path")
-    check("the focused document has an address",
-          bool(focused_path) and bool(focused.get("focused")),
+    # The ADDRESS is the contract; the focused flag is honest state, not a
+    # requirement. Measured 2026-08-23: after Tier 1's popover dance NO
+    # widget holds the keyboard even though the window is focused -- that
+    # void is real, and type_text below recovers from it (grab, then
+    # Tab-cycling) rather than this test pretending it cannot happen.
+    check("the document has an address",
+          bool(focused_path),
           f'path={focused_path} focused={focused.get("focused", "?")}')
 
     # Focus-verified injection, then verified by reading the widget back.
@@ -310,14 +315,20 @@ def main() -> int:
     keep = "--keep" in sys.argv
     client = Client()
 
-    # Open a DEDICATED file rather than a blank window. gnome-text-editor is
-    # DBusActivatable, so --new-window forwards to the running instance and one
-    # AT-SPI app node covers all its windows -- meaning ui_set_text{replace:true}
-    # could land on, and wipe, an unsaved draft Tristan cared about. A scratch file
-    # makes the target unambiguous and the test harmless.
+    # Open a DEDICATED file in a STANDALONE instance. Without --standalone,
+    # gnome-text-editor is DBusActivatable: the Popen is only a messenger to
+    # the running instance, terminate() kills the messenger and not the
+    # editor, and every run's tabs accumulate in an instance that also
+    # restores its previous session -- which is how this test spent a day
+    # failing against ghost tabs holding earlier runs' filenames (measured
+    # 2026-08-23: readback found 'wcu-e2e-<old hex>' from an instance three
+    # runs old). --standalone implies --ignore-session: a fresh process, a
+    # tree with exactly one document, and a terminate() that actually ends
+    # it. A scratch file keeps the target unambiguous and the test harmless
+    # either way.
     scratch = Path(tempfile.gettempdir()) / f"wcu-e2e-{uuid.uuid4().hex[:8]}.txt"
     scratch.write_text("scratch file for the wayland-computer-use e2e test\n")
-    editor = subprocess.Popen(["gnome-text-editor", str(scratch)],
+    editor = subprocess.Popen(["gnome-text-editor", "--standalone", str(scratch)],
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
         time.sleep(EDITOR_SETTLE_S)

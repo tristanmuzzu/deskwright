@@ -15,6 +15,7 @@ from .atspi import (
     _clickable_widgets,
     _find_text_widget,
     _read_text,
+    ensure_widget_focus,
 )
 from .capture import _Look, _look, _look_before, _look_typed
 from .config import KEYS, MODIFIERS
@@ -290,9 +291,33 @@ def tool_type_text(a: dict) -> dict:
     # Read the widget BEFORE typing so we can tell what this call actually added.
     app_hint = a.get("verify_app") or _atspi_app_for_window(focus["window"])
     before = None
+    widget_focus = None
     if app_hint:
+        # Window focus is not widget focus: after an AT-SPI popover dance the
+        # focused window can have NO widget holding the keyboard, and keysyms
+        # then land in a void (measured 2026-08-23, gnome-text-editor). Grab
+        # focus onto the preferred text widget before typing, and read THAT
+        # widget back afterwards so write and verify address one document.
+        widget_focus = ensure_widget_focus(str(app_hint), a.get("path"))
+        if widget_focus["state"] in ("grab_failed",):
+            # GTK4 refuses AT-SPI GrabFocus (atspi_error 1, measured
+            # 2026-08-23) and gives no usable screen extents to click, so
+            # the remaining route is the one a keyboard user has: Tab until
+            # the text widget reports FOCUSED. Two tabs recovered the
+            # measured popover case; eight is the give-up budget.
+            syms = combo_keysyms("tab")
+            for _ in range(8):
+                _pointer().combo(syms)
+                time.sleep(0.25)
+                widget_focus = ensure_widget_focus(str(app_hint),
+                                                   widget_focus.get("path"))
+                if widget_focus["state"] == "already":
+                    widget_focus = {"state": "tabbed",
+                                    "path": widget_focus["path"]}
+                    break
         try:
-            before = _read_text(_find_text_widget(str(app_hint), None))
+            before = _read_text(_find_text_widget(str(app_hint),
+                                                  widget_focus.get("path")))
         except ToolError:
             before = None
 
@@ -319,6 +344,8 @@ def tool_type_text(a: dict) -> dict:
 
     result = {"characters": len(text), "focus": focus["detail"], "via": used,
               "detail": f'sent {len(text)} characters to {focus["window"]["wm_class"]}'}
+    if widget_focus and widget_focus["state"] != "already":
+        result["widget_focus"] = widget_focus["state"]
     hazard = layout_hazard() if used == "ydotool" else ""
     if hazard:
         result["layout_warning"] = hazard
@@ -335,7 +362,8 @@ def tool_type_text(a: dict) -> dict:
 
     time.sleep(0.4)
     try:
-        after = _read_text(_find_text_widget(str(app_hint), None))
+        after = _read_text(_find_text_widget(
+            str(app_hint), widget_focus.get("path") if widget_focus else None))
     except ToolError:
         result["verified"] = False
         result["detail"] += " -- could not re-read the widget; verified by picture instead"
