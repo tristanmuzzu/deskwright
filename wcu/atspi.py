@@ -515,10 +515,49 @@ def _scroll_into_view(node) -> dict:
     return out
 
 
+def _check_identity(node, where: str, expect_name, expect_role,
+                    advice: str = "call ui_find again") -> tuple[str, str]:
+    """The widget's (name, role) -- after refusing if they are not the expected
+    ones. One function on purpose: ui_press and the ref resolver must apply the
+    IDENTICAL test, or a ref would be a way to click what a press would refuse.
+    """
+    actual_name = node.get_name() or ""
+    actual_role = node.get_role_name()
+    if expect_name is not None and str(expect_name).lower() not in actual_name.lower():
+        raise ToolError(
+            f"refusing to act: {where} now points at {actual_name!r} [{actual_role}], "
+            f"not {expect_name!r}. The tree moved -- {advice}.",
+            code="widget_moved",
+        )
+    if expect_role is not None and expect_role != actual_role:
+        raise ToolError(
+            f"refusing to act: {where} is a {actual_role}, not a {expect_role}.",
+            code="widget_moved",
+        )
+    return actual_name, actual_role
+
+
 def tool_ui_press(a: dict) -> dict:
+    ref = a.get("ref")
+    advice = "call ui_find again"
+    if ref is not None:
+        if a.get("path"):
+            raise ToolError(
+                "give ref OR path, not both -- a ref already carries its path",
+                code="bad_args",
+            )
+        entry = ref_entry(ref)
+        a = dict(a, path=entry["path"])
+        # The table's identity expectations, unless the caller stated their own.
+        if not a.get("expect_name") and not a.get("expect_role"):
+            if entry["expect_name"]:
+                a["expect_name"] = entry["expect_name"]
+            a["expect_role"] = entry["expect_role"]
+        advice = "take a fresh screen_map"
     path = str(a.get("path") or "")
     if not path:
-        raise ToolError("path is required (get one from ui_find)", code="bad_args")
+        raise ToolError("path is required (get one from ui_find, or pass a "
+                        "screen_map ref)", code="bad_args")
     expect_name = a.get("expect_name")
     expect_role = a.get("expect_role")
     # An empty expect_name defeats the whole check, because "" is a substring of
@@ -539,19 +578,8 @@ def tool_ui_press(a: dict) -> dict:
     index = int(a.get("action_index") or 0)
 
     node = _resolve_path(path)
-    actual_name = node.get_name() or ""
-    actual_role = node.get_role_name()
-    if expect_name is not None and str(expect_name).lower() not in actual_name.lower():
-        raise ToolError(
-            f"refusing to act: {path} now points at {actual_name!r} [{actual_role}], "
-            f"not {expect_name!r}. The tree moved -- call ui_find again.",
-            code="widget_moved",
-        )
-    if expect_role is not None and expect_role != actual_role:
-        raise ToolError(
-            f"refusing to act: {path} is a {actual_role}, not a {expect_role}.",
-            code="widget_moved",
-        )
+    actual_name, actual_role = _check_identity(node, path, expect_name,
+                                               expect_role, advice)
 
     n_actions = node.get_n_actions() if node.get_action_iface() else 0
     if n_actions <= index:
@@ -570,6 +598,8 @@ def tool_ui_press(a: dict) -> dict:
     result = {"path": path, "widget": actual_name, "role": actual_role,
               "action": action_name,
               "detail": f"pressed {action_name!r} on {actual_name!r} [{actual_role}]"}
+    if ref is not None:
+        result["ref"] = ref
     result.update(visibility)
     return _look(a, result, watching)
 
@@ -832,7 +862,8 @@ def tool_launch_app(a: dict) -> dict:
         code="timeout")
 
 
-def _window_for_atspi_app(app_name: str) -> dict | None:
+def _window_for_atspi_app(app_name: str,
+                          windows: list[dict] | None = None) -> dict | None:
     """The window belonging to an AT-SPI application name.
 
     The reverse of _atspi_app_for_window, and needed for the same reason: the
@@ -841,6 +872,9 @@ def _window_for_atspi_app(app_name: str) -> dict | None:
     desktop, and reports "nothing changed" for six presses that all worked --
     because a calculator's answer is 8 cells of 1920x1080 and whatever else is
     on screen is moving.
+
+    Pass `windows` when the caller already holds a list_windows() result;
+    screen_map does, and fetching it twice in one call would be pure waste.
     """
     def norm(s: str) -> str:
         return "".join(c for c in (s or "").lower() if c.isalnum())
@@ -848,10 +882,11 @@ def _window_for_atspi_app(app_name: str) -> dict | None:
     wanted = norm(app_name)
     if not wanted:
         return None
-    try:
-        windows = list_windows()
-    except ToolError:
-        return None
+    if windows is None:
+        try:
+            windows = list_windows()
+        except ToolError:
+            return None
     for w in windows:
         cls = norm(w.get("wm_class"))
         if cls and (cls in wanted or wanted in cls):
@@ -909,3 +944,129 @@ def _clickable_widgets(app_name: str, limit: int) -> list[dict]:
         if len(out) >= limit:
             break
     return out
+
+
+# ---- Set-of-Mark refs -----------------------------------------------------
+# screen_map numbers every actionable widget it reports, and pointer_click /
+# ui_press accept that number back. The point is to take coordinate arithmetic
+# away from the model entirely: it names WHICH widget, this table remembers
+# where and what it was, and acting on a ref re-verifies the widget's identity
+# through the same check ui_press applies to a path.
+#
+# One table, replaced whole on every screen_map call: refs from an older call
+# describe a screen that is no longer on display, so they are stale by
+# definition. Ref numbers never restart -- they keep counting up across
+# generations -- which is what makes a stale ref DETECTABLE: a number below the
+# current table's range was issued by an earlier call, and gets a "take a fresh
+# screen_map" refusal instead of silently hitting whatever is numbered that now.
+
+_REF_TABLE: dict[int, dict] = {}
+_REF_GENERATION = 0
+_NEXT_REF = 1
+
+REFS_CONTRACT = ("refs are valid until the next screen_map call; "
+                 "prefer ui_press(ref) over pointer_click(ref)")
+
+
+def register_refs(widgets: list[dict], app: str | None,
+                  window_id: int | None) -> int:
+    """Number these widgets and make them the ONLY live refs.
+
+    Mutates each widget dict (adds "ref") so the numbers appear in the
+    screen_map result, and returns the new generation. An empty list is a
+    valid call: it invalidates every outstanding ref, which is exactly what a
+    screen_map that found no widgets must do.
+    """
+    global _REF_GENERATION, _NEXT_REF
+    _REF_GENERATION += 1
+    _REF_TABLE.clear()
+    stamp = time.time()
+    for w in widgets:
+        ref = _NEXT_REF
+        _NEXT_REF += 1
+        w["ref"] = ref
+        _REF_TABLE[ref] = {
+            "app": app, "path": w["path"],
+            "expect_name": w["name"], "expect_role": w["role"],
+            "click_at": list(w["click_at"]), "window_id": window_id,
+            "stamp": stamp, "generation": _REF_GENERATION,
+        }
+    return _REF_GENERATION
+
+
+def ref_entry(ref) -> dict:
+    """The table entry behind a ref -- validation and staleness only.
+
+    No AT-SPI traffic here: callers that resolve the path themselves
+    (ui_press) get just the stored facts; resolve_ref adds the live re-check.
+    """
+    if isinstance(ref, bool) or not isinstance(ref, int):
+        raise ToolError(f"ref must be an integer from screen_map, got {ref!r}",
+                        code="bad_args")
+    entry = _REF_TABLE.get(ref)
+    if entry is not None:
+        return entry
+    if 1 <= ref < _NEXT_REF:
+        raise ToolError(
+            f"ref {ref} is from an older screen_map call and no longer valid -- "
+            "each screen_map replaces every ref, because the widgets an old call "
+            "numbered may have moved or vanished. Take a fresh screen_map and "
+            "use its refs.",
+            code="bad_args",
+        )
+    if not _REF_TABLE:
+        raise ToolError(
+            f"no ref {ref}: no refs exist yet. Call screen_map first -- every "
+            "actionable widget it reports carries one.",
+            code="bad_args",
+        )
+    raise ToolError(
+        f"no ref {ref}. The current screen_map issued refs "
+        f"{min(_REF_TABLE)}-{max(_REF_TABLE)}.",
+        code="bad_args",
+    )
+
+
+def resolve_ref(ref) -> dict:
+    """A ref as a live, identity-verified click target.
+
+    The stored click point is deliberately NOT trusted: the path is re-resolved,
+    the widget must still carry the recorded name and role (the same check
+    ui_press applies -- anything else would make a ref a way to click what a
+    press would refuse), and the click point is recomputed from its CURRENT
+    extents. A widget that vanished, changed identity, or scrolled off view
+    refuses with widget_moved rather than clicking where it used to be.
+    """
+    entry = ref_entry(ref)
+    what = f"ref {ref} ({entry['expect_name'] or entry['expect_role']!r})"
+    try:
+        node = _resolve_path(entry["path"])
+    except ToolError as e:
+        if e.code in ("widget_missing", "app_not_on_bus", "bad_args"):
+            raise ToolError(
+                f"{what} no longer resolves: {e} The tree changed since that "
+                "screen_map -- take a fresh one.",
+                code="widget_moved",
+            ) from None
+        raise
+    name, role = _check_identity(node, what, entry["expect_name"] or None,
+                                 entry["expect_role"],
+                                 advice="take a fresh screen_map")
+    problem = _extents_problem(node)
+    if problem is None:
+        try:
+            ext = node.get_extents(0)       # 0 == Atspi.CoordType.SCREEN
+        except Exception:
+            problem = "extents are unreadable"
+    if problem is not None:
+        raise ToolError(
+            f"refusing to click {what}: the widget still exists but is not "
+            f"clickable where it was ({problem}). ui_press(ref: {ref}) still "
+            "works -- the AT-SPI action does not need the widget visible.",
+            code="widget_moved",
+        )
+    return {
+        "ref": ref, "app": entry["app"], "path": entry["path"],
+        "name": name, "role": role, "window_id": entry["window_id"],
+        "click_at": [ext.x + ext.width // 2, ext.y + ext.height // 2],
+    }

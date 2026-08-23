@@ -11,11 +11,15 @@ from pathlib import Path
 from typing import Any
 
 from .atspi import (
+    REFS_CONTRACT,
     _atspi_app_for_window,
     _clickable_widgets,
     _find_text_widget,
     _read_text,
+    _window_for_atspi_app,
     ensure_widget_focus,
+    register_refs,
+    resolve_ref,
 )
 from .capture import _Look, _look, _look_before, _look_typed
 from .config import KEYS, MODIFIERS
@@ -526,17 +530,40 @@ def tool_pointer_move(a: dict) -> dict:
 
 
 def tool_pointer_click(a: dict) -> dict:
-    x, y = _point(a)
     button = str(a.get("button") or "left")
     count = int(a.get("count") or 1)
     if not 1 <= count <= 3:
         raise ToolError("count must be 1, 2 or 3", code="bad_args")
+    ref = a.get("ref")
+    resolved = None
+    if ref is not None:
+        if a.get("x") is not None or a.get("y") is not None:
+            raise ToolError(
+                "give ref OR x/y, not both. A ref already knows where its widget "
+                "is; coordinates alongside it mean one of the two is wrong.",
+                code="bad_args",
+            )
+        # Identity is re-verified and the click point recomputed from the
+        # widget's CURRENT extents -- the table's stored point is where the
+        # widget was at screen_map time, not necessarily where it is now.
+        resolved = resolve_ref(ref)
+        x, y = resolved["click_at"]
+        if a.get("expect_window") is None and resolved["window_id"] is not None:
+            # The table knows which window the widget lived in, so the click
+            # gets the same misdirection guard an explicit expect_window buys.
+            a = dict(a, expect_window=resolved["window_id"])
+    else:
+        x, y = _point(a)
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
     watching = _look_before(a, point=(x, y))
     before = [w for w in list_windows() if w.get("focused")]
     _pointer().click(x, y, button=button, count=count)
 
     result = _pointer_result(x, y, f"{button} click x{count}", guard)
+    if resolved is not None:
+        result["ref"] = ref
+        result["widget"] = (f'{resolved["name"] or resolved["path"]} '
+                            f'[{resolved["role"]}]')
     # Settling before reading focus is both more accurate and cheaper than the
     # fixed 0.25s sleep this used to take: a window that is going to take focus
     # has finished drawing by the time two frames agree.
@@ -627,6 +654,12 @@ def tool_screen_map(a: dict) -> dict:
     except ToolError as e:
         out["pointer"] = f"unknown: {e}"
 
+    # Every call REPLACES the ref table, even one that finds no widgets: refs
+    # describe the screen as it was at their own screen_map call, so the moment
+    # a newer call exists they are stale by definition.
+    widgets: list[dict] = []
+    app = None
+    window_id = None
     if a.get("widgets", True):
         app = a.get("app")
         if not app:
@@ -634,13 +667,19 @@ def tool_screen_map(a: dict) -> dict:
             app = _atspi_app_for_window(focused[0]) if focused else None
         if app:
             try:
-                out["widgets"] = _clickable_widgets(app, int(a.get("limit") or 60))
+                widgets = _clickable_widgets(app, int(a.get("limit") or 60))
+                win = _window_for_atspi_app(app, windows)
+                window_id = win["id"] if win else None
+                out["widgets"] = widgets       # register_refs numbers them in place
                 out["widgets_app"] = app
             except ToolError as e:
                 out["widgets"] = f"unavailable: {e}"
         else:
             out["widgets"] = ("no AT-SPI application matched the focused window; "
                               "pass app= to map a different one")
+    out["refs_generation"] = register_refs(widgets, app, window_id)
+    if widgets:
+        out["refs_note"] = REFS_CONTRACT
     return out
 
 
