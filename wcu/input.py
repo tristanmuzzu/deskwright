@@ -785,7 +785,18 @@ def tool_clipboard_read(a: dict) -> dict:
 
     text, why = _read_clipboard_text()
     if text is not None:
-        return {"text": text, "characters": len(text)}
+        out = {"text": text, "characters": len(text)}
+        # Additive tripwire: clipboard content arrives from arbitrary apps and
+        # web pages -- instruction-shaped text there is the classic injection
+        # channel. A tripwire failure must never break the read.
+        try:
+            from .tripwire import check as _injection_check
+            warning = _injection_check(text)
+        except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+            warning = None
+        if warning:
+            out["injection_warning"] = warning
+        return out
     if why == "empty":
         return {"text": None, "empty": True,
                 "detail": "the clipboard is empty; nothing was there to read"}

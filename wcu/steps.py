@@ -84,7 +84,13 @@ def _canonical_verb(step: dict) -> str:
 
 
 def _sleep_ms(step: dict, index: int) -> int:
-    raw = step.get("ms") or step.get("wait_ms") or 200
+    raw = step.get("ms")
+    if raw is None:
+        raw = step.get("wait_ms")
+    if raw is None:
+        raw = 200
+    # `or` chaining would turn an explicit ms: 0 into a silent 200ms sleep;
+    # presence-based defaulting lets the range check below refuse it instead.
     try:
         millis = int(raw)
     except (TypeError, ValueError):

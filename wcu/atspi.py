@@ -611,9 +611,20 @@ def tool_ui_read_text(a: dict) -> dict:
         raise ToolError("app or path is required", code="bad_args")
     node, resolved = _locate_text_widget(app, path)
     content = _read_text(node)
-    return {"path": resolved, "role": node.get_role_name(),
-            "focused": _is_focused(node),
-            "characters": len(content), "text": content}
+    out = {"path": resolved, "role": node.get_role_name(),
+           "focused": _is_focused(node),
+           "characters": len(content), "text": content}
+    # Additive tripwire: widget text is screen content too -- a hostile page's
+    # textarea read through AT-SPI is the same attack surface as OCR'd pixels.
+    # A tripwire failure must never break the read.
+    try:
+        from .tripwire import check as _injection_check
+        warning = _injection_check(content)
+    except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+        warning = None
+    if warning:
+        out["injection_warning"] = warning
+    return out
 
 
 def tool_ui_set_text(a: dict) -> dict:

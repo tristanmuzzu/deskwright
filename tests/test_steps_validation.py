@@ -250,6 +250,13 @@ def test_sleep_rejects_non_numeric_and_unknown_keys():
     rejects({"steps": [{"do": "sleep", "seconds": 2}]}, "step 0", "seconds")
 
 
+def test_sleep_zero_is_refused_not_silently_defaulted():
+    # `ms or wait_ms or 200` turned an explicit ms: 0 into a 200ms sleep;
+    # an explicit zero must hit the range check and be refused instead.
+    rejects({"steps": [{"do": "sleep", "ms": 0}]}, "step 0", "between")
+    rejects({"steps": [{"do": "wait_ms", "wait_ms": 0}]}, "step 0", "between")
+
+
 if __name__ == "__main__":
     failures = 0
     for name, fn in sorted(globals().items()):
