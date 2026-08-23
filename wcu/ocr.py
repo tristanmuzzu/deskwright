@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import shutil
 import subprocess
+import time
 from pathlib import Path
 from typing import Any
 
@@ -119,9 +120,13 @@ def _ocr_words(path: Path, min_confidence: int,
     if proc.returncode != 0:
         raise ToolError(f"tesseract failed: {(proc.stderr or '').strip()[:300]}",
                         code="capture_failed")
+    return _parse_tsv(proc.stdout, min_confidence), scale
 
+
+def _parse_tsv(stdout: str, min_confidence: int) -> list[dict]:
+    """tesseract's TSV, as word dicts, in the reading order tesseract emits."""
     words = []
-    for line in proc.stdout.splitlines()[1:]:
+    for line in stdout.splitlines()[1:]:
         cells = line.split("\t")
         if len(cells) < 12 or not cells[11].strip():
             continue
@@ -135,7 +140,75 @@ def _ocr_words(path: Path, min_confidence: int,
                       "line": tuple(cells[1:5]),
                       "x": int(cells[6]), "y": int(cells[7]),
                       "width": int(cells[8]), "height": int(cells[9])})
-    return words, scale
+    return words
+
+
+OCR_SNIPPET_BUDGET_S = 0.5
+OCR_SNIPPET_MAX_WORDS = 10
+
+
+def ocr_snippet(path: Path, crop: tuple[int, int, int, int],
+                budget_s: float = OCR_SNIPPET_BUDGET_S,
+                max_words: int = OCR_SNIPPET_MAX_WORDS) -> dict:
+    """A few words of what one small area of `path` shows, inside a hard budget.
+
+    Built for capture.py's "what changed" summary: the area is small by
+    contract, the answer is a phrase rather than a layout, and the whole thing
+    is a bonus -- a bonus that doubles the latency of every click is a
+    regression, so the budget is enforced with time.monotonic and tesseract is
+    given only what remains of it. Never raises for a missing tesseract or a
+    blown budget; it says so instead.
+
+    `crop` is (left, top, right, bottom) in the image's own pixels.
+    """
+    start = time.monotonic()
+    if not shutil.which("tesseract"):
+        return {"skipped": "tesseract is not installed"}
+
+    Image, _ = _pillow()
+    source = path.with_name(f".{path.name}.snip.png")
+    try:
+        with Image.open(path) as img:
+            box = (max(0, int(crop[0])), max(0, int(crop[1])),
+                   min(img.width, int(crop[2])), min(img.height, int(crop[3])))
+            if box[2] <= box[0] or box[3] <= box[1]:
+                return {"skipped": "the changed area falls outside the image"}
+            snip = img.convert("RGB").crop(box)
+            if max(snip.size) < OCR_UPSCALE_UNDER:
+                snip = snip.resize((snip.width * 2, snip.height * 2),
+                                   Image.LANCZOS)
+            snip.save(source)
+
+        remaining = budget_s - (time.monotonic() - start)
+        if remaining <= 0.05:
+            return {"skipped": f"the {budget_s}s OCR budget was spent before "
+                               "tesseract could run"}
+        try:
+            proc = subprocess.run(["tesseract", str(source), "stdout",
+                                   "--psm", str(OCR_PSM_REGION), "tsv"],
+                                  capture_output=True, text=True,
+                                  timeout=remaining, check=False)
+        except subprocess.TimeoutExpired:
+            return {"skipped": f"tesseract blew the {budget_s}s OCR budget; "
+                               "the attached image is the authority"}
+        if proc.returncode != 0:
+            return {"skipped": "tesseract failed: "
+                               f"{(proc.stderr or '').strip()[:120]}"}
+    finally:
+        source.unlink(missing_ok=True)
+
+    elapsed = round(time.monotonic() - start, 2)
+    if elapsed > budget_s:
+        return {"skipped": f"OCR took {elapsed}s, over the {budget_s}s budget"}
+    words = _parse_tsv(proc.stdout, OCR_MIN_CONFIDENCE)
+    texts = [w["text"] for w in words[:max_words]]
+    if not texts:
+        return {"text": "", "note": "no legible text in the changed area",
+                "seconds": elapsed}
+    out: dict[str, Any] = {"text": " ".join(texts), "seconds": elapsed}
+    if len(words) > max_words:
+        out["note"] = f"first {max_words} of {len(words)} words"
+    return out
 
 
 def _match_phrase(words: list[dict], needle: str, exact: bool) -> list[dict]:

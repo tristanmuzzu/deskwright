@@ -184,6 +184,102 @@ def tool_screenshot(a: dict) -> dict:
     return result
 
 
+ZOOM_MAX_FRACTION = 0.5      # of the desktop; past this a zoom is a screenshot
+
+
+def _desktop_size() -> tuple[int, int] | None:
+    """The desktop in pixels, or None when nothing will answer.
+
+    Late import: input.py imports this module, and the pointer layer needs
+    PyGObject plus a session bus that a test process does not have. A zoom on a
+    machine where the desktop cannot be measured proceeds unchecked rather than
+    refusing on a guess.
+    """
+    try:
+        from .input import _pointer
+        bounds = _pointer().desktop_bounds()
+        return int(bounds[2]), int(bounds[3])
+    except Exception:
+        return None
+
+
+def tool_zoom(a: dict) -> dict:
+    """Look closer at a small area, at full resolution -- never scaled.
+
+    `screenshot` optimises for cheap: anything over the model's 1568px ceiling
+    is downscaled, which is right for a whole window and exactly wrong for a
+    6px glyph, a hairline border, or an icon you need to tell from its
+    neighbour. This is the other trade: the pixels arrive 1:1 with the screen,
+    so the area has to be SMALL. More than half the desktop is refused, because
+    zooming into that is a full screenshot with the cost hidden.
+    """
+    if a.get("scale") is not None:
+        raise ToolError(
+            "zoom does not take scale: it always shows the pixels 1:1 with the "
+            "screen. Use screenshot for a scaled overview.", code="bad_args")
+
+    region, window = _screenshot_region(a)
+    if region is None:
+        raise ToolError(
+            "zoom needs a region [x, y, width, height] or a window: it exists "
+            "to spend tokens on FEW pixels. For the whole screen, use screenshot.",
+            code="bad_args")
+
+    pad = int(a.get("pad") or 0)
+    if pad < 0:
+        raise ToolError(f"pad must be >= 0 pixels, got {pad}", code="bad_args")
+    if pad:
+        region = (region[0] - pad, region[1] - pad,
+                  region[2] + 2 * pad, region[3] + 2 * pad)
+
+    desktop = _desktop_size()
+    if desktop and region[2] * region[3] > ZOOM_MAX_FRACTION * desktop[0] * desktop[1]:
+        raise ToolError(
+            f"a {region[2]}x{region[3]} region is more than half the "
+            f"{desktop[0]}x{desktop[1]} desktop. Zoom exists to spend tokens on "
+            "FEW pixels at full resolution; for an area this big take a plain "
+            "screenshot, which fits it to the model's ceiling anyway.",
+            code="bad_args")
+
+    path, persistent = _shot_path(a)
+    cropped_in_shell = _capture(path, region)
+    if not cropped_in_shell:
+        _crop(path, region)
+
+    result: dict[str, Any] = {
+        "path": str(path),
+        "region": {"x": region[0], "y": region[1],
+                   "width": region[2], "height": region[3]},
+        "zoom": "full resolution, 1:1 with the screen",
+    }
+    if not persistent:
+        result["path_note"] = "kept in the shot cache; pass path= to keep it somewhere"
+    if window is not None:
+        occlusion = _occlusion(window)
+        if occlusion:
+            result["occluded"] = occlusion
+
+    native = _png_dimensions(path)
+    result["bytes"] = path.stat().st_size
+    result["dimensions"] = native
+    origin = (region[0], region[1])
+
+    # max_edge is set to the image's own long edge so _encode_inline never
+    # resizes in either direction -- that is the entire point of this tool.
+    native_pair = _dimension_pair(native)
+    edge = max(native_pair) if native_pair else MODEL_MAX_EDGE
+    _attach_inline(result, path, {**a, "max_edge": max(16, edge), "upscale": False})
+    shown = result.get("shown")
+    if isinstance(shown, dict):
+        result["coordinate_note"] = _coordinate_note(shown["dimensions"],
+                                                     native, origin)
+    else:
+        result["coordinate_note"] = (
+            f"pixel (px, py) in this image is screen "
+            f"({origin[0]} + px, {origin[1]} + py).")
+    return result
+
+
 def _dimension_pair(text: str) -> tuple[int, int] | None:
     m = re.fullmatch(r"(\d+)x(\d+)", text or "")
     return (int(m.group(1)), int(m.group(2))) if m else None
@@ -576,6 +672,118 @@ def _least_change(baseline: list[bytes], current: bytes,
     return min(deltas, key=lambda d: (d["strong_cells"], d["percent"]))
 
 
+# How small a changed area has to be before OCRing it is worth the time.
+# Both limits are derived, not guessed:
+#   * cells: half the fingerprint. If more than half the watched rectangle
+#     changed, "where" is "everywhere" and the attached image is the answer --
+#     ten words of OCR would just re-read the picture.
+#   * pixels: tesseract measured 1.6s for a 1920x540 capture on this machine
+#     (~1M px), so the 0.5s budget buys roughly 300k px. Bigger crops would
+#     blow the budget every time and report nothing but the skip note.
+CHANGE_OCR_MAX_CELLS = (FINGERPRINT[0] * FINGERPRINT[1]) // 2   # 16200
+CHANGE_OCR_MAX_PIXELS = 300_000
+CHANGE_OCR_BUDGET_S = 0.5
+
+
+def _delta_where(baseline: list[bytes], current: bytes,
+                 ambient: set[int] | None,
+                 capture_rect: tuple[int, int, int, int],
+                 windows: list[dict] | None = None) -> dict | None:
+    """WHERE the change is: a rectangle in screen coordinates, and in words.
+
+    The verdict already says THAT something changed; this is the bounding box
+    of the cells that did it, mapped back through the fingerprint grid onto the
+    screen, plus which windows that box touches. Strong cells are preferred --
+    they are the new content -- and the noise-threshold cells are only used
+    when the change landed on area alone (a scroll, a page swap), where no
+    single cell is strong. Ambient cells (a caret, a clock) are excluded: they
+    were moving before the action and are not evidence of it.
+    """
+    grid_w, grid_h = FINGERPRINT
+    frames = [b for b in (baseline or []) if b and len(b) == len(current)]
+    if not frames or len(current) != grid_w * grid_h:
+        return None
+
+    diffs = [min(abs(b[i] - c) for b in frames) for i, c in enumerate(current)]
+    moving = ambient or set()
+    cells = [i for i, d in enumerate(diffs)
+             if d > STRONG_DELTA and i not in moving]
+    if not cells:
+        cells = [i for i, d in enumerate(diffs)
+                 if d > CELL_NOISE and i not in moving]
+    if not cells:
+        return None
+
+    xs = [i % grid_w for i in cells]
+    ys = [i // grid_w for i in cells]
+    cx0, cx1 = min(xs), max(xs) + 1
+    cy0, cy1 = min(ys), max(ys) + 1
+
+    rx, ry, rw, rh = capture_rect
+    box = {"x": rx + round(cx0 * rw / grid_w),
+           "y": ry + round(cy0 * rh / grid_h),
+           "width": max(1, round((cx1 - cx0) * rw / grid_w)),
+           "height": max(1, round((cy1 - cy0) * rh / grid_h))}
+
+    out: dict[str, Any] = {"box": box, "cells": len(cells)}
+    detail = (f'the change is confined to a {box["width"]}x{box["height"]}px '
+              f'area with its top-left at screen ({box["x"]}, {box["y"]})')
+    if windows is not None:
+        touching: list[str] = []
+        for w in reversed(windows):                 # reversed: topmost first
+            if w.get("minimized") or w.get("width") is None:
+                continue
+            if (w["x"] < box["x"] + box["width"]
+                    and box["x"] < w["x"] + w["width"]
+                    and w["y"] < box["y"] + box["height"]
+                    and box["y"] < w["y"] + w["height"]):
+                name = w.get("wm_class") or w.get("title") or str(w.get("id"))
+                if name not in touching:
+                    touching.append(name)
+        out["windows"] = touching
+        if len(touching) == 1:
+            detail += f", inside {touching[0]}"
+        elif touching:
+            detail += ", overlapping " + ", ".join(touching)
+        else:
+            detail += ", over no window (the desktop itself)"
+    out["detail"] = detail
+    return out
+
+
+def _changed_text(path: Path, box: dict,
+                  capture_rect: tuple[int, int, int, int]) -> dict | None:
+    """Up to ~10 words of what the changed area now shows, when it is small.
+
+    Returns None when the area is too big to be worth OCRing -- the attached
+    image already covers that case -- and otherwise whatever ocr_snippet says,
+    including its honest skip notes for a missing tesseract or a blown budget.
+    """
+    rx, ry, rw, rh = capture_rect
+    if rw <= 0 or rh <= 0:
+        return None
+    grid_w, grid_h = FINGERPRINT
+    box_cells = (box["width"] * grid_w / rw) * (box["height"] * grid_h / rh)
+    if (box_cells > CHANGE_OCR_MAX_CELLS
+            or box["width"] * box["height"] > CHANGE_OCR_MAX_PIXELS):
+        return None
+
+    native = _dimension_pair(_png_dimensions(path))
+    if not native:
+        return None
+    fx, fy = native[0] / rw, native[1] / rh
+    # one fingerprint cell of margin, so a glyph on the boundary is not cut
+    # mid-stroke and misread.
+    pad_x = max(2, int(rw / grid_w))
+    pad_y = max(2, int(rh / grid_h))
+    crop = (int((box["x"] - rx - pad_x) * fx),
+            int((box["y"] - ry - pad_y) * fy),
+            int((box["x"] - rx + box["width"] + pad_x) * fx),
+            int((box["y"] - ry + box["height"] + pad_y) * fy))
+    from .ocr import ocr_snippet                    # late: ocr imports this module
+    return ocr_snippet(path, crop, budget_s=CHANGE_OCR_BUDGET_S)
+
+
 def _look_before(a: dict, hint_window: dict | None = None,
                  point: tuple[float, float] | None = None) -> _Look:
     """The screen as it was, so the action's effect can be measured."""
@@ -633,6 +841,26 @@ def _look(a: dict, result: dict, prepared: _Look) -> dict:
             if landed else
             "NOTHING on screen changed -- if this was meant to press something, it missed"
         )
+        if landed:
+            # Say WHERE, and for a small change, WHAT it now reads. Strictly
+            # additive, and strictly a bonus: it must never break the look it
+            # decorates or delay it past the OCR budget.
+            try:
+                native_pair = _dimension_pair(_png_dimensions(path))
+                rect = region or ((0, 0, *native_pair) if native_pair else None)
+                if rect:
+                    try:
+                        wins = list_windows()
+                    except ToolError:
+                        wins = None
+                    where = _delta_where(before, after, ambient, rect, wins)
+                    if where:
+                        view["changed_where"] = where
+                        text = _changed_text(path, where["box"], rect)
+                        if text:
+                            view["changed_text"] = text
+            except Exception:
+                pass
 
     show = mode != "auto" or landed is None or landed
     if show:
