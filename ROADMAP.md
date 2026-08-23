@@ -1,5 +1,32 @@
 # Roadmap — autonomy-first, categorized and ordered
 
+## Status (2026-08-23, end of the two-session build)
+
+**Shipped and live** (33 tools, all suites green on GNOME 50 Wayland):
+module split; machine-readable error codes; `do_steps` up-front
+validation + per-step retry; `wait_for` with `text_appears` /
+`widget_exists` / `clipboard_changed`; `assert_state`; `zoom`;
+clipboard read/write; `hold_key`; drag verification; `launch_app`;
+scroll-into-view; document-identity pinning (+ the widget-focus-void
+fix); "what changed" as text; `window_manage`; the bundled
+`wcu@wayland-computer-use` extension (window verbs, clipboard, halt
+switch, activity indicator) with bus preference + fallback; the halt
+gate; Set-of-Mark refs; the action journal; the injection tripwire;
+the `wcu-setup` installer + `pyproject.toml`; public README / LICENSE /
+CONTRIBUTING / SECURITY; and the Claude Code auto-approval doc.
+
+**Proven feasible, not yet built** (see `docs/spikes.md`): the headless
+parallel session and the portal/libei backend — the two moats. Both
+reached working end-to-end spikes; each has one wiring task left
+(headless input; portal absolute-motion ScreenCast link).
+
+**Deliberately session 3+**: KDE/wlroots/X11 backends (follow the portal
+backend), HiDPI/multi-monitor, CI on a virtual GNOME session, the
+OSWorld-subset benchmark, MCP-registry/plugin publishing, the opt-in
+restrictive-policy config. None block a publishable core.
+
+---
+
 Compiled 2026-08-23 from a competitive survey (Anthropic computer-use toolset,
 OpenAI Codex computer use, Microsoft UFO², UI-TARS, Agent S3, browser-use,
 agent-sh/computer-use-linux, OSWorld literature) plus a code audit of this

@@ -45,7 +45,7 @@ Then prove it works:
 
 ## The tools
 
-The server exposes **32 tools**. The ordering below is the ordering an agent
+The server exposes **33 tools**. The ordering below is the ordering an agent
 should prefer — the accessibility tree first, pixels last:
 
 | Tool | Notes |
@@ -55,7 +55,7 @@ should prefer — the accessibility tree first, pixels last:
 | `ui_set_text` | **Preferred text entry.** AT-SPI `EditableText`: no focus, no keyboard, and it reads the widget back to prove the write. |
 | `ui_press` | **Preferred action.** Invokes the widget's own action. Requires `expect_name`/`expect_role`. |
 | `launch_app` | Start an application by desktop id and wait for its window, inside the protocol. |
-| `screen_map` | Where everything is, in pixels: windows top of the stack first with their centres, and every pressable widget of the focused app with the point to click it at. |
+| `screen_map` | Where everything is, in pixels: windows top of the stack first with their centres, and every pressable widget of the focused app with the point to click it at. Each widget carries a `ref: N` — pass it straight to `ui_press(ref)` or `pointer_click(ref)`, no coordinates, identity re-checked, refs die at the next `screen_map`. |
 | `window_at` | What a click at a point would hit, *before* clicking it. |
 | `pointer_click`, `pointer_move`, `pointer_drag`, `pointer_scroll` | Real pointer input at absolute screen coordinates. Pass `expect_window` and a click that would land elsewhere is refused. |
 | `pointer_position` | Where the pointer is, or an honest statement that only the last set position is known. |
@@ -70,6 +70,7 @@ should prefer — the accessibility tree first, pixels last:
 | `screencast`, `frames` | For anything that moves. Stills cannot show motion. |
 | `type_text`, `press_keys`, `hold_key` | Compositor keysyms by default, focus proven first, `ydotool` only as a fallback. |
 | `clipboard_read`, `clipboard_write` | Paste beats two thousand keystrokes; reading back is a verification primitive. |
+| `journal` | Read back the trail of acted tool calls — arguments, outcome, hit/miss verdict and screenshot hash — to review an unattended run or reconstruct state after context loss. |
 | `desktop_health` | Which mechanisms are usable right now, what each will actually do, and which extension methods the *running* shell has. |
 
 ## Design philosophy
