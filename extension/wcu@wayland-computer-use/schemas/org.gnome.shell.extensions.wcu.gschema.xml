@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist gettext-domain="wcu">
+  <schema id="org.gnome.shell.extensions.wcu"
+          path="/org/gnome/shell/extensions/wcu/">
+
+    <!-- The human kill switch. Press once to halt (agent clients poll
+         HaltActive over D-Bus and stop); press again after 2 seconds to
+         clear. If you change this default, also update HALT_LABEL in
+         dbus.js so the on-screen banner keeps telling the truth. -->
+    <key name="halt-keybinding" type="as">
+      <default><![CDATA[['<Super><Control>Escape']]]></default>
+      <summary>Halt agent input (toggle)</summary>
+      <description>Engages the session-scoped halt flag exposed as HaltActive on org.wcu.Helpers, and paints a HALTED border. Pressing it again clears the halt, except within 2 seconds of engaging (debounce against an injected double-press).</description>
+    </key>
+
+  </schema>
+</schemalist>

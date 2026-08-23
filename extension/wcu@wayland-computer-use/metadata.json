@@ -1,0 +1,8 @@
+{
+  "uuid": "wcu@wayland-computer-use",
+  "name": "Computer Use Helpers",
+  "description": "Compositor-side helpers for driving a GNOME/Wayland desktop from an agent: screenshots, window list/geometry/control, pointer position, clipboard, an on-screen activity border, and a human-only halt keybinding. session-modes includes unlock-dialog DELIBERATELY: the tools keep answering while the screen is locked, so an agent run does not silently die the moment the lock engages. Independent of (and coexists with) migration-helpers@tristan.local: different UUID, bus name, schema, no shared state.",
+  "shell-version": ["48", "49", "50"],
+  "settings-schema": "org.gnome.shell.extensions.wcu",
+  "session-modes": ["user", "unlock-dialog"]
+}
