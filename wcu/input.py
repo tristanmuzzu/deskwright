@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
 import shutil
 import subprocess
 import time
+from pathlib import Path
 from typing import Any
 
 from .atspi import (
@@ -395,6 +397,76 @@ def tool_press_keys(a: dict) -> dict:
     return _look(a, result, watching)
 
 
+HOLD_KEY_MAX_S = 300.0
+
+
+def tool_hold_key(a: dict) -> dict:
+    """Hold ONE key down for a duration, then release it.
+
+    press_keys taps; games, repeat-scrolling a list, and shift-selecting a
+    range all need a real held key. The press and the release are separate
+    NotifyKeyboardKeysym events with a sleep between them, so the compositor
+    sees exactly what a finger on the key looks like.
+    """
+    key = a.get("key")
+    if not isinstance(key, str) or not key.strip():
+        raise ToolError("key is required, e.g. 'shift', 'down' or 'w'",
+                        code="bad_args")
+    if "+" in key:
+        raise ToolError(
+            "hold_key holds ONE key. A combination like 'ctrl+c' is a tap, "
+            "which is press_keys' job.",
+            code="bad_args",
+        )
+    seconds = a.get("seconds")
+    if seconds is None:
+        raise ToolError("seconds is required: how long to hold the key. This "
+                        "call blocks for the whole duration.", code="bad_args")
+    if isinstance(seconds, bool) or not isinstance(seconds, (int, float)):
+        raise ToolError(f"seconds must be a number, got {seconds!r}",
+                        code="bad_args")
+    seconds = float(seconds)
+    if not 0.05 <= seconds <= HOLD_KEY_MAX_S:
+        raise ToolError(
+            f"seconds must be between 0.05 and {HOLD_KEY_MAX_S:.0f}",
+            code="bad_args",
+        )
+    syms = combo_keysyms(key)           # unknown-key errors before any focus theft
+    target = a.get("target")
+    focus = focus_window(target) if target is not None else None
+    watching = _look_before(a, hint_window=focus["window"] if focus else None)
+
+    # A dedicated session rather than the shared one, and the difference is not
+    # style: the shared session stops itself after 25s idle, and mutter releases
+    # every key a session still holds when that session ends -- so a 60-second
+    # hold on the shared session would be silently released at second 25 with
+    # nothing reporting it. This session is told to outlive the hold, and is
+    # stopped explicitly the moment the key is released.
+    ri = _InputProxy(_input().RemoteInput(idle_timeout=seconds + 30.0))
+    started = time.monotonic()
+    ri.keysym(syms[0], True)
+    try:
+        time.sleep(seconds)
+    finally:
+        try:
+            ri.keysym(syms[0], False)
+        finally:
+            ri.stop()
+
+    held = round(time.monotonic() - started, 2)
+    result: dict[str, Any] = {
+        "key": key.strip().lower(), "held_seconds": held,
+        "detail": f"held {key.strip().lower()} for {held}s "
+                  "(compositor keysym press, sleep, release)",
+    }
+    if focus:
+        result["focus"] = focus["detail"]
+    else:
+        result["note"] = ("no target named, so the key went to whichever window "
+                          "already had focus")
+    return _look(a, result, watching)
+
+
 def _pointer_result(x: float, y: float, action: str, guard: dict | None) -> dict:
     out = {"action": action, "x": x, "y": y}
     if guard:
@@ -447,9 +519,27 @@ def tool_pointer_drag(a: dict) -> dict:
     x2, y2 = _point(a, "to_x", "to_y")
     guard = _guard_point(x1, y1, a["expect_window"]) if a.get("expect_window") else None
     watching = _look_before(a, point=(x2, y2))
+    before = [w for w in list_windows() if w.get("focused")]
     _pointer().drag(x1, y1, x2, y2, button=str(a.get("button") or "left"),
-                           steps=int(a.get("steps") or 24))
-    result = {"action": "drag", "from": [x1, y1], "to": [x2, y2], "guard": guard}
+                    steps=int(a.get("steps") or 24))
+
+    result = _pointer_result(x2, y2, "drag", guard)
+    del result["x"], result["y"]
+    result["from"], result["to"] = [x1, y1], [x2, y2]
+    # The same flow as pointer_click, because a drag used to report success
+    # blind: the release happened, so it "worked", whether or not the drop
+    # landed on anything. The before/after comparison in _look is what turns
+    # that into a stated verdict, and the focus read-out says whether the
+    # keyboard moved -- a drop that opened something usually moves it.
+    if watching.mode is False:
+        time.sleep(0.25)
+    else:
+        _look(a, result, watching)
+        watching = _Look(False, None, None, None)
+    after = [w for w in list_windows() if w.get("focused")]
+    was = before[0]["wm_class"] if before else None
+    now = after[0]["wm_class"] if after else None
+    result["focus"] = ("unchanged: " + str(now)) if was == now else f"moved {was} -> {now}"
     return _look(a, result, watching)
 
 
@@ -510,3 +600,247 @@ def tool_screen_map(a: dict) -> dict:
             out["widgets"] = ("no AT-SPI application matched the focused window; "
                               "pass app= to map a different one")
     return out
+
+
+# =========================================================================
+# clipboard
+# =========================================================================
+WL_TIMEOUT_S = 3.0
+
+_WLCOPY_CAVEAT = (
+    "set via wl-copy, not from inside gnome-shell: mutter has a measured bug "
+    "where an external client's offer can serve the wrong bytes to text "
+    "requests (FINDINGS S-018, documented in the extension source), so a paste "
+    "into some apps may arrive corrupted. The extension route avoids it; it "
+    "needs the extension loaded and the screen unlocked."
+)
+
+
+def _unwrap_bool_string(raw: str) -> tuple[bool, str]:
+    """gdbus prints a (b,s) reply as `(true, 'detail')`. The boolean is
+    lowercase, which ast.literal_eval refuses, so it is split off first and
+    only the string half -- whichever quoting gdbus chose -- is literal_eval'd.
+    """
+    m = re.fullmatch(r"\((true|false),\s*(.*)\)", raw.strip(), re.DOTALL)
+    if not m:
+        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}",
+                        code="extension_unavailable")
+    try:
+        detail = ast.literal_eval(m.group(2))
+    except (SyntaxError, ValueError):
+        raise ToolError(f"unexpected D-Bus reply shape: {raw[:200]}",
+                        code="extension_unavailable") from None
+    return m.group(1) == "true", str(detail)
+
+
+def _wl(binary: str, *args: str, stdin: bytes | None = None,
+        timeout: float = WL_TIMEOUT_S) -> subprocess.CompletedProcess:
+    """Run wl-copy / wl-paste with a deadline.
+
+    The deadline is not paranoia: wl-paste blocks forever when a client offers
+    the clipboard but never serves the request, and a tool that can hang is
+    worse than one that reports it could not read.
+    """
+    if not shutil.which(binary):
+        raise ToolError(
+            f"{binary} is not installed, so the clipboard cannot be reached "
+            "this way. It is in the wl-clipboard package.",
+            code="input_backend_failed",
+        )
+    try:
+        return subprocess.run([binary, *args], input=stdin, check=False,
+                              capture_output=True, timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise ToolError(
+            f"{binary} did not finish within {timeout:.0f}s. The clipboard "
+            "owner is offering content but not serving it, so the clipboard "
+            "is effectively unreadable right now.",
+            code="timeout",
+        ) from None
+
+
+def _read_clipboard_text() -> tuple[str | None, str]:
+    """The clipboard as text, or (None, why). why == "empty" is the clean case."""
+    proc = _wl("wl-paste", "--no-newline")
+    if proc.returncode != 0:
+        err = (proc.stderr or b"").decode(errors="replace").strip()
+        low = err.lower()
+        if "nothing is copied" in low or not err:
+            return None, "empty"
+        if "no suitable type" in low:
+            return None, ("the clipboard holds no text, only non-text types; "
+                          "clipboard_read{types: true} lists them")
+        return None, err[:200]
+    try:
+        return proc.stdout.decode(), ""
+    except UnicodeDecodeError:
+        return None, (f"the clipboard offer is not valid UTF-8 "
+                      f"({len(proc.stdout)} bytes); read the types instead")
+
+
+def tool_clipboard_read(a: dict) -> dict:
+    if a.get("types"):
+        proc = _wl("wl-paste", "--list-types")
+        if proc.returncode != 0:
+            return {"types": [], "empty": True,
+                    "detail": "the clipboard is empty -- a state, not a failure"}
+        types = [t.strip() for t in proc.stdout.decode(errors="replace").splitlines()
+                 if t.strip()]
+        return {"types": types, "count": len(types)}
+
+    text, why = _read_clipboard_text()
+    if text is not None:
+        return {"text": text, "characters": len(text)}
+    if why == "empty":
+        return {"text": None, "empty": True,
+                "detail": "the clipboard is empty; nothing was there to read"}
+    return {"text": None, "detail": why}
+
+
+def tool_clipboard_write(a: dict) -> dict:
+    text, path, mimetype = a.get("text"), a.get("path"), a.get("mimetype")
+    if (text is None) == (path is None):
+        raise ToolError(
+            "give exactly one of text (a string to place on the clipboard) or "
+            "path + mimetype (a file whose bytes go there)",
+            code="bad_args",
+        )
+    if text is not None:
+        if not isinstance(text, str) or text == "":
+            raise ToolError("text must be a non-empty string", code="bad_args")
+        return _clipboard_write_text(text)
+    if not isinstance(mimetype, str) or "/" not in mimetype:
+        raise ToolError("path needs a mimetype, e.g. image/png", code="bad_args")
+    file = Path(os.path.expanduser(str(path))).absolute()
+    if not file.is_file():
+        raise ToolError(f"{file} does not exist or is not a file", code="bad_args")
+    return _clipboard_write_file(file, mimetype)
+
+
+def _gvariant_string_literal(text: str) -> str:
+    """`text` as a GVariant text-format string literal.
+
+    gdbus parses each positional argument with g_variant_parse, and when that
+    fails it retries with the argument wrapped in quotes -- escaping the quotes
+    but NOT the backslashes (_g_variant_parse_me_harder in gdbus-tool.c). So a
+    payload containing '\\b' arrived as byte 0x08, measured here 2026-08-23,
+    and a payload that IS a quoted string would silently lose its quotes.
+    Serialising the literal ourselves makes the first parse succeed and decode
+    exactly what was encoded, so neither heuristic ever runs.
+    """
+    out = ['"']
+    for ch in text:
+        if ch in ('"', '\\'):
+            out.append("\\" + ch)
+        elif ord(ch) < 0x20:
+            out.append(f"\\u{ord(ch):04x}")
+        else:
+            out.append(ch)
+    out.append('"')
+    return "".join(out)
+
+
+def _set_via_extension(result: dict, method: str, *args: str) -> bool:
+    """Try the extension route; record why it did not happen rather than dying.
+
+    Setting the clipboard from inside gnome-shell is the whole point of the
+    method existing (S-018: external offers can be served wrong), so failure
+    here downgrades to wl-copy instead of failing the write.
+    """
+    if method not in extension_methods():
+        result["extension_error"] = _needs_relogin(method)
+        return False
+    try:
+        # "--" stops gdbus option parsing, so a payload starting with "-"
+        # cannot be eaten as an option (verified 2026-08-23: GOption strips
+        # the "--"), and each argument goes over as a self-serialised GVariant
+        # literal so gdbus's lossy re-quoting fallback never triggers.
+        ok, detail = _unwrap_bool_string(
+            _gdbus(method, "--", *(_gvariant_string_literal(v) for v in args)))
+    except ToolError as e:
+        result["extension_error"] = str(e)[:200]
+        return False
+    if not ok:
+        result["extension_error"] = detail[:200]
+        return False
+    return True
+
+
+def _clipboard_write_text(text: str) -> dict:
+    result: dict[str, Any] = {"characters": len(text)}
+    if _set_via_extension(result, "SetClipboardText", text):
+        result["via"] = "extension (gnome-shell set the clipboard itself)"
+    else:
+        proc = _wl("wl-copy", stdin=text.encode(), timeout=10.0)
+        if proc.returncode != 0:
+            raise ToolError(
+                "wl-copy failed: "
+                f"{(proc.stderr or b'').decode(errors='replace').strip()[:200]}",
+                code="input_backend_failed",
+            )
+        result["via"] = "wl-copy fallback"
+        result["caveat"] = _WLCOPY_CAVEAT
+
+    # Verify what LANDED, not what was sent -- same rule as type_text.
+    got: str | None = None
+    why = ""
+    try:
+        for attempt in range(2):
+            got, why = _read_clipboard_text()
+            if got == text:
+                result["verified"] = True
+                result["detail"] = (f"wrote {len(text)} characters and read "
+                                    "them back identical")
+                return result
+            time.sleep(0.2)
+    except ToolError as e:
+        why = str(e)
+    result["verified"] = False
+    result["verify_detail"] = (
+        f"read back {got[:120]!r} instead" if got is not None
+        else f"could not read back: {why}")
+    return result
+
+
+def _clipboard_write_file(file: Path, mimetype: str) -> dict:
+    payload = file.read_bytes()
+    if not payload:
+        raise ToolError(f"{file} is empty; refusing to clear the clipboard "
+                        "with an empty offer", code="bad_args")
+    result: dict[str, Any] = {"file": str(file), "mimetype": mimetype,
+                              "bytes": len(payload)}
+    if _set_via_extension(result, "SetClipboardFile", mimetype, str(file)):
+        result["via"] = ("extension (gnome-shell read the file and set the "
+                         "clipboard itself)")
+    else:
+        proc = _wl("wl-copy", "--type", mimetype, stdin=payload, timeout=15.0)
+        if proc.returncode != 0:
+            raise ToolError(
+                "wl-copy failed: "
+                f"{(proc.stderr or b'').decode(errors='replace').strip()[:200]}",
+                code="input_backend_failed",
+            )
+        result["via"] = "wl-copy fallback"
+        result["caveat"] = _WLCOPY_CAVEAT
+
+    try:
+        back = _wl("wl-paste", "--type", mimetype, timeout=10.0)
+        if back.returncode == 0 and back.stdout == payload:
+            result["verified"] = True
+            result["detail"] = f"read all {len(payload)} bytes back identical"
+        else:
+            types = _wl("wl-paste", "--list-types")
+            offered = [t.strip() for t in
+                       types.stdout.decode(errors="replace").splitlines()
+                       if t.strip()]
+            result["verified"] = False
+            result["offered_types"] = offered[:8]
+            result["verify_detail"] = (
+                f"reading the {mimetype} offer back returned "
+                f"{len(back.stdout)} bytes for a {len(payload)}-byte file"
+                if back.returncode == 0 else
+                f"the clipboard does not serve {mimetype}")
+    except ToolError as e:
+        result["verified"] = False
+        result["verify_detail"] = f"could not read back: {e}"
+    return result
