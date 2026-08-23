@@ -1,0 +1,32 @@
+# Packaging exists for ONE console script: `wcu-setup`, the fresh-machine
+# setup/checker. The MCP server itself stays path-invoked
+# (`claude mcp add wayland-computer-use --scope user -- "$PWD/mcp_server.py"`)
+# and is deliberately NOT wrapped as an entry point -- it depends on the
+# checkout (extension/, top-level modules) and on system packages (python3-gi)
+# that an isolated pipx/uvx venv cannot see. `uvx --from . wcu-setup --check`
+# works from a clone; PyGObject is intentionally absent from `dependencies`
+# because it is a system package (python3-gi), not sanely pip-installable.
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "wayland-computer-use"
+version = "0.1.0"
+description = "Drive a GNOME/Wayland desktop from an agent: MCP server plus compositor-side gnome-shell extension"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"  # placeholder; LICENSE file tracked separately
+dependencies = [
+    "Pillow",
+]
+
+[project.scripts]
+wcu-setup = "wcu.setup_cli:main"
+
+[tool.setuptools]
+# Only the wcu package is installed. The server's runtime companions
+# (mcp_server.py, desktop.py, remote_input.py, screencast.py, frames.py,
+# extension/) live in the checkout, which is where the server runs from.
+packages = ["wcu"]
