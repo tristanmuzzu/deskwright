@@ -82,6 +82,15 @@ def tool_find_text(a: dict) -> dict:
             "icon-only buttons and low-contrast text entirely; try ui_find if the "
             "app has an accessibility tree, or take a picture and look."
         )
+    # Additive tripwire over everything that was read, matches and context
+    # alike; a tripwire failure must never break the find.
+    try:
+        from .tripwire import check as _injection_check
+        warning = _injection_check(" ".join(w["text"] for w in words))
+    except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+        warning = None
+    if warning:
+        out["injection_warning"] = warning
     return out
 
 
