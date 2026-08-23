@@ -7,7 +7,8 @@ from typing import Any
 from .atspi import _window_for_atspi_app
 from .capture import _Look, _look, _look_before, _parse_region
 from .errors import ToolError
-from .shell import _resolve_target, window_at
+from .errors import CODES
+from .shell import WAIT_CONDITIONS, _resolve_target, window_at
 
 
 def _step_window_hint(step: dict) -> dict | None:
@@ -42,12 +43,39 @@ _STEP_VERBS: dict[str, tuple[str, tuple[str, ...]]] = {
     "wait_for": ("wait_for", ("condition",)),
 }
 
-# Mirrors tool_wait_for (wcu/shell.py). Duplicated here so a bad condition is
-# refused before step 1 runs instead of by the wait_for handler mid-sequence;
-# if a condition is added there, add it here or the step form cannot use it.
-_WAIT_CONDITIONS = {"focus_changes", "window_exists", "window_focused",
-                    "window_gone"}
+# One source of truth: shell.WAIT_CONDITIONS. This used to be a duplicated
+# set with a keep-in-sync comment, which is how sets drift apart.
+_WAIT_CONDITIONS = WAIT_CONDITIONS
 _SLEEP_KEYS = {"do", "ms", "wait_ms"}
+
+# Per-step retry. `on` defaults to the codes whose recovery is "the world
+# moved, try again" -- bad_args and refused_combo can never succeed twice.
+RETRY_MAX_ATTEMPTS = 5
+RETRY_DEFAULT_ON = ("focus_not_acquired", "widget_moved", "occluded",
+                    "timeout", "atspi_write_failed", "input_backend_failed")
+
+
+def _validate_retry(index: int, verb: str, retry: Any) -> None:
+    if not isinstance(retry, dict):
+        raise ToolError(f"step {index} ({verb}): retry must be an object like "
+                        '{"attempts": 2}', code="bad_args")
+    unknown = sorted(set(retry) - {"attempts", "on"})
+    if unknown:
+        raise ToolError(f"step {index} ({verb}): retry has unknown key(s): "
+                        f"{', '.join(unknown)}. Allowed: attempts, on",
+                        code="bad_args")
+    attempts = retry.get("attempts", 2)
+    if not isinstance(attempts, int) or not 1 <= attempts <= RETRY_MAX_ATTEMPTS:
+        raise ToolError(f"step {index} ({verb}): retry.attempts must be an "
+                        f"integer between 1 and {RETRY_MAX_ATTEMPTS}",
+                        code="bad_args")
+    on = retry.get("on", ())
+    if not isinstance(on, list | tuple) or any(c not in CODES for c in on):
+        bad = [c for c in (on if isinstance(on, list | tuple) else [on])
+               if c not in CODES]
+        raise ToolError(f"step {index} ({verb}): retry.on has unknown error "
+                        f"code(s): {bad}. Known: {', '.join(sorted(CODES))}",
+                        code="bad_args")
 
 
 def _canonical_verb(step: dict) -> str:
@@ -95,12 +123,14 @@ def _validate_step(index: int, step: Any, schemas: dict[str, dict]) -> None:
     if missing:
         raise ToolError(f"step {index} ({verb}) needs {', '.join(missing)}",
                         code="bad_args")
-    allowed = set(schema.get("properties") or {}) | {"do"}
+    allowed = set(schema.get("properties") or {}) | {"do", "retry"}
     unknown = sorted(set(step) - allowed)
     if unknown:
         raise ToolError(
             f"step {index} ({verb}) has unknown key(s): {', '.join(unknown)}. "
             f"Allowed: {', '.join(sorted(allowed))}", code="bad_args")
+    if step.get("retry") is not None:
+        _validate_retry(index, verb, step["retry"])
 
     if tool_name == "wait_for":
         condition = str(step.get("condition") or "").strip()
@@ -108,9 +138,18 @@ def _validate_step(index: int, step: Any, schemas: dict[str, dict]) -> None:
             raise ToolError(f"step {index} ({verb}): condition must be one of: "
                             + ", ".join(sorted(_WAIT_CONDITIONS)),
                             code="bad_args")
-        if condition != "focus_changes" and step.get("target") is None:
+        if condition in ("window_focused", "window_exists", "window_gone",
+                         "text_appears") and step.get("target") is None:
             raise ToolError(f"step {index} ({verb}): {condition} needs a "
                             "target window", code="bad_args")
+        if condition == "text_appears" and not step.get("text"):
+            raise ToolError(f"step {index} ({verb}): text_appears needs text",
+                            code="bad_args")
+        if condition == "widget_exists" and not (step.get("app")
+                                                 and (step.get("text")
+                                                      or step.get("role"))):
+            raise ToolError(f"step {index} ({verb}): widget_exists needs app "
+                            "and text and/or role", code="bad_args")
         timeout = step.get("timeout")
         if timeout:                 # falsy timeout means the handler's default
             try:
@@ -206,12 +245,32 @@ def tool_do_steps(a: dict) -> dict:
             continue
 
         tool_name, _ = _STEP_VERBS[verb]
-        args = {k: v for k, v in step.items() if k != "do"}
+        args = {k: v for k, v in step.items() if k not in ("do", "retry")}
         args["look"] = False            # one picture per call, not one per step
+
+        retry = step.get("retry") or {}
+        attempts = int(retry.get("attempts", 2)) if retry else 1
+        retry_on = set(retry.get("on") or RETRY_DEFAULT_ON)
         try:
-            out = HANDLERS[tool_name](args)
-            done.append({"step": index, "do": verb, "ok": True,
-                         "detail": _step_detail(out)})
+            tried = 0
+            while True:
+                tried += 1
+                try:
+                    out = HANDLERS[tool_name](args)
+                    break
+                except ToolError as e:
+                    # Retry only the codes whose recovery is "try again": the
+                    # world may have settled (focus landed, widget redrawn).
+                    # Honest accounting -- the step result says how many runs
+                    # it took, because a retried success is still a wobble.
+                    if tried >= attempts or e.code not in retry_on:
+                        raise
+                    time.sleep(0.4 * tried)
+            record = {"step": index, "do": verb, "ok": True,
+                      "detail": _step_detail(out)}
+            if tried > 1:
+                record["retries"] = tried - 1
+            done.append(record)
             if isinstance(out, dict) and isinstance(out.get("window"), dict):
                 last_window = out["window"]
             elif step.get("target") is not None or step.get("path") is not None:
@@ -226,7 +285,11 @@ def tool_do_steps(a: dict) -> dict:
                 except ToolError:
                     pass
         except ToolError as e:
-            done.append({"step": index, "do": verb, "ok": False, "error": str(e)})
+            failure = {"step": index, "do": verb, "ok": False,
+                       "error": str(e), "code": e.code}
+            if tried > 1:
+                failure["attempts"] = tried
+            done.append(failure)
             failed_at = index
             if stop_on_error:
                 break

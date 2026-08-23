@@ -58,6 +58,7 @@ from .shell import (
     extension_methods,
     list_windows,
     tool_activate_window,
+    tool_assert_state,
     tool_list_windows,
     tool_wait_for,
     tool_window_at,
@@ -443,21 +444,67 @@ TOOLS: list[dict] = [
         "name": "wait_for",
         "description": "Wait until the desktop reaches a state, instead of sleeping a "
                        "guessed number of seconds. Conditions: window_exists, "
-                       "window_gone, window_focused, focus_changes. Returns as soon as "
-                       "it is true, or reports honestly that it timed out.",
+                       "window_gone, window_focused, focus_changes; text_appears "
+                       "(OCR polls a window for a string -- a reply arriving, a "
+                       "build finishing); widget_exists (an AT-SPI widget matching "
+                       "text/role shows up in app); clipboard_changed (a copy "
+                       "landed). Returns as soon as it is true, or reports honestly "
+                       "that it timed out.",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "condition": {"type": "string",
                               "enum": ["window_exists", "window_gone",
-                                       "window_focused", "focus_changes"]},
+                                       "window_focused", "focus_changes",
+                                       "text_appears", "widget_exists",
+                                       "clipboard_changed"]},
                 "target": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "text": _s("For text_appears: the string to watch for. For "
+                           "widget_exists: the widget name to match."),
+                "app": _s("For widget_exists: the AT-SPI application name"),
+                "role": _s("For widget_exists: the widget role, e.g. 'push "
+                           "button'"),
                 "timeout": {"type": "number", "default": 10, "minimum": 0.2,
                             "maximum": 120},
             },
             "required": ["condition"],
         },
         "handler": tool_wait_for,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "assert_state",
+        "description": "Prove the desktop is in a state, with evidence -- the "
+                       "honest way to END a task. Each assertion comes back "
+                       "passed/failed with what was actually observed; a false "
+                       "assertion is a result, not an error. Give any of: "
+                       "window_exists, window_focused, text_present, "
+                       "widget_exists, clipboard_contains.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "window_exists": {"anyOf": [{"type": "integer"},
+                                            {"type": "string"}],
+                                  "description": "A window id, wm_class or "
+                                                 "title fragment that must "
+                                                 "exist."},
+                "window_focused": {"anyOf": [{"type": "integer"},
+                                             {"type": "string"}],
+                                   "description": "A window that must exist "
+                                                  "AND hold focus."},
+                "text_present": {"type": "object",
+                                 "description": '{"text": ..., "window": ...}: '
+                                                "the string must be visible "
+                                                "(OCR) in that window."},
+                "widget_exists": {"type": "object",
+                                  "description": '{"app": ..., "text" and/or '
+                                                 '"role"}: a matching AT-SPI '
+                                                 "widget must exist."},
+                "clipboard_contains": _s("The clipboard text must contain "
+                                         "this string."),
+            },
+        },
+        "handler": tool_assert_state,
         "annotations": {"readOnlyHint": True},
     },
     {
@@ -545,7 +592,10 @@ TOOLS: list[dict] = [
                         "same arguments as the wait_for tool; 'wait' is an alias -- "
                         "and sleep(ms, 1-60000; prefer a wait_for condition over a "
                         "guessed duration). A malformed step anywhere refuses the "
-                        "whole call naming that step, and nothing executes."),
+                        "whole call naming that step, and nothing executes. Any "
+                        'step may carry retry: {"attempts": N, "on": [codes]} -- '
+                        "it reruns on those error codes (default: the "
+                        "world-moved set) and reports how many runs it took."),
                     "items": {"type": "object"},
                 },
                 "look_at": _LOOK_AT_SCHEMA,

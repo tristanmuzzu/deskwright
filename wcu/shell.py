@@ -322,6 +322,45 @@ def tool_window_at(a: dict) -> dict:
     return window_at(x, y)
 
 
+WAIT_CONDITIONS = {"window_focused", "window_exists", "window_gone",
+                   "focus_changes", "text_appears", "widget_exists",
+                   "clipboard_changed"}
+
+
+def _probe_text_appears(text: str, target: Any) -> tuple[bool, str]:
+    """One OCR pass over the target window: is the string visible yet?"""
+    from .ocr import tool_find_text     # late: ocr imports capture imports shell
+    try:
+        found = tool_find_text({"text": text, "window": target, "limit": 1})
+    except ToolError as e:
+        return False, f"not readable yet: {e}"
+    n = found.get("matches", 0)
+    return bool(n), (f"{text!r} visible" if n else f"{text!r} not on screen")
+
+
+def _probe_widget_exists(app: Any, text: Any, role: Any) -> tuple[bool, str]:
+    from .atspi import tool_ui_find     # late: atspi imports capture imports shell
+    query = {"app": app}
+    if text:
+        query["text"] = text
+    if role:
+        query["role"] = role
+    try:
+        found = tool_ui_find(query)
+    except ToolError as e:
+        return False, f"not on the bus yet: {e}"
+    n = found.get("matches", 0)
+    return bool(n), (f"{n} widget(s) match" if n else "no widget matches")
+
+
+def _read_clipboard_now() -> str | None:
+    from .input import tool_clipboard_read      # late: input imports shell
+    try:
+        return tool_clipboard_read({}).get("text")
+    except ToolError:
+        return None
+
+
 def tool_wait_for(a: dict) -> dict:
     """Poll a desktop condition instead of sleeping and hoping."""
     timeout = float(a.get("timeout") or 10)
@@ -330,12 +369,46 @@ def tool_wait_for(a: dict) -> dict:
                         code="bad_args")
     condition = str(a.get("condition") or "").strip()
     target = a.get("target")
-    known = {"window_focused", "window_exists", "window_gone", "focus_changes"}
-    if condition not in known:
-        raise ToolError(f"condition must be one of: {', '.join(sorted(known))}",
-                        code="bad_args")
-    if condition != "focus_changes" and target is None:
+    if condition not in WAIT_CONDITIONS:
+        raise ToolError(
+            f"condition must be one of: {', '.join(sorted(WAIT_CONDITIONS))}",
+            code="bad_args")
+    if condition in ("window_focused", "window_exists", "window_gone",
+                     "text_appears") and target is None:
         raise ToolError(f"{condition} needs a target window", code="bad_args")
+    if condition == "text_appears" and not a.get("text"):
+        raise ToolError("text_appears needs text to look for", code="bad_args")
+    if condition == "widget_exists" and not a.get("app"):
+        raise ToolError("widget_exists needs app (and text and/or role)",
+                        code="bad_args")
+    if condition == "widget_exists" and not (a.get("text") or a.get("role")):
+        raise ToolError("widget_exists needs text and/or role", code="bad_args")
+
+    # The slow-probe conditions poll on their own rhythm: an OCR pass is
+    # ~0.3s of work, so re-running it every 0.15s would be pure heat.
+    if condition in ("text_appears", "widget_exists", "clipboard_changed"):
+        start = time.monotonic()
+        clip_before = _read_clipboard_now() if condition == "clipboard_changed" else None
+        while True:
+            if condition == "text_appears":
+                met, evidence = _probe_text_appears(str(a["text"]), target)
+            elif condition == "widget_exists":
+                met, evidence = _probe_widget_exists(a["app"], a.get("text"),
+                                                     a.get("role"))
+            else:
+                now = _read_clipboard_now()
+                met = now != clip_before
+                evidence = ("clipboard changed" if met
+                            else "clipboard still holds the same content")
+            waited = round(time.monotonic() - start, 2)
+            if met:
+                return {"condition": condition, "met": True,
+                        "waited_seconds": waited, "evidence": evidence}
+            if waited >= timeout:
+                return {"condition": condition, "met": False,
+                        "waited_seconds": waited, "evidence": evidence,
+                        "detail": "timed out; nothing was changed by waiting"}
+            time.sleep(0.4)
 
     def matches(w: dict) -> bool:
         if isinstance(target, int) or (isinstance(target, str) and str(target).isdigit()):
@@ -369,3 +442,74 @@ def tool_wait_for(a: dict) -> dict:
                     "focused": (focused[0]["wm_class"] if focused else None),
                     "detail": "timed out; nothing was changed by waiting"}
         time.sleep(0.15)
+
+
+def tool_assert_state(a: dict) -> dict:
+    """Prove the desktop is in a state, with evidence, instead of assuming it.
+
+    Ends a task the honest way: each assertion is evaluated once and comes
+    back passed/failed with what was actually observed. A failed assertion is
+    a RESULT, not an error -- the caller decides what a false answer means,
+    which is what makes this usable as the last step of an autonomous run.
+    """
+    checks: list[dict] = []
+
+    def record(name: str, passed: bool, evidence: str) -> None:
+        checks.append({"check": name, "passed": bool(passed),
+                       "evidence": evidence})
+
+    if a.get("window_exists") is not None:
+        try:
+            w = _resolve_target(a["window_exists"])
+            record("window_exists", True,
+                   f'{w["wm_class"]} {w["title"]!r} (id {w["id"]})')
+        except ToolError as e:
+            record("window_exists", False, str(e)[:160])
+
+    if a.get("window_focused") is not None:
+        try:
+            w = _resolve_target(a["window_focused"])
+            record("window_focused", bool(w.get("focused")),
+                   f'{w["wm_class"]} focused={w.get("focused")}')
+        except ToolError as e:
+            record("window_focused", False, str(e)[:160])
+
+    if a.get("text_present") is not None:
+        spec = a["text_present"]
+        if not isinstance(spec, dict) or not spec.get("text") \
+                or spec.get("window") is None:
+            raise ToolError('text_present must be {"text": ..., "window": ...}',
+                            code="bad_args")
+        met, evidence = _probe_text_appears(str(spec["text"]), spec["window"])
+        record("text_present", met, evidence)
+
+    if a.get("widget_exists") is not None:
+        spec = a["widget_exists"]
+        if not isinstance(spec, dict) or not spec.get("app") \
+                or not (spec.get("text") or spec.get("role")):
+            raise ToolError('widget_exists must be {"app": ..., and "text" '
+                            'and/or "role"}', code="bad_args")
+        met, evidence = _probe_widget_exists(spec["app"], spec.get("text"),
+                                             spec.get("role"))
+        record("widget_exists", met, evidence)
+
+    if a.get("clipboard_contains") is not None:
+        needle = str(a["clipboard_contains"])
+        now = _read_clipboard_now()
+        met = now is not None and needle in now
+        record("clipboard_contains", met,
+               ("clipboard is empty/unreadable" if now is None else
+                f"clipboard holds {len(now)} chars, needle "
+                + ("found" if met else "absent")))
+
+    if not checks:
+        raise ToolError(
+            "nothing to assert: give window_exists, window_focused, "
+            "text_present, widget_exists, and/or clipboard_contains",
+            code="bad_args")
+
+    passed = all(c["passed"] for c in checks)
+    return {"passed": passed,
+            "checks": checks,
+            "detail": (f'{sum(c["passed"] for c in checks)}/{len(checks)} '
+                       "assertions hold")}
