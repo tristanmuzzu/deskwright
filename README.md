@@ -487,8 +487,27 @@ Three deliberate differences from the primary session:
   wins the path and the *user's* apps time out registering accessibility.
   Found the hard way; the isolation is not optional.
 
-`screencast` on the headless session rides the symlinked per-user PipeWire
-and is untested; `screenshot` (extension-side) is proven.
+**The headless session is also the CI rig.** The full e2e suite runs against
+it — `WCU_SESSION=headless ./tests/test_e2e_real_task.py`, 22/22 on GNOME 50
+— which retires the old constraint that live verification serializes on the
+user's desktop. Every live script suite honors the same variable, because
+`mcp_server` pins the session at import.
+
+Three measured characteristics to know:
+
+* **`screencast` records only what changes.** The virtual monitor delivers
+  PipeWire frames on damage, not on a refresh clock: a still desktop yields a
+  0-second file, the same capture with a pointer moving yields real frames.
+  Record while the action happens (which is what a recording is for), and
+  prefer `screenshot` for still evidence.
+* **No XWayland** — the headless shell does not spawn it, so X11-only
+  helpers (like the pointer suite's witness window) skip there.
+* **Apps restore their own state.** `--standalone` gnome-text-editor still
+  resurrects unsaved drafts from `~/.local/share/org.gnome.TextEditor/`, and
+  a terminated test run is exactly what leaves such drafts — the e2e suite
+  gives its editor a throwaway `XDG_DATA_HOME` for this reason. Agents
+  launching stateful apps on the headless session inherit the user's real
+  app state by design; target window IDs, not window counts.
 
 ## Requirements
 

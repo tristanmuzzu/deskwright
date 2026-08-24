@@ -77,6 +77,12 @@ def _resolve_session() -> None:
     session lazily from `DBUS_SESSION_BUS_ADDRESS`/`WAYLAND_DISPLAY`, so
     pinning is purely an environment operation; it runs here, before any
     backend import can touch a bus, and no tool code knows the difference.
+
+    Runs at IMPORT, not only as the entry point, because the live test
+    suites (`tests/test_e2e_real_task.py` and friends) drive the tools by
+    importing this module in-process -- `WCU_SESSION=headless ./tests/...`
+    is what lets the whole e2e suite run on the headless session without
+    touching the user's desktop. With the variable unset this is a no-op.
     """
     import os
     session = os.environ.get("WCU_SESSION", "")
@@ -92,8 +98,7 @@ def _resolve_session() -> None:
     pin_env(ensure())
 
 
-if __name__ == "__main__":
-    _resolve_session()
+_resolve_session()
 
 # The implementation lives in the wcu/ package. This file stays as the
 # executable entry point -- the user-scope MCP registration points at this

@@ -234,19 +234,39 @@ def _locate_text_widget(app_name: str, path: str | None):
         except ToolError:
             continue
         _, editable = _text_ifaces(live)
+        try:
+            ext = live.get_extents(0)       # 0 == Atspi.CoordType.SCREEN
+            area = max(0, ext.width) * max(0, ext.height)
+        except Exception:
+            area = 0
         live_candidates.append((live, node["path"], editable is not None,
-                                _is_focused(live)))
+                                _is_focused(live), area,
+                                _in_active_frame(live)))
 
-    for want_focus in (True, False):
-        for live, live_path, editable, focused in live_candidates:
-            if editable and focused == want_focus:
-                return live, live_path
-    for live, live_path, _editable, focused in live_candidates:
+    for live, live_path, editable, focused, _area, _act in live_candidates:
+        if editable and focused:
+            return live, live_path
+    for live, live_path, _editable, focused, _area, _act in live_candidates:
         if focused:
             return live, live_path
+    # Nothing holds widget focus -- normal right after a launch, and the
+    # steady state on the headless session. Two wrong fallbacks are already
+    # paid for (both measured 2026-08-24/25 on the headless session):
+    # "first in tree order" picked a recent-file entry inside a closed
+    # popover, and "largest on screen" picked the biggest document in the
+    # WRONG WINDOW whenever the editor had restored old drafts -- keystrokes
+    # went to the focused window while the readback pin swore they never
+    # arrived. The document the user (or agent) means is the one in the
+    # ACTIVE frame, so rank: in-active-frame editables, then editables, then
+    # anything -- largest visible first within each tier, because entries in
+    # closed popovers measure tiny or 0x0.
+    for tier in ((lambda c: c[2] and c[5]), (lambda c: c[2]), (lambda c: True)):
+        sized = [c for c in live_candidates if tier(c) and c[4] > 0]
+        if sized:
+            best = max(sized, key=lambda c: c[4])
+            return best[0], best[1]
     if live_candidates:
-        live, live_path, _editable, _focused = live_candidates[0]
-        return live, live_path
+        return live_candidates[0][0], live_candidates[0][1]
     return _resolve_path(candidates[0]["path"]), candidates[0]["path"]
 
 
@@ -291,6 +311,28 @@ def _is_focused(node) -> bool:
         return bool(state.contains(Atspi.StateType.FOCUSED))
     except Exception:
         return False
+
+
+def _in_active_frame(node) -> bool:
+    """Whether this widget lives in the window the compositor calls active.
+
+    Window focus and widget focus come apart constantly (see
+    ensure_widget_focus); this is the cheap half that survives even when no
+    widget holds the keyboard: the frame ancestor still carries STATE_ACTIVE.
+    Used to keep the no-focus fallback in _locate_text_widget from picking a
+    document in a background window.
+    """
+    try:
+        Atspi = _atspi()
+        seen = 0
+        while node is not None and seen < 40:
+            if node.get_role() == Atspi.Role.FRAME:
+                return bool(node.get_state_set().contains(Atspi.StateType.ACTIVE))
+            node = node.get_parent()
+            seen += 1
+    except Exception:
+        pass
+    return False
 
 
 def _resolve_path(path: str):

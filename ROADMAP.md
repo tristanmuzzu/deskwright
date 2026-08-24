@@ -38,6 +38,21 @@ typing through the portal with compositor-confirmed positions, and a
 dialog-free 1.0 s session on reuse. **This is the door to #33 KDE and #34
 wlroots** — both now need window enumeration, not input.
 
+**Shipped 2026-08-25: the e2e suite runs on the headless session (#53
+groundwork).** `WCU_SESSION=headless ./tests/test_e2e_real_task.py` = 22/22;
+`mcp_server` pins the session at import so every live script suite follows
+the same variable, and constraint C1 ("the desktop is a serialized test
+resource") is retired — live verification no longer needs the user's screen.
+Three fixes fell out: `_locate_text_widget`'s no-focus fallback now prefers
+the ACTIVE frame (it used to pick the biggest document in a background
+window, making perfectly delivered keystrokes read as lost); the e2e editor
+gets a throwaway `XDG_DATA_HOME` (thirty accumulated drafts from terminated
+runs were re-opening as windows every launch); the e2e editor wait is a
+bus-arrival poll, not a 9 s guess. Measured characteristics documented in the
+README: headless `screencast` is damage-driven (still desktop = 0 frames),
+no XWayland there. Remaining for real CI (#53): a runnable GNOME inside a
+container.
+
 **Also 2026-08-24 — two defects fixed, and one report withdrawn:**
 - A failed *look* could fail a completed action (a transient empty screenshot
   turned a landed `type_text` into a failed step). Capture now retries once,

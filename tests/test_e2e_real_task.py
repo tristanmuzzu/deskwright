@@ -65,6 +65,18 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 SERVER = REPO / "mcp_server.py"
+
+# Pin THIS process to the session under test, not just the server subprocess.
+# The server pins itself from WCU_SESSION, but the editor below is spawned by
+# this test's Popen with this test's environment -- unpinned, it opens on the
+# USER'S desktop while the server looks for it on the headless one, which is
+# exactly what happened on the first headless run (editor flashing on the real
+# screen, every tier failing app_not_on_bus). Importing mcp_server runs the
+# same _resolve_session() the server runs; with WCU_SESSION unset it is a
+# no-op and the test behaves exactly as before.
+sys.path.insert(0, str(REPO))
+import mcp_server  # noqa: E402,F401  (imported for its session pinning)
+
 EDITOR_APP = "gnome-text-editor"
 EDITOR_SETTLE_S = 9.0
 # Its wm_class is 'org.gnome.TextEditor' while its AT-SPI app name is
@@ -328,10 +340,32 @@ def main() -> int:
     # either way.
     scratch = Path(tempfile.gettempdir()) / f"wcu-e2e-{uuid.uuid4().hex[:8]}.txt"
     scratch.write_text("scratch file for the wayland-computer-use e2e test\n")
+    # A throwaway XDG_DATA_HOME, because --standalone is NOT stateless: the
+    # editor still restores every unsaved draft from
+    # ~/.local/share/org.gnome.TextEditor/, and this test's own terminated
+    # runs are exactly what leaves such drafts. Measured 2026-08-25: thirty
+    # accumulated wcu-e2e-* drafts meant every launch opened extra windows,
+    # the tree pegged at the 400-node cap (popover growth invisible), and
+    # typed keystrokes landed in the focused window while the readback pin
+    # resolved into a restored one. Isolated state: one window, every run.
+    data_home = Path(tempfile.mkdtemp(prefix="wcu-e2e-xdg-"))
     editor = subprocess.Popen(["gnome-text-editor", "--standalone", str(scratch)],
+                              env={**os.environ, "XDG_DATA_HOME": str(data_home)},
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     try:
-        time.sleep(EDITOR_SETTLE_S)
+        # Wait for the editor to BE on the bus, not for a guessed duration.
+        # The fixed 9 s sleep this replaces was tuned on a warm desktop; on a
+        # cold headless session (services still dbus-activating) first launch
+        # measured 15-20 s, and every tier-1 check then failed app_not_on_bus.
+        # The cap is generous because a hit exits the loop the moment it lands.
+        deadline = time.monotonic() + EDITOR_SETTLE_S * 5
+        while time.monotonic() < deadline:
+            ok, apps = client.call("ui_apps")
+            names = [a.get("name", "") for a in apps.get("apps", [])] if ok else []
+            if any(EDITOR_APP in n for n in names):
+                break
+            time.sleep(1.0)
+        time.sleep(2.0)                       # let the window map and settle
 
         ok, health = client.call("desktop_health")
         check("desktop_health answers", ok and isinstance(health, dict),
@@ -356,9 +390,12 @@ def main() -> int:
                 editor.wait(timeout=8)
             except subprocess.TimeoutExpired:
                 editor.kill()
-            # Only the scratch file is removed. Nothing else the editor holds is
-            # touched, because the app instance may be shared with real windows.
+            # Only the scratch file and the throwaway state dir are removed.
+            # Nothing else the editor holds is touched, because the app
+            # instance may be shared with real windows.
             scratch.unlink(missing_ok=True)
+            import shutil
+            shutil.rmtree(data_home, ignore_errors=True)
         client.close()
 
 
