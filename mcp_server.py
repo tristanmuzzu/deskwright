@@ -94,7 +94,22 @@ def _resolve_session() -> None:
         print(f"unknown --session {session!r}; use 'primary' or 'headless'",
               file=sys.stderr)
         sys.exit(2)
-    from wcu.headless import ensure, pin_env
+    from wcu.headless import ensure, pin_env, status
+    if __name__ == "__main__":
+        # Running AS the server: a cold session start costs 15-20s, and paying
+        # it here means paying it inside the MCP client's initialize window --
+        # measured 2026-08-25 killing the connection before the first call.
+        # So initialize stays instant: pin now if the session is already up,
+        # otherwise leave a marker and let the FIRST TOOL CALL start it (same
+        # total wait, no timeout window; wcu/server.py owns the marker).
+        st = status()
+        if st.get("running"):
+            pin_env(st)
+        else:
+            os.environ["WCU_HEADLESS_LAZY"] = "1"
+        return
+    # Imported by a test or script that will call tool functions directly,
+    # bypassing serve(): the session must be ready before the first call.
     pin_env(ensure())
 
 
@@ -195,5 +210,11 @@ from wcu.steps import DO_STEPS_MAX, tool_do_steps  # noqa: F401
 
 if __name__ == "__main__":
     if "--self-test" in sys.argv:
+        # The self-test calls tool functions in-process, not through serve(),
+        # so a deferred headless start must happen before it, not lazily.
+        import os as _os
+        if _os.environ.pop("WCU_HEADLESS_LAZY", None):
+            from wcu.headless import ensure, pin_env
+            pin_env(ensure())
         sys.exit(self_test())
     sys.exit(serve())

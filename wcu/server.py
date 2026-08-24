@@ -1103,6 +1103,16 @@ def handle(msg: dict) -> None:
         args = params.get("arguments") or {}
         acted = name not in _READ_ONLY_TOOLS
         try:
+            # Deferred headless start (see mcp_server._resolve_session): the
+            # session was cold at initialize, so the FIRST tool call pays the
+            # 15-20s bring-up here, inside a normal per-call timeout, instead
+            # of inside the MCP client's connect window. The marker is cleared
+            # only on success, so a failed start is retried by the next call
+            # (its ToolError still reaches the model either way).
+            if os.environ.get("WCU_HEADLESS_LAZY"):
+                from .headless import ensure, pin_env
+                pin_env(ensure())
+                os.environ.pop("WCU_HEADLESS_LAZY", None)
             # The kill switch gates every state-changing tool at one choke
             # point. Reading tools keep working while halted -- a human who
             # stopped the hands still wants the eyes.
