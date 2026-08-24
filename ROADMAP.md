@@ -26,8 +26,31 @@ compositor-confirmed click → do_steps type → AT-SPI read-back →
 screenshot, all on the virtual monitor. README § "The headless second
 session".
 
-**Proven feasible, not yet built** (see `docs/spikes.md`): the portal/libei
-backend — one wiring task left (absolute-motion ScreenCast link).
+**Shipped 2026-08-24: the portal input backend (#32), both moats now real.**
+`portal_input.py` speaks `org.freedesktop.portal.RemoteDesktop` +
+`ScreenCast`; absolute motion is mapped into the containing stream (the
+spike's open wire); `restore_token` persisted per session, with a self-heal
+that discards a token granted without *Allow Remote Interaction*; backend
+auto-selected (mutter when its API answers, portal otherwise) or forced with
+`WCU_INPUT_BACKEND`. Gestures (click/drag) now live in one shared mixin so
+both backends cannot drift. Proven live: consent once, then motion + clicks +
+typing through the portal with compositor-confirmed positions, and a
+dialog-free 1.0 s session on reuse. **This is the door to #33 KDE and #34
+wlroots** — both now need window enumeration, not input.
+
+**Also 2026-08-24 — two defects fixed, and one report withdrawn:**
+- A failed *look* could fail a completed action (a transient empty screenshot
+  turned a landed `type_text` into a failed step). Capture now retries once,
+  and `_look` degrades to "the action completed; only the picture of it did
+  not". Never the other way around.
+- "Cross-app drag-and-drop is broken" (2026-08-23) **does not survive
+  measurement** and is withdrawn. Against a real browser drop target
+  (dropzone page in Chrome on the headless session, reloaded between trials)
+  the shipped timings scored 5/5; a staged variant written to "fix" it scored
+  4/5 and was reverted. The likely original cause is an input grab: a
+  shell-level modal (keyring/auth prompt) is drawn by gnome-shell, never
+  appears in `list_windows`, and makes every point on screen report
+  click-through. The guard's error now says so.
 
 **Deliberately session 3+**: KDE/wlroots/X11 backends (follow the portal
 backend), HiDPI/multi-monitor, CI on a virtual GNOME session, the

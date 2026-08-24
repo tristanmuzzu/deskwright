@@ -188,22 +188,61 @@ def combo_keysyms(combo: str) -> list[int]:
 
 
 # ---- pointer, in the coordinates list_windows already speaks --------------
+_INPUT_BACKEND = None
+
+
+def _mutter_api_present() -> bool:
+    """Is GNOME's private RemoteDesktop API on this session bus?"""
+    try:
+        probe = subprocess.run(
+            ["gdbus", "introspect", "--session",
+             "--dest", "org.gnome.Mutter.RemoteDesktop",
+             "--object-path", "/org/gnome/Mutter/RemoteDesktop"],
+            capture_output=True, text=True, timeout=10)
+        return "CreateSession" in probe.stdout
+    except Exception:
+        return False
+
+
 def _input():
-    """The mutter RemoteDesktop input layer, imported late.
+    """The compositor input layer, imported late and chosen once.
+
+    Two backends, one surface (KEYSYMS / char_to_keysym / shared()):
+    `remote_input` speaks GNOME's private `org.gnome.Mutter.RemoteDesktop`
+    (no dialog -- the fast path), `portal_input` speaks
+    `org.freedesktop.portal.RemoteDesktop` (one consent dialog, persisted via
+    restore_token -- the path that exists on KDE and wlroots too). The pick:
+    mutter when its API answers on this session bus, portal otherwise;
+    `WCU_INPUT_BACKEND=mutter|portal` overrides for testing.
 
     Late because it needs PyGObject and a session bus, and a machine missing
-    either should still get windows, screenshots and AT-SPI rather than a server
-    that will not start.
+    either should still get windows, screenshots and AT-SPI rather than a
+    server that will not start.
     """
+    global _INPUT_BACKEND
+    if _INPUT_BACKEND is not None:
+        return _INPUT_BACKEND
+    choice = os.environ.get("WCU_INPUT_BACKEND", "auto").lower()
+    if choice not in ("auto", "mutter", "portal"):
+        raise ToolError(
+            f"WCU_INPUT_BACKEND={choice!r} is not a backend; use "
+            "'mutter', 'portal' or unset for auto", code="bad_args")
+    if choice == "auto":
+        choice = "mutter" if _mutter_api_present() else "portal"
     try:
-        import remote_input
+        if choice == "portal":
+            import portal_input as backend
+        else:
+            import remote_input as backend
     except Exception as e:                                  # pragma: no cover
         raise ToolError(
-            f"the pointer layer is unavailable ({type(e).__name__}: {e}). "
-            "It needs PyGObject (python3-gi) and a session bus.",
+            f"the {choice} pointer layer is unavailable "
+            f"({type(e).__name__}: {e}). It needs PyGObject (python3-gi) "
+            "and a session bus.",
             code="input_backend_failed",
         ) from None
-    return remote_input
+    _INPUT_BACKEND = backend
+    return backend
 
 
 class _InputProxy:
@@ -285,7 +324,15 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
         raise ToolError(
             f"({x:.0f}, {y:.0f}) is inside {wanted['wm_class']}'s rectangle but the "
             "compositor routes no click there -- the window is click-through at "
-            "that point. Nothing was clicked.",
+            "that point. Nothing was clicked. Two causes, and the second is the "
+            "one that wastes a run: either the point really is over a hole in an "
+            "input shape, OR a SHELL-LEVEL MODAL has the input grab -- a keyring "
+            "or authentication prompt is drawn by gnome-shell itself, so it "
+            "never appears in list_windows and every point on screen reports "
+            "click-through while it is up (measured 2026-08-24). Take a "
+            "screenshot before re-aiming: if a dialog is there, click ITS "
+            "buttons by coordinate (no expect_window, since there is no window "
+            "to name) and the grab clears.",
             code="occluded",
         )
     # Include the id. Two windows of the same application read as

@@ -7,7 +7,16 @@
 > the session needs a private `XDG_RUNTIME_DIR` (shared at-spi socket path
 > broke the PRIMARY session's a11y), and `gio launch`'s D-Bus activation
 > loses the window on the private session (direct Exec spawn instead).
-> Spike 2 (portal/libei) remains future work.
+> **Update 2026-08-24 (later):** Spike 2 is productized too —
+> `portal_input.py`, selected automatically or via `WCU_INPUT_BACKEND`
+> (README § "Two input backends"). The `Invalid position` wire is closed the
+> way the spec intends: the RemoteDesktop session doubles as a ScreenCast
+> session and every coordinate is mapped into the stream containing it.
+> Token persistence works as the spike predicted — second run, no dialog,
+> 1.0 s. One thing the spike did not anticipate: consent granted with
+> *Allow Remote Interaction* off produces a capture-only session whose token
+> would restore that state forever, so the backend discards such a token on
+> the first refusal.
 
 Two timeboxed experiments from the roadmap's Tier 3/5. Each is a
 yes/no/blocked-at-layer-X finding, not shipped code.

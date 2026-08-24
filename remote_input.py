@@ -120,7 +120,60 @@ def char_to_keysym(ch: str) -> int:
     return code | 0x01000000
 
 
-class RemoteInput:
+class Gestures:
+    """Click and drag built purely on move_to()/button(), shared by every
+    input backend (mutter remote_input, portal portal_input).
+
+    Lives here so a timing fix lands in all backends at once -- the staged
+    drag below exists because the first drag implementation was duplicated
+    nowhere but still wrong for a whole class of targets.
+    """
+
+    def click(self, x: float, y: float, button: str = "left", count: int = 1,
+              settle: float = 0.06) -> None:
+        self.move_to(x, y)
+        # The pointer has to arrive before the button does, or the click is
+        # delivered to whatever was under the old position.
+        time.sleep(settle)
+        for i in range(max(1, int(count))):
+            if i:
+                time.sleep(0.05)             # inside the double-click window
+            self.button(button, True)
+            time.sleep(0.02)
+            self.button(button, False)
+
+    def drag(self, x1: float, y1: float, x2: float, y2: float,
+             button: str = "left", steps: int = 24) -> None:
+        """Press at one point, travel, release at the other.
+
+        The intermediate moves are not decoration: a press-and-teleport is not
+        a drag to most toolkits, which start dragging on the first motion after
+        the press and never see one.
+
+        These timings are measured, not guessed, and were re-confirmed on
+        2026-08-24 against a real browser drop target (a local dropzone page in
+        Chrome on the headless session, page reloaded between trials so each
+        one was independently measurable): **5/5 drops landed**. A "staged"
+        variant written that day -- longer press, slow threshold escape, 450 ms
+        hover before release -- scored **4/5** on the identical rig and is not
+        in the tree. Cross-app drag-and-drop was listed as broken on
+        2026-08-23 (Nautilus to WhatsApp Web); that report does not survive
+        this measurement, and the likelier cause is an input grab held by
+        something else (see the note in `_guard_point`) rather than these
+        timings. Change them only against numbers from that rig.
+        """
+        self.move_to(x1, y1)
+        time.sleep(0.06)
+        self.button(button, True)
+        steps = max(2, int(steps))
+        for i in range(1, steps + 1):
+            self.move_to(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)
+            time.sleep(0.012)
+        time.sleep(0.06)
+        self.button(button, False)
+
+
+class RemoteInput(Gestures):
     """One lazily-created mutter RemoteDesktop session, held open while in use."""
 
     def __init__(self, idle_timeout: float = IDLE_TIMEOUT_S) -> None:
@@ -285,37 +338,6 @@ class RemoteInput:
         rd_path, _ = self._ensure()
         self._call(RD, rd_path, RD_SESSION, "NotifyPointerButton",
                    GLib.Variant("(ib)", (code, pressed)))
-
-    def click(self, x: float, y: float, button: str = "left", count: int = 1,
-              settle: float = 0.06) -> None:
-        self.move_to(x, y)
-        # The pointer has to arrive before the button does, or the click is
-        # delivered to whatever was under the old position.
-        time.sleep(settle)
-        for i in range(max(1, int(count))):
-            if i:
-                time.sleep(0.05)             # inside the double-click window
-            self.button(button, True)
-            time.sleep(0.02)
-            self.button(button, False)
-
-    def drag(self, x1: float, y1: float, x2: float, y2: float,
-             button: str = "left", steps: int = 24) -> None:
-        """Press at one point, travel, release at the other.
-
-        The intermediate moves are not decoration: a press-and-teleport is not
-        a drag to most toolkits, which start dragging on the first motion after
-        the press and never see one.
-        """
-        self.move_to(x1, y1)
-        time.sleep(0.06)
-        self.button(button, True)
-        steps = max(2, int(steps))
-        for i in range(1, steps + 1):
-            self.move_to(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)
-            time.sleep(0.012)
-        time.sleep(0.06)
-        self.button(button, False)
 
     def scroll(self, x: float, y: float, dy: int = 0, dx: int = 0) -> None:
         """Wheel clicks at a point. Positive dy scrolls down, dx scrolls right."""

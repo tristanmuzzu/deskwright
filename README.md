@@ -403,6 +403,46 @@ input-shaped overlay will fool it, and region captures are cropped
 client-side. `desktop_health` lists exactly which methods the running shell
 has, and the extension's `Ping` method returns the loaded build stamp.
 
+## Two input backends: mutter, and the portal (KDE/wlroots route)
+
+Input has two interchangeable backends behind one surface, picked once per
+process:
+
+| backend | speaks | consent | where it works |
+|---|---|---|---|
+| `mutter` (default when present) | `org.gnome.Mutter.RemoteDesktop` | none | GNOME |
+| `portal` | `org.freedesktop.portal.RemoteDesktop` + `ScreenCast` | one dialog, then a saved `restore_token` | GNOME, KDE, wlroots |
+
+The pick is automatic — mutter's private API when it answers on the session
+bus, the portal otherwise — and `WCU_INPUT_BACKEND=mutter|portal` forces
+either for testing. Everything above input (windows, AT-SPI, capture, guards,
+`do_steps`) is unchanged by the choice.
+
+Proven on GNOME 50 Wayland, 2026-08-24: consent approved once, then absolute
+motion, clicks and keysym typing all land through the portal, with the
+compositor independently confirming the pointer position. The second run
+reused the saved token and reached a working session in **1.0 s with no
+dialog at all** — which is what makes the portal path usable unattended.
+
+Two things worth knowing before relying on it:
+
+* **Absolute coordinates are per-stream.** Portal absolute motion is defined
+  relative to a ScreenCast stream, not the desktop, so the backend opens a
+  ScreenCast session alongside the RemoteDesktop one (nothing consumes the
+  frames) and maps every (x, y) into the stream that contains it. Without that
+  link the portal answers `Invalid position` — the one wire the 2026-08-23
+  spike left open.
+* **Consent granted without input is sticky, so it self-heals.** Approving the
+  dialog with *Allow Remote Interaction* switched OFF yields a session that may
+  capture but never click, and the saved token would restore that forever. The
+  first `Notify*` refusal discards the token and says exactly what to switch
+  on, so the next action asks again.
+
+Approving the dialog is itself automatable: the switch is a `switch` node with
+a `Toggle` action, and **Share** is a `button` node — both reachable with
+`ui_find` + `ui_press`. Note the roles: filtering for `push button` finds
+nothing, and clicking Share by coordinate is unreliable.
+
 ## The headless second session
 
 An agent that needs the user's screen is only half autonomous. `wcu-headless`

@@ -61,14 +61,24 @@ def _capture(path: Path, region: tuple[int, int, int, int] | None = None,
     tmp = path.with_name(f".{path.name}.capturing")
     tmp.unlink(missing_ok=True)
     try:
-        if region and "ScreenshotArea" in extension_methods():
-            _gdbus("ScreenshotArea", *(str(int(v)) for v in region), str(tmp))
-            cropped_in_shell = True
+        # gnome-shell occasionally acknowledges a capture and writes nothing --
+        # observed on the headless session while a window was still mapping,
+        # never once in 30 idle captures. It is transient by nature, so one
+        # retry after a settle costs 150ms and turns a spurious failure into a
+        # picture. A second empty answer is a real failure and is reported.
+        for attempt in (0, 1):
+            if region and "ScreenshotArea" in extension_methods():
+                _gdbus("ScreenshotArea", *(str(int(v)) for v in region), str(tmp))
+                cropped_in_shell = True
+            else:
+                _gdbus("Screenshot", str(tmp), "true" if include_cursor else "false")
+                cropped_in_shell = False
+            if tmp.exists() and tmp.stat().st_size:
+                break
+            if attempt == 0:
+                time.sleep(0.15)
         else:
-            _gdbus("Screenshot", str(tmp), "true" if include_cursor else "false")
-            cropped_in_shell = False
-        if not tmp.exists() or tmp.stat().st_size == 0:
-            raise ToolError("the call returned but no image was written",
+            raise ToolError("the call returned but no image was written, twice",
                             code="capture_failed")
         with tmp.open("rb") as fh:
             if fh.read(8) != b"\x89PNG\r\n\x1a\n":
@@ -817,6 +827,32 @@ def _look_before(a: dict, hint_window: dict | None = None,
 
 def _look(a: dict, result: dict, prepared: _Look) -> dict:
     """Attach what the screen looks like now, and how much the action changed it.
+
+    Looking is measurement, and measurement must never fail the thing it
+    measures: `_look_before` has said so since it was written, but the AFTER
+    half used to let a capture failure escape, so a transient empty screenshot
+    turned a click that had already happened and a `type_text` whose characters
+    had already landed into a failed step. The action is not undone by a lost
+    picture -- the caller is told it acted and could not be shown.
+    """
+    try:
+        return _look_report(a, result, prepared)
+    except ToolError as e:
+        result["look"] = {
+            "unavailable": e.wire_text(),
+            "detail": "the action completed; only the picture of it did not",
+        }
+        return result
+    except Exception as e:                                  # pragma: no cover
+        result["look"] = {
+            "unavailable": f"{type(e).__name__}: {e}",
+            "detail": "the action completed; only the picture of it did not",
+        }
+        return result
+
+
+def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
+    """The look itself.
 
     `look:"auto"` (the default) always reports the change figure -- it costs one
     capture -- but only spends the tokens on an image when something actually
