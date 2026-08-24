@@ -745,6 +745,43 @@ def _resolve_desktop_file(desktop_id: str) -> Path:
         code="bad_args")
 
 
+def _exec_argv(desktop_path: Path) -> list[str]:
+    """The desktop file's Exec line as argv, XDG field codes removed.
+
+    Used only for the headless session, where the normal `gio launch` route
+    breaks: for a DBusActivatable app it activates over the bus, and on the
+    private session that round-trip proved unreliable (2026-08-24: `gio
+    launch` returned 0, the daemon spawned the service, no window ever
+    appeared -- while a manual Activate on the same running service opened
+    one). Spawning the Exec line makes the app its own primary instance,
+    the exact path the headless spike proved end to end.
+    """
+    import shlex
+    exec_line = ""
+    try:
+        with open(desktop_path) as f:
+            in_entry = False
+            for line in f:
+                line = line.strip()
+                if line.startswith("["):
+                    in_entry = line == "[Desktop Entry]"
+                elif in_entry and line.startswith("Exec="):
+                    exec_line = line[5:]
+                    break
+    except OSError as e:
+        raise ToolError(f"could not read {desktop_path}: {e}",
+                        code="bad_args") from None
+    if not exec_line:
+        raise ToolError(f"{desktop_path} has no Exec line to spawn",
+                        code="bad_args")
+    argv = [arg for arg in shlex.split(exec_line)
+            if not (len(arg) == 2 and arg.startswith("%"))]
+    if not argv:
+        raise ToolError(f"{desktop_path}: Exec line is only field codes",
+                        code="bad_args")
+    return argv
+
+
 def tool_launch_app(a: dict) -> dict:
     """Launch an application and CONFIRM it arrived, instead of assuming.
 
@@ -778,10 +815,16 @@ def tool_launch_app(a: dict) -> dict:
                 code="bad_args")
         argv = list(command) + ([file] if file else [])
         what = command[0]
+        spawn_direct, via = True, "command"
     else:
         desktop_path = _resolve_desktop_file(str(desktop_id))
-        argv = ["gio", "launch", str(desktop_path)] + ([file] if file else [])
         what = desktop_path.name
+        if os.environ.get("WCU_HEADLESS"):
+            argv = _exec_argv(desktop_path) + ([file] if file else [])
+            spawn_direct, via = True, "exec (headless)"
+        else:
+            argv = ["gio", "launch", str(desktop_path)] + ([file] if file else [])
+            spawn_direct, via = False, "gio launch"
 
     # Snapshots BEFORE the launch, so "new" means new. Either mechanism may be
     # down; which one answered is part of the result.
@@ -798,7 +841,7 @@ def tool_launch_app(a: dict) -> dict:
         except ToolError:
             atspi_before = None
 
-    if command is not None:
+    if spawn_direct:
         try:
             proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
                                     stderr=subprocess.DEVNULL,
@@ -806,7 +849,7 @@ def tool_launch_app(a: dict) -> dict:
         except OSError as e:
             raise ToolError(f"could not start {argv[0]!r}: {e}",
                             code="bad_args") from None
-        launched: dict[str, Any] = {"launched": what, "via": "command",
+        launched: dict[str, Any] = {"launched": what, "via": via,
                                     "argv": argv, "pid": proc.pid}
     else:
         try:

@@ -15,10 +15,19 @@ gate; Set-of-Mark refs; the action journal; the injection tripwire;
 the `wcu-setup` installer + `pyproject.toml`; public README / LICENSE /
 CONTRIBUTING / SECURITY; and the Claude Code auto-approval doc.
 
-**Proven feasible, not yet built** (see `docs/spikes.md`): the headless
-parallel session and the portal/libei backend — the two moats. Both
-reached working end-to-end spikes; each has one wiring task left
-(headless input; portal absolute-motion ScreenCast link).
+**Shipped 2026-08-24: the headless second session (#19).** `wcu-headless`
+start/stop/status/env + `WCU_SESSION=headless` server pinning; input over
+the private session's own mutter RemoteDesktop (the spike's open question —
+it follows the bus like everything else); private `XDG_RUNTIME_DIR` after
+a shared one broke the primary session's a11y bus; `gio launch` replaced by
+direct Exec spawn on headless (D-Bus activation loses the window there);
+ydotool refused with `wrong_session`. Proven live: launch →
+compositor-confirmed click → do_steps type → AT-SPI read-back →
+screenshot, all on the virtual monitor. README § "The headless second
+session".
+
+**Proven feasible, not yet built** (see `docs/spikes.md`): the portal/libei
+backend — one wiring task left (absolute-motion ScreenCast link).
 
 **Deliberately session 3+**: KDE/wlroots/X11 backends (follow the portal
 backend), HiDPI/multi-monitor, CI on a virtual GNOME session, the

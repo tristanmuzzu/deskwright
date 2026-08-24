@@ -24,6 +24,9 @@ dependencies = [
 
 [project.scripts]
 wcu-setup = "wcu.setup_cli:main"
+# Lifecycle of the second (virtual-monitor) session; light imports only,
+# so unlike the server it works from an isolated venv too.
+wcu-headless = "wcu.headless:main"
 
 [tool.setuptools]
 # Only the wcu package is installed. The server's runtime companions

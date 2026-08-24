@@ -79,6 +79,18 @@ def layout_hazard() -> str:
 
 
 def _ydotool(*args: str, timeout: float = 30.0) -> None:
+    if os.environ.get("WCU_HEADLESS"):
+        # uinput events enter BELOW the compositor, on the machine's real
+        # seat -- they would land on the user's screen no matter what this
+        # process's bus/display environment says.
+        raise ToolError(
+            "this server is pinned to the headless session, and ydotool "
+            "injects into the real seat's /dev/uinput -- the keystrokes would "
+            "land on the user's screen, not the headless one. Use the "
+            "compositor route instead (omit via / via='keysym' for typing; "
+            "pointer and press_keys already use it).",
+            code="wrong_session",
+        )
     if not shutil.which("ydotool"):
         raise ToolError("ydotool is not installed, so no input can be injected",
                         code="input_backend_failed")

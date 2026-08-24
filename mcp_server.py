@@ -67,6 +67,34 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
+
+def _resolve_session() -> None:
+    """Pin this process to the headless session when asked.
+
+    `WCU_SESSION=headless` (or `--session headless`) makes this server drive
+    the private virtual-monitor session instead of the user's desktop --
+    starting it first if needed (wcu/headless.py). Every backend resolves the
+    session lazily from `DBUS_SESSION_BUS_ADDRESS`/`WAYLAND_DISPLAY`, so
+    pinning is purely an environment operation; it runs here, before any
+    backend import can touch a bus, and no tool code knows the difference.
+    """
+    import os
+    session = os.environ.get("WCU_SESSION", "")
+    if "--session" in sys.argv:
+        session = sys.argv[sys.argv.index("--session") + 1]
+    if not session or session == "primary":
+        return
+    if session != "headless":
+        print(f"unknown --session {session!r}; use 'primary' or 'headless'",
+              file=sys.stderr)
+        sys.exit(2)
+    from wcu.headless import ensure, pin_env
+    pin_env(ensure())
+
+
+if __name__ == "__main__":
+    _resolve_session()
+
 # The implementation lives in the wcu/ package. This file stays as the
 # executable entry point -- the user-scope MCP registration points at this
 # exact path -- and re-exports the public surface for existing importers

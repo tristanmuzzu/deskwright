@@ -36,6 +36,11 @@ CODES = {
     # not retrying the same call.
     "atspi_write_failed":  "AT-SPI action/write executed but did not take effect",
 
+    # The mechanism would act on a DIFFERENT session than the one this
+    # server is pinned to; recovery is using a session-following route
+    # (keysym/AT-SPI), never retrying the same call.
+    "wrong_session":       "this backend cannot reach the pinned (headless) session",
+
     # A mechanism is down; recovery is environmental, not a retry.
     "extension_unavailable": "the shell extension is not reachable (inactive or locked screen)",
     "needs_relogin":       "the running shell predates this extension method",

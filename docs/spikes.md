@@ -1,5 +1,14 @@
 # Moat spikes — findings (2026-08-23)
 
+> **Update 2026-08-24:** Spike 1 is productized — `wcu-headless` +
+> `WCU_SESSION=headless` (wcu/headless.py, README § "The headless second
+> session"). The open input question resolved as predicted: RemoteDesktop
+> follows the bus. Two things the spike missed, found in productizing:
+> the session needs a private `XDG_RUNTIME_DIR` (shared at-spi socket path
+> broke the PRIMARY session's a11y), and `gio launch`'s D-Bus activation
+> loses the window on the private session (direct Exec spawn instead).
+> Spike 2 (portal/libei) remains future work.
+
 Two timeboxed experiments from the roadmap's Tier 3/5. Each is a
 yes/no/blocked-at-layer-X finding, not shipped code.
 

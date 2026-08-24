@@ -403,6 +403,53 @@ input-shaped overlay will fool it, and region captures are cropped
 client-side. `desktop_health` lists exactly which methods the running shell
 has, and the extension's `Ping` method returns the loaded build stamp.
 
+## The headless second session
+
+An agent that needs the user's screen is only half autonomous. `wcu-headless`
+starts a **separate GNOME session on a virtual monitor** — its own session
+bus, its own `gnome-shell --headless`, its own private `XDG_RUNTIME_DIR` —
+and a second server instance pinned to it drives that session with the
+identical 33-tool surface while the user keeps the physical screen. Proven
+end to end (launch → compositor-confirmed click → `do_steps` typing →
+AT-SPI read-back → screenshot) on GNOME 50, 2026-08-24.
+
+```bash
+wcu-headless start                     # bring it up (~200 MB gnome-shell), idempotent
+WCU_SESSION=headless ./mcp_server.py --self-test   # a server pinned to it (auto-starts too)
+wcu-headless status                    # liveness, RSS, bus address
+wcu-headless stop                      # end it -- do not leave it idling on 8 GB machines
+eval "$(wcu-headless env)"             # pin a SHELL to it instead, for poking by hand
+```
+
+Register it as a second MCP server (`claude mcp add wcu-headless --scope user
+--env WCU_SESSION=headless -- /path/to/mcp_server.py`) and an agent can drive
+long tasks on the virtual desktop while the user works undisturbed.
+
+What makes it work: nothing in `wcu/` assumes the primary session — every
+backend (extension D-Bus, AT-SPI, mutter RemoteDesktop/ScreenCast,
+`gio launch`) resolves the session from `DBUS_SESSION_BUS_ADDRESS` /
+`WAYLAND_DISPLAY` / `XDG_RUNTIME_DIR` at call time, so pinning is purely an
+environment operation. The bundled extension is user-scoped, so the headless
+shell loads it unmodified.
+
+Three deliberate differences from the primary session:
+
+* **ydotool is refused** (`wrong_session`): uinput injection enters below the
+  compositor on the machine's *real* seat, so it would land on the user's
+  screen no matter what the environment says. The compositor routes (keysyms,
+  RemoteDesktop pointer) are the only honest ones, and they are the defaults.
+* **`launch_app` spawns the desktop file's `Exec` line directly** instead of
+  `gio launch`: D-Bus activation on the private session proved unreliable
+  (the daemon spawns the service, the window never appears), and a directly
+  spawned app is its own primary instance.
+* **The runtime dir is private, with the user's PipeWire symlinked in.** Two
+  sessions sharing one `XDG_RUNTIME_DIR` fight over `at-spi/bus` — last bind
+  wins the path and the *user's* apps time out registering accessibility.
+  Found the hard way; the isolation is not optional.
+
+`screencast` on the headless session rides the symlinked per-user PipeWire
+and is untested; `screenshot` (extension-side) is proven.
+
 ## Requirements
 
 - GNOME Shell 48–50 on Wayland.
