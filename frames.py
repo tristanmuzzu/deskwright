@@ -156,13 +156,79 @@ def summarise_motion(motion: list[float], capture_fps: float) -> dict:
         period = max(set(gaps), key=gaps.count)
         if period > 1:
             source_fps = round(capture_fps / period)
-    return {
+    out = {
         "peak": round(max(motion), 2),
         "mean": round(sum(motion) / len(motion), 2),
         "duplicate_frames": len(still),
         "duplicate_pct": round(len(still) / len(motion) * 100),
         # None means the source kept up with the capture rate.
         "source_fps_estimate": source_fps,
+    }
+    out.update(_smoothness(motion))
+    return out
+
+
+# How many deltas to hand back. Enough to see the shape of a transition,
+# few enough that the series is not the whole reply.
+SERIES_MAX = 120
+
+
+def _smoothness(motion: list[float]) -> dict:
+    """Whether the motion was STEADY, which peak and mean cannot say.
+
+    Reported 2026-08-18: on a first-person camera pan, peak and mean are
+    dominated by how far the camera swung, so smooth and jolting both read
+    3-9 and the aggregates could not tell them apart -- the session fell back
+    to the project's own probe for the camera derivative. What separates them
+    is the change BETWEEN consecutive deltas (jerk): steady motion has a
+    small one whatever its magnitude, a stutter has a large one.
+
+    `jerk_ratio` normalises that against the mean delta, so it is comparable
+    between a gentle pan and a fast one.
+
+    Measured 2026-08-27 on three 4s 60fps clips built to have known motion
+    character (ffmpeg, a full-frame pattern panning; scratch script kept out
+    of the tree, the recipe is in the commit):
+
+        clip     jerk_ratio  duplicate%   what it is
+        smooth      0.29          0       constant-rate pan, every frame new
+        jitter      0.61          0       same pan, step size varies per frame
+        stutter     2.01         84       same pan sampled at 10fps, held to 60
+
+    The threshold below sits at 1.0: between the two continuous clips and the
+    dropped-frame one. `steady` therefore answers "were frames delivered
+    evenly", not "was the movement pretty" -- jitter is real unevenness a
+    viewer can see, and it stays under the line. What separates it from
+    smooth is the RATIO ITSELF (0.61 against 0.29) and the shape of `series`,
+    which is what the 2026-08-18 report actually asked for; a boolean was
+    never going to answer that question.
+
+    Note the first attempt computed jerk over MOVING frames only, which
+    scored the stuttery clip 0.08 -- the steadiest of the three -- because
+    dropping the duplicates deletes the very evidence of the stutter. Jerk is
+    over every delta for that reason; do not "fix" it back.
+    """
+    if len(motion) < 3:
+        return {}
+    jerks = [abs(b - a) for a, b in itertools.pairwise(motion)]
+    mean_delta = sum(motion) / len(motion)
+    mean_jerk = sum(jerks) / len(jerks)
+    ratio = round(mean_jerk / mean_delta, 2) if mean_delta else 0.0
+    # The series itself, decimated to a readable length: the ask was for a
+    # per-frame series rather than two aggregates, because "is it smooth"
+    # is a question about the SHAPE.
+    # Ceiling division: floor division leaves the series one bucket over the
+    # cap (500 deltas // 120 gives step 4, and 500[::4] is 125 items).
+    step = max(1, -(-len(motion) // SERIES_MAX))
+    return {
+        "jerk_ratio": ratio,
+        "steady": ratio < 1.0,
+        "series_step": step,
+        "series": [round(v, 2) for v in motion[::step]],
+        "reading": ("steady -- consecutive frame deltas are close to each "
+                    "other" if ratio < 1.0 else
+                    "uneven -- consecutive frame deltas jump around, which is "
+                    "what dropped or repeated frames look like"),
     }
 
 

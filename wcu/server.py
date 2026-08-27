@@ -145,7 +145,49 @@ def tool_health(_: dict) -> dict:
         report["toolkit_accessibility"] = "unknown"
     report["session_type"] = os.environ.get("XDG_SESSION_TYPE", "unset")
     report["dbus_session"] = "set" if os.environ.get("DBUS_SESSION_BUS_ADDRESS") else "MISSING"
-    return report
+    report["desktop"] = (os.environ.get("WCU_HEADLESS_NAME")
+                         or ("headless" if os.environ.get("WCU_HEADLESS")
+                             else "primary (the user's own screen)"))
+    # The verdict goes FIRST, because the very first journal entry
+    # (2026-08-16) was that this tool answers a yes/no question with a wall
+    # of standing caveats and leaves the reader to work out whether the
+    # desktop is usable. The caveats stay -- underneath.
+    return {"verdict": _health_verdict(report), **report}
+
+
+def _health_verdict(report: dict) -> str:
+    """One line: can this session see, point, and read widgets right now."""
+    broken, degraded = [], []
+
+    if report.get("extension") != "ACTIVE":
+        broken.append("no compositor extension (no screenshots, no window "
+                      "list, no halt switch)")
+    if str(report.get("windows", "")).startswith("FAIL"):
+        broken.append("cannot list windows")
+    if str(report.get("pointer_control", "")).startswith("FAIL"):
+        broken.append("no pointer control")
+    atspi = report.get("atspi_apps")
+    if str(atspi).startswith("FAIL"):
+        broken.append("no accessibility tree (ui_* tools are out)")
+    elif atspi == 0:
+        degraded.append("the accessibility tree is empty -- "
+                        "toolkit-accessibility may have been off when these "
+                        "apps started")
+    if report.get("extension_pending_relogin"):
+        degraded.append("the running shell predates some extension methods; "
+                        "a logout is pending")
+    if report.get("toolkit_accessibility") == "false":
+        degraded.append("toolkit-accessibility is off, so apps started from "
+                        "now on will expose no widgets")
+
+    where = f'on the {report["desktop"]} desktop'
+    if broken:
+        return f"NOT USABLE {where}: " + "; ".join(broken)
+    if degraded:
+        return (f"USABLE {where} with limits: " + "; ".join(degraded)
+                + ". Screenshots, window control and pointer input all work.")
+    return (f"READY {where}: screenshots, window control, pointer input and "
+            "the accessibility tree all work.")
 
 
 # =========================================================================
