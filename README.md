@@ -57,21 +57,21 @@ should prefer — the accessibility tree first, pixels last:
 | `launch_app` | Start an application by desktop id and wait for its window, inside the protocol. |
 | `screen_map` | Where everything is, in pixels: windows top of the stack first with their centres, and every pressable widget of the focused app with the point to click it at. Each widget carries a `ref: N` — pass it straight to `ui_press(ref)` or `pointer_click(ref)`, no coordinates, identity re-checked, refs die at the next `screen_map`. |
 | `window_at` | What a click at a point would hit, *before* clicking it. |
-| `pointer_click`, `pointer_move`, `pointer_drag`, `pointer_scroll` | Real pointer input at absolute screen coordinates. Pass `expect_window` and a click that would land elsewhere is refused. |
+| `pointer_click`, `pointer_move`, `pointer_drag`, `pointer_scroll` | Real pointer input at absolute screen coordinates. Pass `expect_window` and a click that would land elsewhere is refused — naming the blocker's id and geometry, so `on_occluded: "click_topmost"` can redirect in the same call. `hover_first` for CEF/Electron buttons that ignore a click with no preceding motion. |
 | `pointer_position` | Where the pointer is, or an honest statement that only the last set position is known. |
 | `find_text` | **Where a visible string is, in screen coordinates.** OCR. This is the answer for Chrome, Electron and Qt, which expose almost nothing to `ui_find`. ~0.3 s for a window, and no image in the transcript. |
-| `wait_for` | Wait for `window_exists` / `window_gone` / `window_focused` / `focus_changes` / `text_appears` / `widget_exists` / `clipboard_changed` instead of sleeping a guessed number of seconds. |
+| `wait_for` | Wait for `window_exists` / `window_gone` / `window_focused` / `focus_changes` / `text_appears` / `widget_exists` / `clipboard_changed` / `elapsed` instead of sleeping a guessed number of seconds. A timeout over 300 s is clamped and reported, not refused. |
 | `region_changed` | Wait for *pixels* to change — a reply arriving, a spinner finishing — for the things `wait_for` cannot express. |
 | `assert_state` | Prove completion: pass/fail with evidence, so a run can end itself. |
 | `do_steps` | A known sequence of actions in ONE call, validated up front, with per-step retry policy and one picture at the end or at the step that failed. |
 | `list_windows`, `activate_window`, `window_manage` | Extension-backed window list, focus, and move/resize/close/minimize/maximize/workspace verbs. |
 | `zoom` | A full-resolution crop by window, region or widget path — "look closer" as a first-class verb, never scaled. |
 | `screenshot` | With `annotate`, `window` and `region` cropping. |
-| `screencast`, `frames` | For anything that moves. Stills cannot show motion. |
+| `screencast`, `frames` | For anything that moves. Stills cannot show motion. `frames` reports a per-frame delta series and a jerk figure, because peak and mean cannot tell a smooth pan from a jolting one. |
 | `type_text`, `press_keys`, `hold_key` | Compositor keysyms by default, focus proven first, `ydotool` only as a fallback. |
 | `clipboard_read`, `clipboard_write` | Paste beats two thousand keystrokes; reading back is a verification primitive. |
 | `journal` | Read back the trail of acted tool calls — arguments, outcome, hit/miss verdict and screenshot hash — to review an unattended run or reconstruct state after context loss. |
-| `desktop_health` | Which mechanisms are usable right now, what each will actually do, and which extension methods the *running* shell has. |
+| `desktop_health` | A one-line verdict first — READY / usable-with-limits / not usable, and which desktop it is talking about — then which mechanisms are usable right now, what each will actually do, and which extension methods the *running* shell has. |
 
 ## Design philosophy
 
@@ -464,6 +464,43 @@ eval "$(wcu-headless env)"             # pin a SHELL to it instead, for poking b
 Register it as a second MCP server (`claude mcp add wcu-headless --scope user
 --env WCU_SESSION=headless -- /path/to/mcp_server.py`) and an agent can drive
 long tasks on the virtual desktop while the user works undisturbed.
+
+### More than one of them
+
+Sessions are **named**. Two agents that each want a desktop of their own ask
+for different names and get genuinely separate compositors; the same name
+means the same desktop, which is what `WCU_SESSION=headless` (the `default`
+session) gave everybody before names existed.
+
+```bash
+wcu-headless start --name work         # a second desktop, alongside `default`
+wcu-headless list                      # every session, total RSS, free memory
+wcu-headless stop --name work          # end one; --all ends every one
+WCU_SESSION=headless:work ./mcp_server.py     # a server pinned to that one
+```
+
+Everything that must not collide is derived from the name — the state file,
+the `XDG_RUNTIME_DIR`, and the Wayland display. The runtime dir is the one
+that bites: two sessions sharing one fight over `at-spi/bus`, last bind wins
+the path, and the *other* session's apps then time out registering
+accessibility. That is the 2026-08-24 incident, and suffixing per name is the
+same fix applied between headless sessions.
+
+Guards, because each session is a real compositor at ~205 MB: a per-name
+start lock (two agents calling `ensure()` in the same 20 s window cannot both
+spawn one), a session cap (`WCU_HEADLESS_MAX`, default 4), and a
+`MemAvailable` floor that refuses a start which would push the machine into
+swap — which the agent that caused it cannot see.
+
+Proven on GNOME 50, 2026-08-27: `./tests/test_two_sessions.py`, 17/17 — two
+desktops driven at once, each seeing only its own window and reading back
+only its own text, with the user's primary session seeing neither and its
+accessibility bus still answering.
+
+**The filesystem is still shared.** Only the screen is separate: an app
+launched on a headless session restores the user's real drafts and writes to
+the user's real files. Give throwaway apps a throwaway `XDG_DATA_HOME`, as
+that test does.
 
 What makes it work: nothing in `wcu/` assumes the primary session — every
 backend (extension D-Bus, AT-SPI, mutter RemoteDesktop/ScreenCast,
