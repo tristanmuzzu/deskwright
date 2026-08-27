@@ -238,12 +238,71 @@ def _resolve_target(target: Any) -> dict:
             code="window_not_found",
         )
     if len(matches) > 1:
-        raise ToolError(
-            f"{target!r} matches {len(matches)} windows; pass an id instead: "
-            + ", ".join(f'{w["id"]} {w["title"]!r}' for w in matches),
-            code="bad_args",
-        )
+        return _disambiguate(target, matches)
     return matches[0]
+
+
+# A window smaller than this is not what anyone meant by "the Acrobat window".
+# Acrobat spawns a hidden 1x1 "Welcome" dialog while it launches (2026-08-26),
+# and Chrome and Electron apps keep similar zero-size helpers around.
+_DEGENERATE_AREA = 100 * 100
+
+
+def _disambiguate(target: Any, matches: list[dict]) -> dict:
+    """Pick THE window out of several matches, or refuse if there is no
+    defensible pick.
+
+    Refusing outright was the old behaviour and it was wrong in the common
+    case: window ids churn (an app opens a splash, a hidden helper, a modal),
+    so the id the error demands is exactly what the caller could not know,
+    and every app launch cost an extra `list_windows` round trip
+    (2026-08-25, 2026-08-26).
+
+    But silently picking one is how input lands in the wrong window, which is
+    the failure this codebase spends the most guards on. So the pick has to
+    be defensible on its own terms -- focus, or window type, or a size
+    difference nobody would argue with -- and it is always REPORTED, never
+    silent.
+    """
+    def _pick(candidates: list[dict], why: str) -> dict | None:
+        if len(candidates) != 1:
+            return None
+        chosen = dict(candidates[0])
+        chosen["disambiguated"] = {
+            "why": why,
+            "passed_over": [{"id": w["id"], "title": w["title"],
+                             "type": w.get("type"),
+                             "size": f'{w.get("width")}x{w.get("height")}'}
+                            for w in matches if w["id"] != candidates[0]["id"]][:5],
+        }
+        return chosen
+
+    real = [w for w in matches if not w.get("minimized")]
+    for candidates, why in (
+        ([w for w in matches if w.get("focused")],
+         "it is the focused one"),
+        ([w for w in real if (w.get("type") or "NORMAL") == "NORMAL"
+          and w.get("width", 0) * w.get("height", 0) >= _DEGENERATE_AREA],
+         "it is the only normal-sized application window; the rest are "
+         "dialogs, splashes or zero-size helpers"),
+        ([w for w in real if w.get("width", 0) * w.get("height", 0)
+          >= _DEGENERATE_AREA],
+         "it is the only one big enough to be a real window"),
+    ):
+        chosen = _pick(candidates, why)
+        if chosen:
+            return chosen
+
+    raise ToolError(
+        f"{target!r} matches {len(matches)} windows and none of them is the "
+        "obvious one (no single focused window, and more than one normal "
+        "window of a usable size), so picking for you could put input in the "
+        "wrong one. Pass an id: "
+        + ", ".join(f'{w["id"]} {w["title"]!r} '
+                    f'[{w.get("type", "?")} {w.get("width")}x{w.get("height")}]'
+                    for w in matches),
+        code="bad_args",
+    )
 
 
 def focus_window(target: Any) -> dict:
@@ -355,7 +414,20 @@ def tool_window_at(a: dict) -> dict:
 
 WAIT_CONDITIONS = {"window_focused", "window_exists", "window_gone",
                    "focus_changes", "text_appears", "widget_exists",
-                   "clipboard_changed"}
+                   "clipboard_changed", "elapsed"}
+
+# A wait can legitimately be long -- an app launch, an installer, a first-run
+# index. The old 120s hard error did not stop anyone waiting longer, it just
+# made them chain two calls or fake it with a text_appears that could never
+# match (2026-08-25, 2026-08-26); 300s covers the 150-180s that was actually
+# asked for, with headroom.
+#
+# Not higher, deliberately: this blocks a single MCP call, and a wait that
+# outlives the client's own per-call timeout fails in a way the agent cannot
+# tell from a broken tool. Past this the honest thing is two calls, which
+# `elapsed` now makes cheap.
+WAIT_TIMEOUT_MAX_S = 300.0
+WAIT_TIMEOUT_MIN_S = 0.2
 
 
 def _probe_text_appears(text: str, target: Any) -> tuple[bool, str]:
@@ -394,16 +466,39 @@ def _read_clipboard_now() -> str | None:
 
 def tool_wait_for(a: dict) -> dict:
     """Poll a desktop condition instead of sleeping and hoping."""
-    timeout = float(a.get("timeout") or 10)
-    if not 0.2 <= timeout <= 120:
-        raise ToolError("timeout must be between 0.2 and 120 seconds",
+    requested = float(a.get("timeout") or 10)
+    if requested < WAIT_TIMEOUT_MIN_S:
+        raise ToolError(f"timeout must be at least {WAIT_TIMEOUT_MIN_S} seconds",
                         code="bad_args")
+    # Clamp rather than refuse. A rejected call taught callers to chain two
+    # waits or drop to a shell loop; a clamped one waits as long as it can
+    # and SAYS so, which is the same information without the round trip.
+    timeout = min(requested, WAIT_TIMEOUT_MAX_S)
+    clamped = requested > timeout
     condition = str(a.get("condition") or "").strip()
     target = a.get("target")
     if condition not in WAIT_CONDITIONS:
         raise ToolError(
             f"condition must be one of: {', '.join(sorted(WAIT_CONDITIONS))}",
             code="bad_args")
+
+    # A plain duration. It exists because there was no honest way to say
+    # "wait 120s" -- `sleep` lives only inside do_steps and foreground shell
+    # sleeps are blocked, so an agent polling a long install used
+    # `text_appears` on a string it knew could never appear, ~10 times in one
+    # session (2026-08-26). That is a lie in the transcript and a wasted OCR
+    # pass every 0.4s; this is the same wait, told truthfully and cheaply.
+    if condition == "elapsed":
+        start = time.monotonic()
+        time.sleep(timeout)
+        waited = round(time.monotonic() - start, 2)
+        out = {"condition": condition, "met": True, "waited_seconds": waited,
+               "evidence": f"waited {waited}s; nothing was polled and nothing "
+                           "was changed by waiting"}
+        if clamped:
+            out["clamped_from"] = requested
+        return out
+
     if condition in ("window_focused", "window_exists", "window_gone",
                      "text_appears") and target is None:
         raise ToolError(f"{condition} needs a target window", code="bad_args")
@@ -414,6 +509,8 @@ def tool_wait_for(a: dict) -> dict:
                         code="bad_args")
     if condition == "widget_exists" and not (a.get("text") or a.get("role")):
         raise ToolError("widget_exists needs text and/or role", code="bad_args")
+
+    clamp_note = {"clamped_from": requested} if clamped else {}
 
     # The slow-probe conditions poll on their own rhythm: an OCR pass is
     # ~0.3s of work, so re-running it every 0.15s would be pure heat.
@@ -434,11 +531,13 @@ def tool_wait_for(a: dict) -> dict:
             waited = round(time.monotonic() - start, 2)
             if met:
                 return {"condition": condition, "met": True,
-                        "waited_seconds": waited, "evidence": evidence}
+                        "waited_seconds": waited, "evidence": evidence,
+                        **clamp_note}
             if waited >= timeout:
                 return {"condition": condition, "met": False,
                         "waited_seconds": waited, "evidence": evidence,
-                        "detail": "timed out; nothing was changed by waiting"}
+                        "detail": "timed out; nothing was changed by waiting",
+                        **clamp_note}
             time.sleep(0.4)
 
     def matches(w: dict) -> bool:
@@ -467,11 +566,13 @@ def tool_wait_for(a: dict) -> dict:
             return {"condition": condition, "met": True, "waited_seconds": waited,
                     "focused": (focused[0]["wm_class"] if focused else None),
                     "matched": [{"id": w["id"], "wm_class": w["wm_class"],
-                                 "title": w["title"]} for w in hits[:5]]}
+                                 "title": w["title"]} for w in hits[:5]],
+                    **clamp_note}
         if waited >= timeout:
             return {"condition": condition, "met": False, "waited_seconds": waited,
                     "focused": (focused[0]["wm_class"] if focused else None),
-                    "detail": "timed out; nothing was changed by waiting"}
+                    "detail": "timed out; nothing was changed by waiting",
+                    **clamp_note}
         time.sleep(0.15)
 
 

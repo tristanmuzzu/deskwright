@@ -54,6 +54,7 @@ from .journal import record as journal_record
 from .journal import tool_journal
 from .ocr import OCR_MIN_CONFIDENCE, tool_find_text
 from .shell import (
+    WAIT_TIMEOUT_MAX_S,
     _extension_diagnosis,
     _extension_state,
     _needs_relogin,
@@ -464,8 +465,11 @@ TOOLS: list[dict] = [
                        "(OCR polls a window for a string -- a reply arriving, a "
                        "build finishing); widget_exists (an AT-SPI widget matching "
                        "text/role shows up in app); clipboard_changed (a copy "
-                       "landed). Returns as soon as it is true, or reports honestly "
-                       "that it timed out.",
+                       "landed); elapsed (just wait N seconds -- for a long install "
+                       "with nothing to poll, and the honest alternative to watching "
+                       "for a string you know will never appear). Returns as soon as "
+                       "it is true, or reports honestly that it timed out. A timeout "
+                       f"over {int(WAIT_TIMEOUT_MAX_S)}s is clamped, not refused.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -473,15 +477,14 @@ TOOLS: list[dict] = [
                               "enum": ["window_exists", "window_gone",
                                        "window_focused", "focus_changes",
                                        "text_appears", "widget_exists",
-                                       "clipboard_changed"]},
+                                       "clipboard_changed", "elapsed"]},
                 "target": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
                 "text": _s("For text_appears: the string to watch for. For "
                            "widget_exists: the widget name to match."),
                 "app": _s("For widget_exists: the AT-SPI application name"),
                 "role": _s("For widget_exists: the widget role, e.g. 'push "
                            "button'"),
-                "timeout": {"type": "number", "default": 10, "minimum": 0.2,
-                            "maximum": 120},
+                "timeout": {"type": "number", "default": 10, "minimum": 0.2},
             },
             "required": ["condition"],
         },
