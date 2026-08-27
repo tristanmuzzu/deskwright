@@ -74,7 +74,10 @@ def test_append_shape_and_shot_hash(jdir, tmp_path):
     assert len(entries) == 1
     e = entries[0]
 
-    assert set(e) == {"ts", "session", "tool", "args", "outcome"}
+    assert set(e) == {"ts", "session", "desktop", "tool", "args", "outcome"}
+    # WHICH screen this happened on. Unpinned means the user's own; a pinned
+    # server writes the headless session's name here instead.
+    assert e["desktop"] == "primary"
     assert e["tool"] == "pointer_click"
     assert e["args"] == {"x": 100, "y": 200, "button": "left"}
     # iso timestamp with milliseconds
@@ -252,3 +255,21 @@ def test_should_journal_seam():
 
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))
+
+
+def test_desktop_field_names_the_headless_session(jdir, monkeypatch):
+    """With several virtual desktops live, 'a click happened' is only a
+    reviewable record if it says where (2026-08-27)."""
+    monkeypatch.setenv("WCU_HEADLESS", "1")
+    monkeypatch.setenv("WCU_HEADLESS_NAME", "work")
+    journal.record("pointer_click", {"x": 1, "y": 2}, {"detail": "ok"})
+    assert _read_lines(jdir)[-1]["desktop"] == "work"
+
+
+def test_desktop_field_falls_back_when_only_the_flag_is_set(jdir, monkeypatch):
+    """A server pinned by an older wcu-headless env has WCU_HEADLESS but no
+    name; it must still not be recorded as the user's screen."""
+    monkeypatch.setenv("WCU_HEADLESS", "1")
+    monkeypatch.delenv("WCU_HEADLESS_NAME", raising=False)
+    journal.record("pointer_click", {"x": 1, "y": 2}, {"detail": "ok"})
+    assert _read_lines(jdir)[-1]["desktop"] == "headless"

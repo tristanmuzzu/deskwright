@@ -1110,8 +1110,9 @@ def handle(msg: dict) -> None:
             # only on success, so a failed start is retried by the next call
             # (its ToolError still reaches the model either way).
             if os.environ.get("WCU_HEADLESS_LAZY"):
-                from .headless import ensure, pin_env
-                pin_env(ensure())
+                from .headless import ensure, pin_env, session_name
+                _, _, _pinned = os.environ.get("WCU_SESSION", "").partition(":")
+                pin_env(ensure(name=session_name(_pinned or None)))
                 os.environ.pop("WCU_HEADLESS_LAZY", None)
             # The kill switch gates every state-changing tool at one choke
             # point. Reading tools keep working while halted -- a human who

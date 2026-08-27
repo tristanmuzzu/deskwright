@@ -1,0 +1,18 @@
+#!/usr/bin/env python3
+"""Checkout-local launcher for wcu-headless (the pip/uvx entry point is
+`wcu-headless = wcu.headless:main` in pyproject.toml).
+
+Exists because the README documents `wcu-headless start` as the way to bring
+a session up, and without an install that command is not on anyone's PATH --
+`python3 -m wcu.headless` from the checkout is the same code, and this shim
+is the same thing again with the documented name.
+"""
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from wcu.headless import main
+
+if __name__ == "__main__":
+    sys.exit(main())

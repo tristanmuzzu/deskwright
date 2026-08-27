@@ -158,6 +158,13 @@ def record(tool: str, args: dict, outcome: dict) -> None:
         entry = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
             "session": _session(),
+            # WHICH desktop. With several named headless sessions live at
+            # once, "a click happened" is not a reviewable record unless it
+            # says where -- and telling a headless action from one on the
+            # user's real screen is the first question anyone asks of this
+            # file. Read at call time, because pin_env() sets it after import.
+            "desktop": os.environ.get("WCU_HEADLESS_NAME")
+            or ("headless" if os.environ.get("WCU_HEADLESS") else "primary"),
             "tool": str(tool),
             "args": _redact(dict(args or {})),
             "outcome": _summary(outcome),
