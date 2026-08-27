@@ -552,26 +552,30 @@ export class DBusService {
     }
 
     /* maximize=true maximizes both directions, false restores. Mutter dropped
-     * directional (H-only/V-only) maximization and with it MetaMaximizeFlags in
-     * newer releases, so probe for the enum instead of assuming either
-     * signature; whichever shape this shell has, the call below is the
-     * both-directions one. */
+     * directional (H-only/V-only) maximization and with it the flags argument
+     * in newer releases — but Meta.MaximizeFlags itself is still exported on
+     * GNOME 50, so probing the enum picks the WRONG arm there ("Too many
+     * arguments to method Meta.Window.maximize"). Probe the call, not the
+     * enum: try the no-argument form first and fall back to the flags form on
+     * older shells. */
     Maximize(id, maximize) {
         const win = this._findWindow(id);
         if (!win)
             return false;
         try {
-            const flags = Meta.MaximizeFlags?.BOTH;
-            if (maximize) {
-                if (flags !== undefined)
-                    win.maximize(flags);
-                else
+            try {
+                if (maximize)
                     win.maximize();
-            } else {
-                if (flags !== undefined)
-                    win.unmaximize(flags);
                 else
                     win.unmaximize();
+            } catch (argError) {
+                const flags = Meta.MaximizeFlags?.BOTH;
+                if (flags === undefined)
+                    throw argError;
+                if (maximize)
+                    win.maximize(flags);
+                else
+                    win.unmaximize(flags);
             }
             return true;
         } catch (e) {
