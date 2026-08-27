@@ -156,3 +156,50 @@ def test_no_match_still_says_what_is_open(monkeypatch):
     with pytest.raises(ToolError) as e:
         shell._resolve_target("firefox")
     assert e.value.code == "window_not_found"
+
+
+# ------------------------------- 5. focus failures that can be acted on
+def test_focus_failure_says_the_request_was_accepted(monkeypatch):
+    """'still not focused' is true and useless. A Wine window accepted
+    ActivateWindow, never focused, and the next capture came back 100%
+    occluded (2026-08-25) -- several calls spent before anyone knew the
+    request had not been refused."""
+    target = _win(1, "creative_cloud_set-up.exe", "Creative Cloud")
+    monkeypatch.setattr(shell, "list_windows", lambda: [target])
+    detail = shell._focus_failure(1, target, target)
+    assert "ACCEPTED" in detail
+    assert "retrying the same call is unlikely to help" in detail
+    # Nothing above it, nothing else focused: the Wine case.
+    assert "pointer_click" in detail
+
+
+def test_focus_failure_names_what_is_stacked_above(monkeypatch):
+    target = _win(1, "creative-cloud", "Creative Cloud")
+    over = _win(2, "creative-cloud", "Error report details")
+    monkeypatch.setattr(shell, "list_windows", lambda: [target, over])
+    detail = shell._focus_failure(1, target, target)
+    assert "Stacked above it" in detail
+    assert "id 2" in detail and "Error report details" in detail
+    assert "THEIR pixels" in detail          # why the screenshot looked wrong
+
+
+def test_focus_failure_ignores_a_window_that_does_not_overlap(monkeypatch):
+    target = _win(1, "app", "App", width=100, height=100)
+    elsewhere = _win(2, "other", "Other")
+    elsewhere.update(x=5000, y=5000)
+    monkeypatch.setattr(shell, "list_windows", lambda: [target, elsewhere])
+    assert "Stacked above" not in shell._focus_failure(1, target, target)
+
+
+def test_focus_failure_points_at_unminimize(monkeypatch):
+    target = _win(1, "app", "App", minimized=True)
+    monkeypatch.setattr(shell, "list_windows", lambda: [target])
+    assert "unminimize" in shell._focus_failure(1, target, target)
+
+
+def test_focus_failure_names_who_holds_focus_instead(monkeypatch):
+    target = _win(1, "app", "App")
+    thief = _win(2, "modal", "Save changes?", focused=True)
+    monkeypatch.setattr(shell, "list_windows", lambda: [target, thief])
+    detail = shell._focus_failure(1, target, target)
+    assert "Focus is on modal (id 2)" in detail

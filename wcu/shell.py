@@ -332,13 +332,61 @@ def focus_window(target: Any) -> dict:
                     return {"window": w, "activated": True,
                             "detail": f'focus confirmed on {w["wm_class"]} {w["title"]!r}'}
                 break
+    raise ToolError(_focus_failure(wid, window, last), code="focus_not_acquired")
+
+
+def _focus_failure(wid: int, window: dict, last: dict | None) -> str:
+    """Say what the compositor actually did, and what is in the way.
+
+    "It is still not focused" is true and useless. On 2026-08-25 a Wine
+    window accepted ActivateWindow, never took focus, and the next capture
+    came back 100% occluded -- a window that could be neither raised nor
+    seen, several calls spent before it came forward on its own. What was
+    missing was the fact that the request was ACCEPTED (so retrying is not
+    the fix) and the list of windows stacked above it (so there is
+    something to act on).
+    """
     state = "minimized" if (last or {}).get("minimized") else "not focused"
-    raise ToolError(
-        f'activated window {wid} ({window["wm_class"]}) but it is still {state} after '
-        f"{FOCUS_TIMEOUT_S:.0f}s. Nothing was typed. A window that refuses focus is "
-        "usually minimized on another workspace, or a modal dialog owns the focus.",
-        code="focus_not_acquired",
-    )
+    now = list_windows()
+    focused = next((w for w in now if w.get("focused")), None)
+    # list_windows is bottom-of-the-stack first, so anything after the target
+    # is above it.
+    order = [w["id"] for w in now]
+    above = []
+    if wid in order:
+        above = [w for w in now[order.index(wid) + 1:]
+                 if not w.get("minimized")
+                 and _overlaps(w, last or window)]
+
+    detail = (f'the compositor ACCEPTED ActivateWindow for {wid} '
+              f'({window["wm_class"]}) and the window is still {state} after '
+              f"{FOCUS_TIMEOUT_S:.0f}s. Nothing was typed, and retrying the same "
+              "call is unlikely to help -- the request was not refused, it was "
+              "ignored.")
+    if focused and focused["id"] != wid:
+        detail += (f' Focus is on {focused["wm_class"]} (id {focused["id"]}) '
+                   f'{focused.get("title", "")!r} instead.')
+    if above:
+        detail += (" Stacked above it and overlapping: "
+                   + ", ".join(f'{w["wm_class"]} (id {w["id"]}) '
+                               f'{w.get("title", "")!r}' for w in above[:4])
+                   + ". A capture of the target will show THEIR pixels, not its.")
+    if (last or {}).get("minimized"):
+        detail += (" It is minimized: window_manage unminimize first.")
+    elif not above and not (focused and focused["id"] != wid):
+        detail += (" Nothing is above it and nothing else holds focus, which "
+                   "usually means an app that never takes focus at all "
+                   "(Wine/XWayland windows do this): drive it with "
+                   "pointer_click, which does not need focus, rather than "
+                   "type_text.")
+    return detail
+
+
+def _overlaps(a: dict, b: dict) -> bool:
+    return not (a.get("x", 0) + a.get("width", 0) <= b.get("x", 0)
+                or b.get("x", 0) + b.get("width", 0) <= a.get("x", 0)
+                or a.get("y", 0) + a.get("height", 0) <= b.get("y", 0)
+                or b.get("y", 0) + b.get("height", 0) <= a.get("y", 0))
 
 
 def _point(a: dict, xk: str = "x", yk: str = "y") -> tuple[float, float]:

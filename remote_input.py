@@ -143,7 +143,8 @@ class Gestures:
             self.button(button, False)
 
     def drag(self, x1: float, y1: float, x2: float, y2: float,
-             button: str = "left", steps: int = 24) -> None:
+             button: str = "left", steps: int = 24,
+             dwell_ms: int = 0) -> None:
         """Press at one point, travel, release at the other.
 
         The intermediate moves are not decoration: a press-and-teleport is not
@@ -161,6 +162,15 @@ class Gestures:
         this measurement, and the likelier cause is an input grab held by
         something else (see the note in `_guard_point`) rather than these
         timings. Change them only against numbers from that rig.
+
+        `dwell_ms` hovers at the destination before releasing, and defaults to
+        0 BECAUSE of that measurement -- the default path is byte-for-byte the
+        5/5 one. It exists for the case the rig did not cover: a cross-app,
+        cross-toolkit drop (GTK source, Electron target) where the receiver
+        runs its own dragover throttling and may not have painted a drop
+        target yet when the button comes up. Reach for it only after a drop
+        has actually failed; it is not a better default, it is a different
+        bet, and the 4/5 result is what says so.
         """
         self.move_to(x1, y1)
         time.sleep(0.06)
@@ -170,6 +180,12 @@ class Gestures:
             self.move_to(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)
             time.sleep(0.012)
         time.sleep(0.06)
+        if dwell_ms > 0:
+            # A second motion at the same point, then the wait: some receivers
+            # only re-evaluate the drop target on a motion event, so a bare
+            # sleep would hover without telling anyone.
+            self.move_to(x2, y2)
+            time.sleep(min(dwell_ms, 5000) / 1000.0)
         self.button(button, False)
 
 

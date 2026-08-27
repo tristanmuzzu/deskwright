@@ -335,16 +335,29 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
             "to name) and the grab clears.",
             code="occluded",
         )
-    # Include the id. Two windows of the same application read as
-    # "expected org.gnome.Calculator but org.gnome.Calculator is there", which
-    # looks like the guard malfunctioning rather than a second instance.
-    found = (f'{target["wm_class"]} (id {target.get("id")}) {target.get("title", "")!r}'
-             if target else "nothing (the desktop)")
+    # Include the id AND the geometry. Two windows of the same application read
+    # as "expected org.gnome.Calculator but org.gnome.Calculator is there",
+    # which looks like the guard malfunctioning rather than a second instance --
+    # and without the blocker's rectangle the caller has to spend a whole
+    # list_windows round trip to find out what just appeared. This guard
+    # already knows both. Three refusals in a row cost four calls each on
+    # 2026-08-25 (Creative Cloud spawning error dialogs over its own buttons).
+    if target:
+        found = (f'{target["wm_class"]} (id {target.get("id")}) '
+                 f'{target.get("title", "")!r} at '
+                 f'{target.get("width")}x{target.get("height")}'
+                 f'+{target.get("x")}+{target.get("y")}')
+        retarget = (" Pass on_occluded:\"click_topmost\" to click it anyway in "
+                    "this same call, expect_window=null to click blind, or "
+                    f"target id {target.get('id')} directly.")
+    else:
+        found = "nothing (the desktop)"
+        retarget = (" Pass expect_window=null to click anyway, or check "
+                    "screen_map for where the window actually is.")
     raise ToolError(
         f'refusing to click ({x:.0f}, {y:.0f}): expected {wanted["wm_class"]} '
-        f'(id {wanted["id"]}) but {found} is there. Nothing was clicked. '
-        f"Pass expect_window=null to click anyway, or check screen_map for where "
-        f"the window actually is.",
+        f'(id {wanted["id"]}) but {found} is there. Nothing was clicked.'
+        + retarget,
         code="occluded",
     )
 
@@ -572,6 +585,13 @@ def tool_hold_key(a: dict) -> dict:
     return _look(a, result, watching)
 
 
+# The approach used by hand on 2026-08-26 to make CEF buttons respond: land
+# near the target, settle, then land on it. Small enough to stay inside the
+# same widget's neighbourhood, large enough to be a real motion event.
+_HOVER_APPROACH_PX = 12
+_HOVER_SETTLE_S = 0.12
+
+
 def _pointer_result(x: float, y: float, action: str, guard: dict | None) -> dict:
     out = {"action": action, "x": x, "y": y}
     if guard:
@@ -613,12 +633,58 @@ def tool_pointer_click(a: dict) -> dict:
             a = dict(a, expect_window=resolved["window_id"])
     else:
         x, y = _point(a)
-    guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
+
+    on_occluded = str(a.get("on_occluded") or "refuse")
+    if on_occluded not in ("refuse", "click_topmost"):
+        raise ToolError('on_occluded must be "refuse" or "click_topmost"',
+                        code="bad_args")
+    guard = None
+    retargeted = None
+    if a.get("expect_window"):
+        try:
+            guard = _guard_point(x, y, a["expect_window"])
+        except ToolError as e:
+            # "Something else is on top; click it anyway" -- one call instead
+            # of refuse -> list_windows -> screenshot -> re-click, which is
+            # what a dialog spawning over its own parent's buttons cost three
+            # times in one session (2026-08-25). Deliberately opt-in: clicking
+            # whatever happens to be in front is the mistake the guard exists
+            # to prevent, so it stays a decision, not a default.
+            if e.code != "occluded" or on_occluded != "click_topmost":
+                raise
+            hit = (window_at(x, y) or {}).get("window")
+            retargeted = {
+                "expected": str(a["expect_window"]),
+                "clicked_instead": (f'{hit["wm_class"]} (id {hit["id"]}) '
+                                    f'{hit.get("title", "")!r}') if hit else "nothing",
+                "why": "on_occluded=click_topmost",
+            }
+
     watching = _look_before(a, point=(x, y))
     before = [w for w in list_windows() if w.get("focused")]
+
+    # Some toolkits do not consider a button press without a preceding hover.
+    # CEF/Electron buttons (Creative Cloud's "Install") ignored a bare click
+    # entirely and only fired after a move to a nearby point, a settle, then a
+    # move onto the target -- ~12 wasted calls on 2026-08-26, spent hunting
+    # for wrong coordinates because the tool honestly reported "nothing
+    # changed" and nothing pointed at the missing hover.
+    if a.get("hover_first"):
+        p = _pointer()
+        p.move_to(x + _HOVER_APPROACH_PX, y + _HOVER_APPROACH_PX)
+        time.sleep(_HOVER_SETTLE_S)
+        p.move_to(x, y)
+        time.sleep(_HOVER_SETTLE_S)
+
     _pointer().click(x, y, button=button, count=count)
 
     result = _pointer_result(x, y, f"{button} click x{count}", guard)
+    if retargeted:
+        result["retargeted"] = retargeted
+    if a.get("hover_first"):
+        result["hover_first"] = (
+            f"approached from +{_HOVER_APPROACH_PX}px and settled twice before "
+            "clicking, so a toolkit that needs a hover event gets one")
     if resolved is not None:
         result["ref"] = ref
         result["widget"] = (f'{resolved["name"] or resolved["path"]} '
@@ -639,7 +705,30 @@ def tool_pointer_click(a: dict) -> dict:
     was = before[0]["wm_class"] if before else None
     now = after[0]["wm_class"] if after else None
     result["focus"] = ("unchanged: " + str(now)) if was == now else f"moved {was} -> {now}"
-    return _look(a, result, watching)
+    out = _look(a, result, watching)
+
+    # "Nothing changed" is accurate and, on its own, misleading: it reads as
+    # "you missed", so the next move is to re-measure coordinates. On CEF and
+    # Electron the coordinates were right and the HOVER was missing, and that
+    # cost ~12 calls before anyone suspected it (2026-08-26). Say so once,
+    # here, where the evidence for it exists.
+    if not a.get("hover_first") and _changed_nothing(out):
+        out["nothing_changed_hint"] = (
+            "the coordinates may be fine. Chromium/CEF/Electron buttons "
+            "(Creative Cloud, Spotify, most 'desktop web' apps) often ignore a "
+            "click with no preceding pointer motion: retry the identical call "
+            "with hover_first:true before re-measuring where to click. "
+            "ui_press is better still wherever an AT-SPI tree exists."
+        )
+    return out
+
+
+def _changed_nothing(result: dict) -> bool:
+    """Did the tool's own before/after comparison see no strong change?"""
+    look = result.get("look")
+    if not isinstance(look, dict):
+        return False
+    return "NOTHING" in str(look.get("verdict") or "")
 
 
 def tool_pointer_drag(a: dict) -> dict:
@@ -648,12 +737,15 @@ def tool_pointer_drag(a: dict) -> dict:
     guard = _guard_point(x1, y1, a["expect_window"]) if a.get("expect_window") else None
     watching = _look_before(a, point=(x2, y2))
     before = [w for w in list_windows() if w.get("focused")]
+    dwell = int(a.get("dwell_ms") or 0)
     _pointer().drag(x1, y1, x2, y2, button=str(a.get("button") or "left"),
-                    steps=int(a.get("steps") or 24))
+                    steps=int(a.get("steps") or 24), dwell_ms=dwell)
 
     result = _pointer_result(x2, y2, "drag", guard)
     del result["x"], result["y"]
     result["from"], result["to"] = [x1, y1], [x2, y2]
+    if dwell:
+        result["dwell_ms"] = dwell
     # The same flow as pointer_click, because a drag used to report success
     # blind: the release happened, so it "worked", whether or not the drop
     # landed on anything. The before/after comparison in _look is what turns
@@ -668,7 +760,25 @@ def tool_pointer_drag(a: dict) -> dict:
     was = before[0]["wm_class"] if before else None
     now = after[0]["wm_class"] if after else None
     result["focus"] = ("unchanged: " + str(now)) if was == now else f"moved {was} -> {now}"
-    return _look(a, result, watching)
+    out = _look(a, result, watching)
+
+    # A drop that does not land looks exactly like a drag to the wrong place,
+    # and the first instinct is to retime the drag. That instinct is wrong
+    # here and the measurement says so: the current timings landed 5/5 on a
+    # real browser drop target and the slower "staged" variant landed 4/5
+    # (2026-08-24, see Gestures.drag). Point at the causes that were NOT
+    # ruled out instead of inviting another round of timing roulette.
+    if not dwell and _changed_nothing(out):
+        out["nothing_changed_hint"] = (
+            "the drag timings are not the first thing to suspect -- they were "
+            "measured at 5/5 on a real drop target, and a slower variant "
+            "scored worse. More likely: something holds an input grab (a "
+            "shell-level modal makes every point report click-through), the "
+            "source needed selecting before the drag, or the receiver is a "
+            "cross-toolkit target that had not painted a drop zone yet -- for "
+            "that last one retry with dwell_ms:400."
+        )
+    return out
 
 
 def tool_pointer_scroll(a: dict) -> dict:

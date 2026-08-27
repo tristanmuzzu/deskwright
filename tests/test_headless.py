@@ -127,6 +127,9 @@ def test_pin_env_carries_the_session_name():
 def test_capacity_refuses_past_the_cap(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     monkeypatch.setenv("WCU_HEADLESS_MAX", "1")
+    # Hermetic: this test is about the COUNT cap, so the memory floor must not
+    # decide it. (It did, on a machine that was genuinely down to 212 MB.)
+    monkeypatch.setattr(headless, "_available_mb", lambda: 8000)
     monkeypatch.setattr(headless, "known_names", lambda: ["work"])
     monkeypatch.setattr(headless, "status", lambda name=None: {
         "running": True, "name": headless.session_name(name), "shell_rss_mb": 300})

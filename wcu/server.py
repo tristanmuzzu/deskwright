@@ -364,6 +364,26 @@ TOOLS: list[dict] = [
                                    "not the window at that point.",
                     "anyOf": [{"type": "integer"}, {"type": "string"}],
                 },
+                "on_occluded": {
+                    "type": "string", "enum": ["refuse", "click_topmost"],
+                    "default": "refuse",
+                    "description": "What to do when expect_window is not the window "
+                                   "at that point. Default refuses and names the "
+                                   "blocker with its id and geometry. "
+                                   "\"click_topmost\" clicks whatever is in front "
+                                   "instead, in this same call, and says which "
+                                   "window received it -- for a dialog that spawned "
+                                   "over the button you were aiming at.",
+                },
+                "hover_first": {
+                    "type": "boolean", "default": False,
+                    "description": "Approach the point and settle before clicking, "
+                                   "so a toolkit that only arms a button on hover "
+                                   "gets its motion event. Chromium/CEF/Electron "
+                                   "buttons (Creative Cloud, Spotify, 'desktop web' "
+                                   "apps) commonly ignore a bare click and report "
+                                   "nothing changed. Costs ~0.25s.",
+                },
             },
             "required": [],
         },
@@ -384,6 +404,15 @@ TOOLS: list[dict] = [
                 "to_x": {"type": "number"}, "to_y": {"type": "number"},
                 "button": {"type": "string", "default": "left"},
                 "steps": {"type": "integer", "default": 24},
+                "dwell_ms": {
+                    "type": "integer", "default": 0, "minimum": 0, "maximum": 5000,
+                    "description": "Hover at the destination this long before "
+                                   "releasing. Default 0 is the timing measured at "
+                                   "5/5 on a real drop target; a slower variant "
+                                   "scored 4/5, so this is NOT a better default. "
+                                   "Try ~400 only after a cross-app drop has "
+                                   "actually failed (GTK source, Electron target).",
+                },
                 "expect_window": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
             },
             "required": ["from_x", "from_y", "to_x", "to_y"],
