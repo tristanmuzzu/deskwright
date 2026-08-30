@@ -1,5 +1,6 @@
 {
   "name": "wayland-computer-use",
+  "description": "Computer use on GNOME Wayland for Claude Code: drive real desktop applications through the accessibility tree, with verified clicks and an optional invisible second desktop.",
   "owner": {
     "name": "Tristan Rafe Muzzu",
     "url": "https://github.com/tristanmuzzu"
