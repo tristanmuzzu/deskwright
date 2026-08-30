@@ -17,6 +17,7 @@ Two outputs:
    look -- it is a measurement a human eyeballing a clip cannot make reliably:
    a frozen frame reads as 0.0, a stutter as a gap, a hard cut as a spike.
 
+From a checkout (the MCP tools are the supported interface; this is the debug CLI):
     python3 -m wcu.frames IN.mp4 OUTDIR                                # 12 frames, whole clip
     python3 -m wcu.frames IN.mp4 OUTDIR --cols 5 --rows 4              # denser grid
     python3 -m wcu.frames IN.mp4 OUTDIR --from-frame 55 --to-frame 66  # sub-second slice

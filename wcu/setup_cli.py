@@ -122,6 +122,20 @@ DEPS: tuple[Dep, ...] = (
          "arch": "python-gobject"},
         "talks to org.gnome.Mutter.RemoteDesktop (pointer, keys, screencast);"
         " a system package, not sanely pip-installable"),
+    Dep("AT-SPI GObject typelib (gi 'Atspi')", "typelib", "Atspi", True,
+        {"debian": "gir1.2-atspi-2.0", "fedora": "at-spi2-core",
+         "arch": "at-spi2-core"},
+        "the whole ui_* surface -- ui_find / ui_press / ui_tree / ui_set_text."
+        " python3-gi alone is not enough; the typelib is a separate package"),
+    Dep("gnome-shell", "bin", "gnome-shell", False,
+        {"debian": "gnome-shell", "fedora": "gnome-shell",
+         "arch": "gnome-shell"},
+        "only the headless second session needs it as a BINARY; on a normal"
+        " desktop it is already running"),
+    Dep("dbus-daemon", "bin", "dbus-daemon", False,
+        {"debian": "dbus-bin", "fedora": "dbus-daemon", "arch": "dbus"},
+        "only the headless second session needs it -- it runs a private bus."
+        " Fedora defaults to dbus-broker, which is not a substitute here"),
     Dep("Pillow (python3 module 'PIL')", "py", "PIL", True,
         {"debian": "python3-pil", "fedora": "python3-pillow",
          "arch": "python-pillow"},
@@ -148,6 +162,28 @@ DEPS: tuple[Dep, ...] = (
 
 def _which(name: str) -> str | None:
     return shutil.which(name)
+
+
+def _typelib_ok(namespace: str) -> bool:
+    """Is a GObject-Introspection typelib installed?
+
+    `import gi` succeeding says nothing about whether `Atspi` is there --
+    they are separate distro packages, and reporting only the first earned a
+    green check on machines where every `ui_*` tool fails with
+    "Namespace Atspi not available", which names no package to install.
+    """
+    for py in (sys.executable, shutil.which("python3")):
+        if not py:
+            continue
+        try:
+            ok = subprocess.run(
+                [py, "-c", f"import gi; gi.require_version({namespace!r}, '2.0')"],
+                capture_output=True, timeout=20, check=False).returncode == 0
+        except (OSError, subprocess.TimeoutExpired):
+            ok = False
+        if ok:
+            return True
+    return False
 
 
 def _import_ok_here(module: str) -> bool:
@@ -189,15 +225,36 @@ def _py_import_ok(module: str) -> bool:
 
 
 def _gsettings_get(schema: str, key: str) -> str | None:
+    """The key's value, or None. `_gsettings_why` says which None this is."""
+    return _gsettings_read(schema, key)[0]
+
+
+def _gsettings_why(schema: str, key: str) -> str:
+    """Why a read returned None, in words a user can act on.
+
+    Collapsing "gsettings is missing" and "that schema is not installed" into
+    one None produced `cannot enable: gsettings unavailable` on a KDE box
+    three lines after gsettings had successfully written another key.
+    """
+    return _gsettings_read(schema, key)[1]
+
+
+def _gsettings_read(schema: str, key: str) -> tuple[str | None, str]:
     if not shutil.which("gsettings"):
-        return None
+        return None, "the gsettings binary is not installed"
     try:
         proc = subprocess.run(["gsettings", "get", schema, key],
                               capture_output=True, text=True, timeout=15,
                               check=False)
     except (OSError, subprocess.TimeoutExpired):
-        return None
-    return proc.stdout.strip() if proc.returncode == 0 else None
+        return None, "gsettings did not answer"
+    if proc.returncode == 0:
+        return proc.stdout.strip(), ""
+    err = (proc.stderr or "").strip()
+    if "No such schema" in err:
+        return None, (f"the {schema} schema is not installed -- "
+                      "this machine is not running GNOME Shell")
+    return None, (err.splitlines()[0] if err else "gsettings returned an error")
 
 
 def _bus_has_owner(name: str) -> bool | None:
@@ -233,7 +290,9 @@ def probe_deps(family: str) -> tuple[list[str], list[Dep]]:
     lines: list[str] = []
     missing_hard: list[Dep] = []
     for dep in DEPS:
-        if dep.kind == "py":
+        if dep.kind == "typelib":
+            here = system = found = _typelib_ok(dep.target)
+        elif dep.kind == "py":
             here, system = _import_ok_here(dep.target), _import_ok_system(dep.target)
             found = here or system
         else:
@@ -344,7 +403,7 @@ def step_accessibility(check_only: bool) -> None:
     _header("toolkit-accessibility (AT-SPI trees)")
     before = _gsettings_get(A11Y_SCHEMA, A11Y_KEY)
     if before is None:
-        _say("  cannot read it -- gsettings unavailable (not a GNOME session?)")
+        _say(f"  cannot read it -- {_gsettings_why(A11Y_SCHEMA, A11Y_KEY)}.")
         return
     _say(f"  before: {A11Y_SCHEMA} {A11Y_KEY} = {before}")
     if before == "true":
@@ -424,7 +483,7 @@ def step_extension(src: Path | None, check_only: bool) -> None:
                  f" ({(proc.stderr or proc.stdout).strip() or 'no reason given'})"
                  f" -- normal for a fresh copy; using gsettings instead.")
     if enabled_now is None:
-        _say("  cannot enable: gsettings unavailable.")
+        _say(f"  cannot enable: {_gsettings_why(SHELL_SCHEMA, ENABLED_KEY)}.")
     else:
         new = list_with_uuid(_gsettings_get(SHELL_SCHEMA, ENABLED_KEY) or "[]",
                              EXTENSION_UUID)
@@ -523,8 +582,9 @@ def step_mcp() -> None:
              " installs; it needs no checkout.)")
     if caveat:
         _say(f"  NOTE: {caveat}")
-    _say("  Auto-approval allowlist and the reasoning behind it:"
-         " docs/claude-code-setup.md")
+    _say("  Auto-approval allowlist and the reasoning behind it:")
+    _say("  https://github.com/tristanmuzzu/wayland-computer-use"
+         "/blob/main/docs/claude-code-setup.md")
 
 
 def step_self_test() -> None:
@@ -540,7 +600,35 @@ def step_self_test() -> None:
 
 # ---------------------------------------------------------------- main
 
-def run(check_only: bool, repo_arg: str | None) -> int:
+def _desktop_seam() -> tuple[str, str]:
+    """(XDG_CURRENT_DESKTOP, XDG_SESSION_TYPE) -- a seam so tests can set it."""
+    return (os.environ.get("XDG_CURRENT_DESKTOP", ""),
+            os.environ.get("XDG_SESSION_TYPE", ""))
+
+
+def check_desktop() -> str | None:
+    """Why this machine is not a target, or None when it is.
+
+    Without this, `wcu-setup` on KDE or Hyprland set a GNOME gsettings key,
+    created a `~/.local/share/gnome-shell/extensions` tree on a machine with
+    no gnome-shell, demanded a logout, and exited 0. The support matrix says
+    GNOME-only; the tool has to say it too, BEFORE it changes anything.
+    """
+    current, session = _desktop_seam()
+    names = [n for n in current.split(":") if n]
+    if names and not any(n.upper() == "GNOME" for n in names):
+        return (f"XDG_CURRENT_DESKTOP is {current!r}, not GNOME. This project "
+                "drives GNOME Shell through its own extension and "
+                "org.gnome.Mutter.RemoteDesktop; KDE and wlroots are on the "
+                "roadmap through xdg-desktop-portal, but the window verbs, "
+                "screenshots and the halt switch are not there yet.")
+    if session and session.lower() == "x11":
+        return ("XDG_SESSION_TYPE is x11. This is a Wayland project by "
+                "design -- on X11, xdotool and wmctrl already do this well.")
+    return None
+
+
+def run(check_only: bool, repo_arg: str | None, force: bool = False) -> int:
     family = detect_host_family()
     src = find_extension_source(repo_arg)
     _say("wcu-setup"
@@ -548,6 +636,18 @@ def run(check_only: bool, repo_arg: str | None) -> int:
          + f" -- distro family: {family}"
          + (f" -- extension source: {src}" if src
             else " -- extension source: NOT FOUND"))
+
+    wrong_desktop = None if force else check_desktop()
+    if wrong_desktop:
+        _header("this machine is not a target")
+        _say(f"  {wrong_desktop}")
+        _say("  Nothing was changed. Support matrix:")
+        _say("  https://github.com/tristanmuzzu/wayland-computer-use"
+             "#support-matrix")
+        _say()
+        _say("  Re-run with --force if you are setting up for a GNOME session"
+             " you are not currently logged into.")
+        return 2
 
     _header("dependencies")
     lines, missing_hard = probe_deps(family)
@@ -590,12 +690,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--check", action="store_true",
                         help="read-only: detect everything, change nothing,"
                              " exit nonzero if a hard requirement is missing")
+    parser.add_argument("--force", action="store_true",
+                        help="set up even though this does not look like a"
+                             " GNOME Wayland session (for preparing a machine"
+                             " you are not logged into yet)")
     parser.add_argument("--repo", metavar="DIR", default=None,
                         help="install the gnome-shell extension from this"
                              " checkout (or extension directory) instead of"
                              " the copy bundled with this package")
     args = parser.parse_args(argv)
-    return run(check_only=args.check, repo_arg=args.repo)
+    return run(check_only=args.check, repo_arg=args.repo, force=args.force)
 
 
 if __name__ == "__main__":

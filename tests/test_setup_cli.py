@@ -129,6 +129,11 @@ def _patch_probes(monkeypatch, tmp_path, *, missing_bins=(), missing_mods=(),
     monkeypatch.setattr(
         setup_cli, "_which",
         lambda name: None if name in missing_bins else f"/usr/bin/{name}")
+    # A GNOME Wayland session, unless a test says otherwise: the preflight
+    # refuses to touch anything on a machine that is not one.
+    monkeypatch.setattr(setup_cli, "_desktop_seam", lambda: ("GNOME", "wayland"))
+    monkeypatch.setattr(setup_cli, "_typelib_ok",
+                        lambda ns: ns not in missing_mods)
     # Two interpreters, two seams: `_import_ok_here` is the one the console
     # script runs under, `_import_ok_system` is the distro python3 the
     # checkout's shebang and the plugin route use.
@@ -313,3 +318,66 @@ def test_missing_extension_source_is_a_failure_not_a_quiet_success(
     out = capsys.readouterr().out
     assert rc == 1
     assert "RESULT:" in out and "extension" in out
+
+
+# ------------------------------------------------------- desktop preflight
+
+@pytest.mark.parametrize("current,session,refused", [
+    ("GNOME", "wayland", False),
+    ("ubuntu:GNOME", "wayland", False),
+    ("", "wayland", False),              # unset: assume the user knows
+    ("KDE", "wayland", True),
+    ("Hyprland", "wayland", True),
+    ("GNOME", "x11", True),
+])
+def test_preflight_recognises_the_target(monkeypatch, current, session, refused):
+    monkeypatch.setattr(setup_cli, "_desktop_seam", lambda: (current, session))
+    assert (setup_cli.check_desktop() is not None) is refused
+
+
+def test_a_non_gnome_machine_is_left_untouched(monkeypatch, capsys, tmp_path,
+                                               no_subprocess):
+    """It used to set a GNOME gsettings key, create a gnome-shell extensions
+    tree on a machine with no gnome-shell, demand a logout, and exit 0."""
+    _patch_probes(monkeypatch, tmp_path)
+    monkeypatch.setattr(setup_cli, "_desktop_seam", lambda: ("KDE", "wayland"))
+    touched = []
+    monkeypatch.setattr(setup_cli, "_gsettings_set",
+                        lambda *a: touched.append(a) or True)
+    rc = setup_cli.run(check_only=False, repo_arg=None)
+    out = capsys.readouterr().out
+    assert rc == 2
+    assert touched == []
+    assert "not a target" in out and "KDE" in out
+    assert "LOG OUT" not in out
+
+
+def test_force_overrides_the_preflight(monkeypatch, capsys, tmp_path,
+                                       no_subprocess):
+    _patch_probes(monkeypatch, tmp_path)
+    monkeypatch.setattr(setup_cli, "_desktop_seam", lambda: ("KDE", "wayland"))
+    rc = setup_cli.run(check_only=True, repo_arg=None, force=True)
+    assert rc == 0
+    assert "not a target" not in capsys.readouterr().out
+
+
+def test_a_missing_gnome_schema_says_so(monkeypatch):
+    """`cannot enable: gsettings unavailable` was printed on a machine where
+    gsettings had just successfully written another key."""
+    monkeypatch.setattr(setup_cli.shutil, "which", lambda n: "/usr/bin/gsettings")
+
+    class Proc:
+        returncode = 1
+        stdout = ""
+        stderr = 'No such schema "org.gnome.shell"\n'
+
+    monkeypatch.setattr(setup_cli.subprocess, "run", lambda *a, **k: Proc())
+    why = setup_cli._gsettings_why("org.gnome.shell", "enabled-extensions")
+    assert "not running GNOME Shell" in why
+
+
+def test_atspi_typelib_is_its_own_requirement():
+    """python3-gi installed without gir1.2-atspi-2.0 fails every ui_* tool
+    with a message that names no package."""
+    labels = [d.label for d in setup_cli.DEPS if d.hard]
+    assert any("Atspi" in name for name in labels)

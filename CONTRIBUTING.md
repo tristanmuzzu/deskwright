@@ -23,7 +23,9 @@ The MCP server lives in `wcu/`; `mcp_server.py` is the thin entry point.
 
 `wcu/atspi_ui.py`, `wcu/desktop.py`, `wcu/remote_input.py`,
 `wcu/portal_input.py`, `wcu/screencast.py` and `wcu/frames.py` are the
-standalone CLI forerunners -- run them as `python3 -m wcu.<name>`. They are
+standalone CLI forerunners. `wcu-atspi` and `wcu-desktop` are installed as
+console scripts; the other two run as `python3 -m wcu.<name>` from a
+checkout. They are
 not vestigial: `wcu/remote_input.py` and `wcu/portal_input.py` are the two
 input backends, and `wcu/capture.py` shells out to `wcu/screencast.py` and
 `wcu/frames.py` because a recording has to outlive one tool call.

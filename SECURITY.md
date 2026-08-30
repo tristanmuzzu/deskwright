@@ -53,12 +53,32 @@ Designed-in properties:
 Stated limitations, honestly:
 
 - **The halt switch exists only when the extension is loaded.** On a shell
-  that has not loaded it (before the post-install re-login, or if the
-  extension is disabled), `halt_active()` answers no at zero cost — and a
-  probe failure also counts as not-halted, deliberately: the switch exists to
-  let a human stop the server, never to let a D-Bus hiccup stop it. If you
-  need a guaranteed stop without the extension, kill the server process or
-  the client holding it.
+  that has never loaded it — before the post-install re-login — `halt_active()`
+  answers no at zero cost: a switch that was never there cannot be engaged,
+  and refusing every acted call on a machine that simply has not logged out
+  yet would make a fresh install useless. **Once it has answered, that
+  reverses**: a probe failure after the first successful answer counts as
+  *halted*, because the same `launch_app` primitive an agent uses for real
+  work can run `gnome-extensions disable wcu@wayland-computer-use` and unown
+  the bus name. A disappearing kill switch is a stronger signal than a D-Bus
+  hiccup.
+- **It gates this server, not the agent.** Nearly every real deployment gives
+  the same agent a shell, and a shell can kill the server process or disable
+  the extension. The halt switch is a stop button for a cooperating agent and
+  a human's fastest reflex against a mistake. It is not containment of a
+  hostile one; nothing at this layer is.
+- **Injected input can, in principle, press the combination.** The compositor
+  cannot tell uinput events from a keyboard. This server refuses to inject
+  that combination, and the extension debounces a repeat within two seconds —
+  but an agent with another injection path, or one that waits, is not stopped
+  by the switch itself.
+- **On a headless session, the physical key does nothing.** `WCU_SESSION=headless`
+  runs a second gnome-shell with its own extension instance and its own halt
+  flag, on a virtual monitor with no keyboard. A human's `Super+Ctrl+Escape`
+  is delivered to the *primary* shell, which the headless server never
+  consults. To halt a headless run today: stop the client, or
+  `wcu-headless stop --name <name>`. This is the most conspicuous gap in the
+  design and it is tracked on the ROADMAP.
 - The halt gates *this server's* tools. It does not freeze the desktop, and
   it does not stop other automation stacks on the machine.
 
@@ -76,6 +96,62 @@ exposes, it matches patterns and will miss a novel or obfuscated injection,
 and a warning only helps if the model heeds it. It is a seatbelt reminder,
 not a seatbelt. The real defense is the reviewing model and the evidence
 trail — treat all captured screen content as untrusted data.
+
+## The extension's D-Bus service is not access-controlled
+
+The bundled extension owns `org.wcu.Helpers` on the **session bus** and does
+not check the caller. The session bus default-allows any process running as
+the same user, so once the extension is enabled, **every process on your
+session bus** can call it — including `Screenshot` (full desktop, to any path,
+with no portal dialog and no screen-share indicator), `GetClipboardText`,
+`ClearHalt`, and the window verbs. That is true whether or not the MCP server
+is running.
+
+This matters more than "same uid, so who cares", and we would rather say it
+than have you find it: on Wayland an ordinary client *cannot* screenshot, and
+`xdg-desktop-portal` gates capture behind per-app consent. Installing this
+extension removes that guarantee for everything on the bus. A malicious
+package postinstall, a `curl | bash` script, or a Flatpak granted
+`--socket=session-bus` inherits it.
+
+Tightening this — a shared secret written 0600 at enable time and checked
+against `invocation.get_sender()` — is on the ROADMAP. Until then, treat
+enabling the extension as a machine-level decision, not a per-application one.
+Disabling the extension (`gnome-extensions disable wcu@wayland-computer-use`)
+removes the surface entirely.
+
+## What is written to disk, and where
+
+- **The action journal** — `$XDG_STATE_HOME/wayland-computer-use/journal/`,
+  files 0600, kept 14 days. One line per *acted* tool call: arguments,
+  outcome, hit/miss verdict, and the sha256 of any screenshot. Text that a
+  password could be is **not** stored: `type_text`, `ui_set_text`,
+  `clipboard_write` and the same three inside `do_steps` are recorded as a
+  character count and a truncated digest, which is enough to tell that
+  something was typed, how much, and whether it was the same string twice.
+  `WCU_JOURNAL_TEXT=1` stores the characters verbatim if you want that for
+  your own debugging.
+  Two honest limits: **reading** tools are not journaled, so a run that only
+  looks — screenshots, `clipboard_read`, `ui_read_text` — leaves no trail;
+  and the journal is plain files the agent can rewrite or delete, so it is
+  evidence, not an audit log. A signed append-only mode is on the ROADMAP.
+- **The screenshot cache** — `~/.cache/wayland-computer-use/shots/`, directory
+  0700, the last 40 captures. These are unredacted pictures of your desktop.
+- **The portal restore token** —
+  `$XDG_STATE_HOME/wayland-computer-use/portal-tokens.json`, 0600 in a 0700
+  directory. With `persist_mode: 2` this token replays pointer injection,
+  keyboard injection and monitor capture **with no consent dialog**, and it
+  survives a reboot. To revoke: delete the file *and* remove the entry in
+  GNOME Settings → Privacy → Screen Sharing. Only the portal backend creates
+  it; the mutter backend does not.
+
+## `launch_app` runs arbitrary programs, by design
+
+`launch_app` takes an argv, so it is an arbitrary-code-execution primitive —
+the same way a terminal is. It is what makes the tool useful, it is refused
+while a halt is engaged like every other acting tool, and it is journaled.
+There is no sandbox here and none is claimed. If you need one, run the whole
+thing on a headless session in a VM.
 
 ## Lock-screen powers, and the config that controls them
 

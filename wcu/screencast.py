@@ -25,6 +25,7 @@ whole recording.
 USAGE  (~/.claude/bin is not on PATH; call this by absolute path, as with
         screenshot / windows / safe-rm)
 
+From a checkout (the MCP tools are the supported interface; this is the debug CLI):
     python3 -m wcu.screencast out.mp4                       # whole screen, 10s, 30fps
     python3 -m wcu.screencast --seconds 5 out.mp4
     python3 -m wcu.screencast --window 72777864 out.mp4     # one window, by id from `windows`

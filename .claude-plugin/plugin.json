@@ -2,7 +2,7 @@
   "name": "wayland-computer-use",
   "displayName": "Wayland Computer Use",
   "version": "0.1.0",
-  "description": "Give Claude a real GNOME/Wayland desktop: launch apps, read the accessibility tree, click, type, drag, manage windows, OCR and record — optionally on an invisible second desktop so your screen is left alone.",
+  "description": "Claude uses a real Linux desktop \u2014 GNOME/Wayland apps pressed through the accessibility tree so a click cannot miss, on your screen or on an invisible second desktop that leaves your screen alone.",
   "author": {
     "name": "Tristan Rafe Muzzu",
     "email": "tristan@zeticle.com",
@@ -12,8 +12,15 @@
   "repository": "https://github.com/tristanmuzzu/wayland-computer-use",
   "license": "Apache-2.0",
   "keywords": [
-    "computer-use", "desktop-automation", "wayland", "gnome", "linux",
-    "accessibility", "at-spi", "screenshot", "ocr"
+    "computer-use",
+    "desktop-automation",
+    "wayland",
+    "gnome",
+    "linux",
+    "accessibility",
+    "at-spi",
+    "screenshot",
+    "ocr"
   ],
   "mcpServers": "./.mcp.json",
   "skills": "./skills/"

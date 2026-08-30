@@ -96,7 +96,39 @@ Allow rules accept a wildcard in the tool position after a literal
 {
   "permissions": {
     "allow": [
-      "mcp__wayland-computer-use__*"
+      "mcp__wayland-computer-use__activate_window",
+      "mcp__wayland-computer-use__assert_state",
+      "mcp__wayland-computer-use__clipboard_read",
+      "mcp__wayland-computer-use__clipboard_write",
+      "mcp__wayland-computer-use__desktop_health",
+      "mcp__wayland-computer-use__do_steps",
+      "mcp__wayland-computer-use__find_text",
+      "mcp__wayland-computer-use__frames",
+      "mcp__wayland-computer-use__hold_key",
+      "mcp__wayland-computer-use__journal",
+      "mcp__wayland-computer-use__launch_app",
+      "mcp__wayland-computer-use__list_windows",
+      "mcp__wayland-computer-use__pointer_click",
+      "mcp__wayland-computer-use__pointer_drag",
+      "mcp__wayland-computer-use__pointer_move",
+      "mcp__wayland-computer-use__pointer_position",
+      "mcp__wayland-computer-use__pointer_scroll",
+      "mcp__wayland-computer-use__press_keys",
+      "mcp__wayland-computer-use__region_changed",
+      "mcp__wayland-computer-use__screen_map",
+      "mcp__wayland-computer-use__screencast",
+      "mcp__wayland-computer-use__screenshot",
+      "mcp__wayland-computer-use__type_text",
+      "mcp__wayland-computer-use__ui_apps",
+      "mcp__wayland-computer-use__ui_find",
+      "mcp__wayland-computer-use__ui_press",
+      "mcp__wayland-computer-use__ui_read_text",
+      "mcp__wayland-computer-use__ui_set_text",
+      "mcp__wayland-computer-use__ui_tree",
+      "mcp__wayland-computer-use__wait_for",
+      "mcp__wayland-computer-use__window_at",
+      "mcp__wayland-computer-use__window_manage",
+      "mcp__wayland-computer-use__zoom"
     ]
   }
 }
@@ -152,25 +184,62 @@ one is:
 }
 ```
 
-That is all 25 tools the server serves. `tools/list` is the authority; check it
-against a running server with `./tests/mcpdrv.py tools`.
+That is all 33 tools the server serves. `tools/list` is the authority;
+CI fails if this list and the server's disagree. To check a running server
+yourself: `./tests/mcpdrv.py tools` from a checkout.
 
 ## The cautious variant
 
 If you would rather approve the calls that touch the machine, the split falls
-along the tools that inject: `pointer_click`, `pointer_drag`, `pointer_move`,
-`pointer_scroll`, `press_keys`, `type_text`, `ui_press`, `ui_set_text` and
-`do_steps`, which is on the list because it runs a sequence of the others in one
-call. Leave the allowlist above in place and add those nine to `permissions.ask`
-— `ask` is evaluated ahead of `allow`, from any scope, so nothing needs removing
-from the allow list to make it take effect. Everything that only looks
-(`screenshot`, `screen_map`, `find_text`, `ui_find`, `ui_read_text`, `ui_tree`,
-`ui_apps`, `list_windows`, `window_at`, `pointer_position`, `wait_for`,
-`region_changed`, `screencast`, `frames`, `desktop_health`, `activate_window`)
-stays approved, which keeps the expensive half of a session — the looking —
-unprompted. The cost is concentrated in `do_steps`: batching a known sequence
-into one call is the main thing that makes a long task cheap, and a prompt in
-front of it gives that back.
+along the tools the server itself treats as acting -- the same 14 it
+journals and the same 14 the halt switch gates:
+
+- `activate_window`
+- `clipboard_write`
+- `do_steps`
+- `hold_key`
+- `launch_app`
+- `pointer_click`
+- `pointer_drag`
+- `pointer_move`
+- `pointer_scroll`
+- `press_keys`
+- `type_text`
+- `ui_press`
+- `ui_set_text`
+- `window_manage`
+
+`do_steps` is on that list because it runs a sequence of the others in one
+call. Leave the allowlist above in place and add those 14 to
+`permissions.ask` -- `ask` is evaluated ahead of `allow`, from any scope, so
+nothing needs removing from the allow list to make it take effect.
+
+Everything that only looks stays approved, which keeps the expensive half of a
+session -- the looking -- unprompted:
+
+- `assert_state`
+- `clipboard_read`
+- `desktop_health`
+- `find_text`
+- `frames`
+- `journal`
+- `list_windows`
+- `pointer_position`
+- `region_changed`
+- `screen_map`
+- `screencast`
+- `screenshot`
+- `ui_apps`
+- `ui_find`
+- `ui_read_text`
+- `ui_tree`
+- `wait_for`
+- `window_at`
+- `zoom`
+
+The cost is concentrated in `do_steps`: batching a known sequence into one call
+is the main thing that makes a long task cheap, and a prompt in front of it
+gives that back.
 
 ## Two operational notes
 

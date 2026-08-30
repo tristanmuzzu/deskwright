@@ -12,11 +12,11 @@ presses the actual button, so it cannot miss, cannot be defeated by a window
 moving, and needs no pointer at all.
 
 Usage:
-    python3 -m wcu.atspi_ui apps
-    python3 -m wcu.atspi_ui tree "Google Chrome" [--depth 4]
-    python3 -m wcu.atspi_ui find "Reload" [--app "Google Chrome"] [--role push_button]
-    python3 -m wcu.atspi_ui actions <path>
-    python3 -m wcu.atspi_ui do <path> [action_index]
+    wcu-atspi apps
+    wcu-atspi tree "Google Chrome" [--depth 4]
+    wcu-atspi find "Reload" [--app "Google Chrome"] [--role push_button]
+    wcu-atspi actions <path>
+    wcu-atspi do <path> [action_index]
 
 <path> is the index path printed by `tree`/`find`, e.g. "Google Chrome/0/3/1".
 It is resolved fresh on every call, so it is only valid while the tree is

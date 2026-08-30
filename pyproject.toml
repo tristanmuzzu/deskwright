@@ -20,7 +20,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wayland-computer-use"
 version = "0.1.0"
-description = "Computer use for AI agents on GNOME Wayland: an MCP server with verified clicks, an accessibility-tree-first tool surface, an invisible second desktop, a human halt switch, and an action journal."
+description = "An AI agent uses a real GNOME/Wayland desktop: pressing actual widgets rather than guessing at pixels, optionally on an invisible second GNOME session so your own screen stays yours."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
@@ -64,6 +64,12 @@ wayland-computer-use = "wcu.cli:main"
 wcu-setup = "wcu.setup_cli:main"
 # Lifecycle of the invisible second (virtual-monitor) session.
 wcu-headless = "wcu.headless:main"
+# The two hands-on CLIs the README walks through. They exist as console
+# scripts because after `pipx install` there is no checkout and no `wcu` on
+# the system python's path, so `python3 -m wcu.atspi_ui` -- which is what the
+# docs used to say -- answered "No module named 'wcu'".
+wcu-atspi = "wcu.atspi_ui:main"
+wcu-desktop = "wcu.desktop:main"
 
 [tool.setuptools]
 packages = ["wcu"]

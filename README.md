@@ -10,46 +10,17 @@ you cannot see, while you keep using your screen.**
 An MCP server plus a small GNOME Shell extension. The agent gets the real
 desktop: the accessibility tree, compositor-performed pointer and keyboard
 input, window management, screenshots and recordings, OCR and the clipboard.
-Every action is verified and its result reported, because the agent's round
-trips — not the work — are the cost.
+Every acting tool reports whether it landed, because the agent's round trips
+— not the work — are the cost.
 
-What is different here:
-
-- **An invisible second desktop.** `WCU_SESSION=headless` runs the whole thing
-  on a private virtual monitor. Windows do not steal your focus, a long
-  unattended run does not fight you for the screen, and two named sessions can
-  work at once without watching each other's windows move.
-- **Clicks that are verified, not hoped for.** A click reports what changed on
-  screen. `expect_window` refuses a click that would land in the wrong window
-  and names the blocker. `ui_press` re-checks widget identity before pressing.
-  Typing proves focus first and reads the widget back.
-- **The accessibility tree first, pixels last.** `ui_press` invokes the
-  widget's own action, so it cannot miss; `find_text` (OCR) covers Chrome,
-  Electron and Qt, which expose almost nothing. A screenshot is the last
-  resort, not the first move.
-- **Evidence after the fact.** Every acted call is journaled with arguments,
-  outcome and verdict, and `Super+Ctrl+Escape` is a halt switch grabbed inside
-  the compositor that injected input cannot press or clear.
-
-Wayland deliberately denies all of this to ordinary clients, and the classic
-X11 tools (`xdotool`, `wmctrl`, `grim`) either do not work on GNOME or fail in
-ways that look like your own mistake. This project uses the four mechanisms
-that do exist: a shell extension over D-Bus, AT-SPI,
-`org.gnome.Mutter.RemoteDesktop`, and `xdg-desktop-portal` as the
-cross-compositor route.
-
-## Support matrix
-
-| Platform | Status |
-|---|---|
-| GNOME Shell 48–50 on Wayland | **Supported.** Developed and continuously verified on GNOME 50.1 (Ubuntu 26.04). |
-| KDE Plasma (Wayland) | Planned, via an xdg-desktop-portal backend (see [ROADMAP](ROADMAP.md)). |
-| wlroots compositors (Sway, Hyprland) | Planned, same portal backend. |
-| X11 sessions | Not a target — mature alternatives already exist there. |
+**[Install](#install) · [The tools](#the-tools) · [Design philosophy](#design-philosophy)
+· [Field notes](#field-notes) · [The headless second session](#the-headless-second-session)
+· [SECURITY.md](SECURITY.md) · [ROADMAP.md](ROADMAP.md)**
 
 ## Install
 
 ```bash
+sudo apt install pipx          # dnf install pipx / pacman -S python-pipx
 pipx install --system-site-packages wayland-computer-use
 wcu-setup
 ```
@@ -92,8 +63,18 @@ claude plugin marketplace add tristanmuzzu/wayland-computer-use
 claude plugin install wayland-computer-use@wayland-computer-use
 ```
 
-The plugin runs the server straight from its own checkout, so it needs the
-system dependencies (`wcu-setup --check` lists them) but no pip install.
+The plugin runs the server straight from its own checkout, so it needs no
+pip install — but it still needs the system dependencies and the extension,
+and `wcu-setup` is not on your PATH by that route. Run it out of the plugin's
+own directory:
+
+```bash
+"$(claude plugin path wayland-computer-use)/bin/wcu-setup"
+```
+
+If that command is not available in your version, `pipx install
+--system-site-packages wayland-computer-use && wcu-setup` sets the machine up
+just as well; the plugin will keep using its own copy of the server.
 
 ### From a clone
 
@@ -104,10 +85,58 @@ bin/wcu-setup
 ./mcp_server.py --self-test
 ```
 
+### Why this instead of a screenshot-and-click loop
+
+|  | wayland-computer-use | screenshot → find pixel → click |
+|---|---|---|
+| how it acts | presses the widget's own AT-SPI action: cannot miss, survives the window moving | measures a coordinate off an image |
+| after acting | reports what changed, and refuses a click the compositor would deliver to another window | take another screenshot and look again |
+| where it runs | your screen, **or a private GNOME session on a virtual monitor you never see** | your screen, in your way |
+| when the tree is empty (Chrome, Electron, Qt) | OCR returns click coordinates in ~0.3 s, no image in the transcript | a full screenshot, ~14 s to the next action |
+
+**Compositor coverage is the trade.** This is GNOME Shell on Wayland today.
+KDE and wlroots have the input half through xdg-desktop-portal and are missing
+the window half; see the matrix below and the [ROADMAP](ROADMAP.md). If you
+are on Plasma or Sway right now, a portable pixel-driven tool will serve you
+better today, and this will not.
+
+What is different here:
+
+- **An invisible second desktop.** `WCU_SESSION=headless` runs the whole thing
+  on a private virtual monitor. Windows do not steal your focus, a long
+  unattended run does not fight you for the screen, and two named sessions can
+  work at once without watching each other's windows move.
+- **Clicks that are verified, not hoped for.** A click reports what changed on
+  screen. `expect_window` refuses a click that would land in the wrong window
+  and names the blocker. `ui_press` re-checks widget identity before pressing.
+  Typing proves focus first and reads the widget back.
+- **The accessibility tree first, pixels last.** `ui_press` invokes the
+  widget's own action, so it cannot miss; `find_text` (OCR) covers Chrome,
+  Electron and Qt, which expose almost nothing. A screenshot is the last
+  resort, not the first move.
+- **Evidence, and a switch a human can reach.** Every acted call is journaled
+  with arguments, outcome and verdict. `Super+Ctrl+Escape` is grabbed inside
+  the compositor, so no application can take it first, and this server refuses
+  to inject it. It stops this server's state-changing tools — not the machine,
+  and not an agent that also has a shell.
+  [What it does and does not promise →](SECURITY.md)
+
+## Support matrix
+
+| Platform | Status |
+|---|---|
+| GNOME Shell 50 on Wayland | **Verified.** Developed on GNOME 50.1 (Ubuntu 26.04); the live suites run against it on every change. |
+| GNOME Shell 48–49 on Wayland | **Expected to work** — same D-Bus and AT-SPI surfaces, not yet tested. Reports welcome; attach `desktop_health` output. |
+| KDE Plasma (Wayland) | Planned, via an xdg-desktop-portal backend (see [ROADMAP](ROADMAP.md)). |
+| wlroots compositors (Sway, Hyprland) | Planned, same portal backend. |
+| X11 sessions | Not a target — mature alternatives already exist there. |
+
 ## The tools
 
-The server exposes **33 tools**. The ordering below is the ordering an agent
-should prefer — the accessibility tree first, pixels last:
+The server exposes **33 tools** — about 11k tokens of schema in a session,
+which is the honest price, and the reason each one returns enough that you do
+not need a second call to interpret it. The ordering below is the ordering an
+agent should prefer — the accessibility tree first, pixels last:
 
 | Tool | Notes |
 |---|---|
@@ -141,15 +170,19 @@ self-sufficient, not to fence it in.** The server never blocks a capability
 the platform allows. The safety budget goes to exactly three things:
 
 1. **A kill switch a human can always reach.** `Super+Ctrl+Escape` is grabbed
-   by the extension inside the compositor (where client grabs are refused),
-   halts every state-changing tool, and cannot be pressed or cleared by
-   injected input.
+   by the extension inside the compositor (where client grabs are refused) and
+   halts every state-changing tool. This server refuses to inject that
+   combination, and the halt lives in gnome-shell, so restarting the server
+   does not clear it. What it does not do is contain an agent that also has a
+   shell — [SECURITY.md](SECURITY.md) says so plainly, and is worth reading
+   before registering this against your real screen.
 2. **Irreversibility backstops.** Guards so one bad action cannot destroy a
    machine or an account: clicks are refused when they would land in the wrong
    window, widgets are re-checked before pressing, focus is proven before
    typing, and the session-switch key combination is refused outright. A
-   tripwire for genuinely unrecoverable patterns warns — it does not ask a
-   human who is not looking at the screen.
+   prompt-injection tripwire warns on text arriving from the screen — it does
+   not ask a human who is not looking at it. (A tripwire for unrecoverable
+   *actions* is on the roadmap, not shipped.)
 3. **Honest evidence.** Every acting tool reports whether it landed; GNOME's
    screen-share indicator is visible whenever the pointer session is open; the
    goal is that the user can always see what actually happened, after the
@@ -188,10 +221,19 @@ reason the tools are shaped the way they are. Dates are retained because each
 finding was true of a specific GNOME on a specific day; re-measure before
 assuming drift.
 
-The original plan assumed Xorg and `xdotool`. That is dead: Ubuntu 26.04 ships
-no Xorg session and one cannot be installed, and XWayland runs X11
-*applications* without giving anyone global input or window control. So this
-is built on what Wayland actually permits.
+The original plan assumed Xorg and `xdotool`. That is dead here: GNOME
+upstream has dropped its X11 session, Ubuntu 26.04 ships no GNOME-on-Xorg
+option, and XWayland runs X11 *applications* without giving anyone global
+input or window control. (You can still install a different X11 desktop — but
+then you are not on GNOME, and mature X11 automation already serves you
+there.) So this is built on what Wayland actually permits.
+
+Wayland deliberately denies all of this to ordinary clients, and the classic
+X11 tools (`xdotool`, `wmctrl`, `grim`) either do not work on GNOME or fail in
+ways that look like your own mistake. This project uses the four mechanisms
+that do exist: a shell extension over D-Bus, AT-SPI,
+`org.gnome.Mutter.RemoteDesktop`, and `xdg-desktop-portal` as the
+cross-compositor route.
 
 ## What does not work, and why
 
@@ -220,11 +262,11 @@ tools are built on it; `wcu/atspi_ui.py` is the standalone CLI for poking at it 
 hand:
 
 ```bash
-python3 -m wcu.atspi_ui apps
-python3 -m wcu.atspi_ui tree "Google Chrome" --depth 6
-python3 -m wcu.atspi_ui find "Reload" --role "push button"
-python3 -m wcu.atspi_ui actions "gnome-tweaks/0"
-python3 -m wcu.atspi_ui do "gnome-tweaks/0" 0
+wcu-atspi apps
+wcu-atspi tree "Google Chrome" --depth 6
+wcu-atspi find "Reload" --role "push button"
+wcu-atspi actions "gnome-tweaks/0"
+wcu-atspi do "gnome-tweaks/0" 0
 ```
 
 One hard requirement: **`toolkit-accessibility` must be true before an
@@ -248,11 +290,11 @@ client are ordinary calls to it. `wcu/desktop.py` is the standalone CLI over the
 same mechanisms:
 
 ```bash
-python3 -m wcu.desktop windows
-python3 -m wcu.desktop activate <id>
-python3 -m wcu.desktop screenshot shot.png
-python3 -m wcu.desktop type "hello"
-python3 -m wcu.desktop key ctrl+s
+wcu-desktop windows
+wcu-desktop activate <id>
+wcu-desktop screenshot shot.png
+wcu-desktop type "hello"
+wcu-desktop key ctrl+s
 ```
 
 Keystrokes from `wcu/desktop.py` go through `ydotool` and `/dev/uinput`, below the
@@ -267,7 +309,7 @@ problem; it sends keysyms through the compositor instead.
 `Ctrl+Alt+F1` … `F12` is `switch-to-session` in mutter. Injecting one throws the
 desktop onto a different virtual terminal showing a login screen, which is
 indistinguishable from a frozen machine — it cost a session and a hard
-power-off on 2026-08-08. `python3 -m wcu.desktop key` and the server both refuse it rather
+power-off on 2026-08-08. `wcu-desktop key` and the server both refuse it rather
 than trusting the caller to remember.
 
 ## The MCP server — the way this is actually meant to be used
@@ -275,6 +317,15 @@ than trusting the caller to remember.
 The CLIs above are for poking at things by hand. In a session, use the MCP
 server: registered at user scope, "do this on my laptop" works without
 remembering a script path.
+
+An installed copy proves itself with one command, on a desktop you cannot see:
+
+```bash
+WCU_SESSION=headless wayland-computer-use --self-test
+```
+
+The rest are **from a checkout** — the live suites are not in the wheel,
+because they need a real session and a loaded extension:
 
 ```bash
 ./mcp_server.py --self-test            # prove every capability, print a report
@@ -292,7 +343,8 @@ change here is observable until a restart.
 ### The round trip is the cost, not the work
 
 Measured from real agent session transcripts, 2026-08-22, on the development
-machine:
+machine, one client (Claude Code). These are the numbers that shaped the tool
+surface, not a general claim about agents:
 
 | | |
 |---|---|
@@ -466,6 +518,14 @@ has, and the extension's `Ping` method returns the loaded build stamp.
 
 ## Two input backends: mutter, and the portal (KDE/wlroots route)
 
+**This is the input half only, and that is why the support matrix still says
+GNOME.** The portal backend really does drive the pointer and keyboard on KDE
+and wlroots today. What has no cross-compositor route yet is everything the
+gnome-shell extension provides — the window list and window verbs,
+extension-side screenshots, pointer position, and the halt switch — so on
+Plasma or Sway `desktop_health` reports *not usable* and means it. Window
+enumeration is the remaining piece; the ROADMAP tracks it.
+
 Input has two interchangeable backends behind one surface, picked once per
 process:
 
@@ -516,14 +576,14 @@ AT-SPI read-back → screenshot) on GNOME 50, 2026-08-24.
 
 ```bash
 wcu-headless start                     # bring it up (~200 MB gnome-shell), idempotent
-WCU_SESSION=headless ./mcp_server.py --self-test   # a server pinned to it (auto-starts too)
+WCU_SESSION=headless wayland-computer-use --self-test   # a server pinned to it (auto-starts too)
 wcu-headless status                    # liveness, RSS, bus address
 wcu-headless stop                      # end it -- do not leave it idling on 8 GB machines
 eval "$(wcu-headless env)"             # pin a SHELL to it instead, for poking by hand
 ```
 
 Register it as a second MCP server (`claude mcp add wcu-headless --scope user
---env WCU_SESSION=headless -- /path/to/mcp_server.py`) and an agent can drive
+--env WCU_SESSION=headless -- wayland-computer-use`) and an agent can drive
 long tasks on the virtual desktop while the user works undisturbed.
 
 ### More than one of them
@@ -537,7 +597,7 @@ session) gave everybody before names existed.
 wcu-headless start --name work         # a second desktop, alongside `default`
 wcu-headless list                      # every session, total RSS, free memory
 wcu-headless stop --name work          # end one; --all ends every one
-WCU_SESSION=headless:work ./mcp_server.py     # a server pinned to that one
+WCU_SESSION=headless:work wayland-computer-use   # a server pinned to that one
 ```
 
 Everything that must not collide is derived from the name — the state file,
@@ -609,19 +669,40 @@ Three measured characteristics to know:
 
 ## Requirements
 
-- GNOME Shell 48–50 on Wayland.
-- The bundled `wcu@wayland-computer-use` extension, installed and enabled
-  (`wcu-setup`, or see
-  [wcu/extension/README.md](wcu/extension/README.md)). It ships inside the
-  package, and is only picked up at session start; there is no way to reload
-  gnome-shell on Wayland without ending the session.
+`wcu-setup --check` is the authority — it detects every one of these, names
+the package for your distro, and exits nonzero if a hard one is missing. What
+it enforces:
+
+**Hard, or the server does not work:**
+
+- GNOME Shell on Wayland. Verified on 50; 48–49 declared and untested.
 - `python3-gi` (PyGObject) as a **distro** package — it has no PyPI wheels,
   which is why the install line carries `--system-site-packages`. It is what
-  talks to `org.gnome.Mutter.RemoteDesktop` and AT-SPI. Pillow is a normal
-  dependency and does the cropping, scaling and annotation.
-- `gsettings set org.gnome.desktop.interface toolkit-accessibility true`.
-- Optional: `ydotoold` as a **system** service with its socket at
-  `/run/ydotoold.socket` — only needed for the `via: "ydotool"` fallback.
+  talks to `org.gnome.Mutter.RemoteDesktop` and AT-SPI.
+- `gir1.2-atspi-2.0` (`at-spi2-core` on Fedora/Arch). A separate package from
+  `python3-gi`: without it every `ui_*` tool fails with "Namespace Atspi not
+  available". Most GNOME installs already pull it in.
+- Pillow (`python3-pil`, or the wheel pip installs) — cropping, scaling,
+  annotation.
+- `gdbus` (`libglib2.0-bin`) — every extension call goes through it.
+- `wl-clipboard` — clipboard read, and the clipboard-write fallback.
+- `tesseract` — `find_text` and screenshot OCR. The binary is called
+  directly; no `pytesseract`.
+- `gsettings set org.gnome.desktop.interface toolkit-accessibility true` —
+  `wcu-setup` sets it. Applications read it at startup, so anything already
+  running keeps a stunted tree until it restarts.
+- The bundled `wcu@wayland-computer-use` extension, installed and enabled
+  (`wcu-setup`, or see [wcu/extension/README.md](wcu/extension/README.md)).
+  It ships inside the package, and is only picked up at session start; there
+  is no way to reload gnome-shell on Wayland without ending the session.
+
+**Optional:**
+
+- `gnome-shell` and `dbus-daemon` as *binaries* — only the headless second
+  session spawns them. A normal desktop already has both running. On Fedora
+  the default `dbus-broker` is not a substitute.
+- `ydotoold` as a **system** service with its socket at
+  `/run/ydotoold.socket` — only for the `via: "ydotool"` input fallback.
 
 ## Contributing, security, license
 

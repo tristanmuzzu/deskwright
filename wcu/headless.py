@@ -59,6 +59,7 @@ import glob
 import json
 import os
 import re
+import shutil
 import signal
 import subprocess
 import sys
@@ -426,6 +427,7 @@ def _start_locked(name: str, size: str, display: str) -> dict[str, Any]:
     # app opens on the real screen -- exactly the thing this module exists
     # to prevent (observed 2026-08-24). So the daemon is born already
     # pointing at the display the shell will create.
+    _require_binaries()
     daemon_env = os.environ.copy()
     daemon_env["WAYLAND_DISPLAY"] = display
     daemon_env["XDG_RUNTIME_DIR"] = runtime_dir
@@ -596,6 +598,31 @@ def pin_env(state: dict[str, Any], env: Any = os.environ) -> None:
     env["WCU_HEADLESS_NAME"] = state.get("name", DEFAULT_NAME)
 
 
+_HEADLESS_BINARIES = {
+    "dbus-daemon": "dbus-bin (Debian/Ubuntu) / dbus-daemon (Fedora -- the "
+                   "default dbus-broker is not a substitute) / dbus (Arch)",
+    "gnome-shell": "gnome-shell",
+}
+
+
+def _require_binaries() -> None:
+    """A missing binary here used to surface as a raw FileNotFoundError.
+
+    Neither of these is needed on a normal desktop -- gnome-shell is already
+    running and the session bus is already up -- so they are easy to be
+    without, and `wcu-setup --check` lists them as optional for that reason.
+    The headless session spawns both, so it has to say which one is absent
+    and what installs it.
+    """
+    for binary, package in _HEADLESS_BINARIES.items():
+        if shutil.which(binary) is None:
+            raise ToolError(
+                f"the headless session needs the {binary!r} binary and it is "
+                f"not on PATH. Install: {package}. (A normal desktop session "
+                "does not need it, which is why this only fails here.)",
+                code="headless_unavailable")
+
+
 USAGE = (
     "usage: wcu-headless [start|stop|status|list|env] [--name NAME] "
     f"[--size {DEFAULT_SIZE}] [--display NAME] [--all]\n"
@@ -608,6 +635,9 @@ USAGE = (
 
 def main(argv: list[str] | None = None) -> int:
     args = list(sys.argv[1:] if argv is None else argv)
+    if any(a in ("-h", "--help") for a in args):
+        print(USAGE)
+        return 0
     cmd = args[0] if args and not args[0].startswith("-") else "status"
     size = args[args.index("--size") + 1] if "--size" in args else DEFAULT_SIZE
     display = args[args.index("--display") + 1] if "--display" in args else None
