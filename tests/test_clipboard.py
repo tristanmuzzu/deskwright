@@ -38,7 +38,7 @@ def check(name: str, fn) -> None:
         results.append((PASS, name, detail or ""))
     except AssertionError as exc:
         results.append((FAIL, name, str(exc)))
-    except Exception as exc:  # noqa: BLE001 - a test file wants the reason
+    except Exception as exc:
         results.append((FAIL, name, f"{type(exc).__name__}: {exc}"))
 
 

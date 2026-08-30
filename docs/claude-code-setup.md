@@ -22,6 +22,14 @@ User scope, so the tools are present in every session on the machine rather than
 only in this repository:
 
 ```bash
+claude mcp add wayland-computer-use --scope user -- wayland-computer-use
+```
+
+`wayland-computer-use` is the console script installed by
+`pipx install --system-site-packages wayland-computer-use`. From a clone
+instead, name the file by its absolute path:
+
+```bash
 cd /path/to/wayland-computer-use
 claude mcp add wayland-computer-use --scope user -- "$PWD/mcp_server.py"
 ```
@@ -32,6 +40,14 @@ must be absolute — user scope means the entry is used from every directory, an
 a relative `./mcp_server.py` would resolve against whatever project the session
 happened to start in. `mcp_server.py` has a shebang and the executable bit; if
 that has been lost, use `-- python3 "$PWD/mcp_server.py"` instead.
+
+As a Claude Code plugin, neither step is needed — the plugin registers the
+server itself:
+
+```bash
+claude plugin marketplace add tristanmuzzu/wayland-computer-use
+claude plugin install wayland-computer-use@wayland-computer-use
+```
 
 The equivalent as a `.mcp.json` block at a project root:
 

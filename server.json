@@ -1,0 +1,44 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.tristanmuzzu/wayland-computer-use",
+  "title": "Wayland Computer Use",
+  "description": "Computer use on GNOME Wayland: verified clicks, accessibility tree, and an invisible second desktop",
+  "version": "0.1.0",
+  "websiteUrl": "https://github.com/tristanmuzzu/wayland-computer-use",
+  "repository": {
+    "url": "https://github.com/tristanmuzzu/wayland-computer-use",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "wayland-computer-use",
+      "version": "0.1.0",
+      "runtimeHint": "pipx",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--system-site-packages",
+          "description": "Required at install time. PyGObject ships no PyPI wheels, so the environment must be able to see the distro package (python3-gi / python3-gobject / python-gobject). `wcu-setup --check` prints the exact install line for the running distro.",
+          "isRequired": true
+        }
+      ],
+      "environmentVariables": [
+        {
+          "name": "WCU_SESSION",
+          "description": "Which desktop to drive: 'primary' (the screen you are looking at), 'headless' for an invisible virtual-monitor session, or 'headless:<name>' to pick one of several.",
+          "default": "primary"
+        },
+        {
+          "name": "WCU_INPUT_BACKEND",
+          "description": "Force the input path: 'mutter' for GNOME's org.gnome.Mutter.RemoteDesktop (no consent dialog), 'portal' for org.freedesktop.portal.RemoteDesktop (one consent, then persisted). Auto-selected when unset.",
+          "default": "auto"
+        }
+      ]
+    }
+  ]
+}

@@ -14,8 +14,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import headless  # noqa: E402
-from wcu.errors import ToolError  # noqa: E402
+from wcu import headless
+from wcu.errors import ToolError
 
 
 def _dead_state(display="wayland-wcu"):

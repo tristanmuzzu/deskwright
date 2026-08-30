@@ -27,7 +27,7 @@ screenshot, all on the virtual monitor. README § "The headless second
 session".
 
 **Shipped 2026-08-24: the portal input backend (#32), both moats now real.**
-`portal_input.py` speaks `org.freedesktop.portal.RemoteDesktop` +
+`wcu/portal_input.py` speaks `org.freedesktop.portal.RemoteDesktop` +
 `ScreenCast`; absolute motion is mapped into the containing stream (the
 spike's open wire); `restore_token` persisted per session, with a self-heal
 that discards a token granted without *Allow Remote Interaction*; backend
@@ -236,7 +236,7 @@ half autonomous.
 26. **Rename the personal namespace.** [S]
     `org.tristan.MigrationHelpers`, `migration-helpers@tristan.local`,
     "Tristan" in error strings (`mcp_server.py:115`, `:174`,
-    `desktop.py:104`). One re-login; batch with any extension change.
+    `wcu/desktop.py:104`). One re-login; batch with any extension change.
 27. **Bundle the GNOME extension into this repo** with an installer. [S]
 28. **Split `mcp_server.py` (3,705 lines)** by domain: capture / input /
     atspi / ocr / guards / steps / server. Tool surface unchanged. [M]

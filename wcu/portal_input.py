@@ -50,10 +50,10 @@ from typing import Any
 import gi
 
 gi.require_version("Gio", "2.0")
-from gi.repository import Gio, GLib  # noqa: E402
+from gi.repository import Gio, GLib
 
 # One keysym table, one button table, one gesture layer for every backend.
-from remote_input import (  # noqa: E402
+from .remote_input import (
     BUTTONS,
     IDLE_TIMEOUT_S,
     KEYSYMS,
@@ -62,7 +62,7 @@ from remote_input import (  # noqa: E402
     char_to_keysym,
 )
 
-__all__ = ["PortalInput", "InputError", "KEYSYMS", "char_to_keysym", "shared"]
+__all__ = ["KEYSYMS", "InputError", "PortalInput", "char_to_keysym", "shared"]
 
 PORTAL = "org.freedesktop.portal.Desktop"
 PORTAL_PATH = "/org/freedesktop/portal/desktop"

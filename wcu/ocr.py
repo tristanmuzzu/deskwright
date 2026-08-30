@@ -87,7 +87,7 @@ def tool_find_text(a: dict) -> dict:
     try:
         from .tripwire import check as _injection_check
         warning = _injection_check(" ".join(w["text"] for w in words))
-    except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+    except Exception:
         warning = None
     if warning:
         out["injection_warning"] = warning

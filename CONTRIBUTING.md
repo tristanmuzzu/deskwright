@@ -19,11 +19,20 @@ The MCP server lives in `wcu/`; `mcp_server.py` is the thin entry point.
 | `wcu/steps.py` | `do_steps`: up-front validation of the whole sequence, per-step retry, the one-picture-at-the-end contract. |
 | `wcu/errors.py` | `ToolError` and the stable machine-readable error codes agents branch on. |
 | `wcu/config.py` | Paths and constants. |
-| `extension/` | The compositor-side half: `org.wcu.Helpers` D-Bus service inside gnome-shell (screenshots, windows, pointer position, halt keybinding, indicator). Changes here need a logout/login to load — see extension/README.md. |
+| `wcu/extension/` | The compositor-side half: `org.wcu.Helpers` D-Bus service inside gnome-shell (screenshots, windows, pointer position, halt keybinding, indicator). Changes here need a logout/login to load — see wcu/extension/README.md. |
 
-`atspi_ui.py`, `desktop.py`, `remote_input.py`, `screencast.py` and
-`frames.py` are the standalone CLI forerunners; `remote_input.py` is also the
-library the server's input path uses.
+`wcu/atspi_ui.py`, `wcu/desktop.py`, `wcu/remote_input.py`,
+`wcu/portal_input.py`, `wcu/screencast.py` and `wcu/frames.py` are the
+standalone CLI forerunners -- run them as `python3 -m wcu.<name>`. They are
+not vestigial: `wcu/remote_input.py` and `wcu/portal_input.py` are the two
+input backends, and `wcu/capture.py` shells out to `wcu/screencast.py` and
+`wcu/frames.py` because a recording has to outlive one tool call.
+
+`wcu/cli.py` is the `wayland-computer-use` console script and
+`mcp_server.py` at the root is the same entry point by the path existing
+MCP registrations already point at; both go through `wcu/session.py` for
+headless pinning. Everything the server needs at runtime lives inside the
+`wcu` package, extension included, so the wheel is a complete install.
 
 ## Tests, and which need a live desktop
 
@@ -92,7 +101,7 @@ merge.
 
 1. `./mcp_server.py --self-test` on a real session, plus the headless suites.
 2. If you touched the extension: syntax-check
-   (`extension/wcu@wayland-computer-use/check-syntax.sh`), and say in the PR
+   (`wcu/extension/wcu@wayland-computer-use/check-syntax.sh`), and say in the PR
    that the change needs a re-login to verify — reviewers cannot see it live
    until then.
 3. New behavior gets a test in the right category above — headless if it can

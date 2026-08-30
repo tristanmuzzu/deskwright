@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import itertools
 import json
 import os
 import re
@@ -10,7 +11,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from .config import HERE
+from .config import PKG
 from .errors import ToolError
 from .shell import _gdbus, _resolve_target, extension_methods, list_windows, window_at
 
@@ -473,7 +474,7 @@ def _frame_delta(before: bytes, after: bytes, ignore: set[int] | None = None) ->
     if len(before) != len(after) or not before:
         return {"percent": 100.0, "strong_cells": len(after or b""), "max_delta": 255}
     moved = strong = peak = 0
-    for index, (x, y) in enumerate(zip(before, after)):
+    for index, (x, y) in enumerate(zip(before, after, strict=True)):
         if ignore and index in ignore:
             continue
         delta = x - y if x > y else y - x
@@ -498,10 +499,10 @@ def _ambient_cells(frames: list[bytes]) -> set[int]:
     not evidence that the action did anything.
     """
     moving: set[int] = set()
-    for earlier, later in zip(frames, frames[1:]):
+    for earlier, later in itertools.pairwise(frames):
         if len(earlier) != len(later):
             continue
-        for index, (x, y) in enumerate(zip(earlier, later)):
+        for index, (x, y) in enumerate(zip(earlier, later, strict=True)):
             if abs(x - y) > CELL_NOISE:
                 moving.add(index)
     return moving
@@ -645,7 +646,7 @@ class _Look:
     rather than again on the way out.
     """
 
-    __slots__ = ("mode", "region", "window", "before")
+    __slots__ = ("before", "mode", "region", "window")
 
     def __init__(self, mode: Any, region: tuple | None, window: dict | None,
                  before: list[bytes] | None):
@@ -790,7 +791,7 @@ def _changed_text(path: Path, box: dict,
             int((box["y"] - ry - pad_y) * fy),
             int((box["x"] - rx + box["width"] + pad_x) * fx),
             int((box["y"] - ry + box["height"] + pad_y) * fy))
-    from .ocr import ocr_snippet                    # late: ocr imports this module
+    from .ocr import ocr_snippet  # late: ocr imports this module
     snippet = ocr_snippet(path, crop, budget_s=CHANGE_OCR_BUDGET_S)
     # Additive tripwire on whatever the changed area now says; a tripwire
     # failure must never break the look it decorates.
@@ -799,7 +800,7 @@ def _changed_text(path: Path, box: dict,
         if isinstance(snippet, dict) and snippet.get("text"):
             from .tripwire import check as _injection_check
             warning = _injection_check(str(snippet["text"]))
-    except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+    except Exception:
         warning = None
     if warning:
         snippet["injection_warning"] = warning
@@ -1170,7 +1171,7 @@ def tool_screencast(a: dict) -> dict:
         raise ToolError(f"seconds must be between 0.5 and 120, got {seconds}",
                         code="bad_args")
 
-    cmd = [sys.executable, str(HERE / "screencast.py"),
+    cmd = [sys.executable, str(PKG / "screencast.py"),
            "--seconds", str(seconds), "--fps", str(int(a.get("fps", 30)))]
     if a.get("target") is not None:
         cmd += ["--window", str(_resolve_target(a["target"])["id"])]
@@ -1214,7 +1215,7 @@ def _frames_once(a: dict, raw: Any) -> dict:
         raise ToolError(f"cols and rows must each be 1-8, got {cols}x{rows}",
                         code="bad_args")
 
-    cmd = [sys.executable, str(HERE / "frames.py"),
+    cmd = [sys.executable, str(PKG / "frames.py"),
            str(path), str(outdir), "--cols", str(cols), "--rows", str(rows),
            "--json"]
     for flag, key in (("--from-frame", "from_frame"), ("--to-frame", "to_frame")):

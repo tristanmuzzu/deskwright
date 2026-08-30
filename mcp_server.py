@@ -68,72 +68,15 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 
-def _resolve_session() -> None:
-    """Pin this process to a headless session when asked.
+# The implementation lives in the wcu/ package; this file is the executable
+# entry point, kept because existing MCP registrations point at this exact
+# path. An installed copy of the package puts the same thing on PATH as
+# `wayland-computer-use` (wcu/cli.py).
+from wcu.session import resolve_session
 
-    `WCU_SESSION=headless` (or `--session headless`) makes this server drive
-    a private virtual-monitor session instead of the user's desktop --
-    starting it first if needed (wcu/headless.py). Every backend resolves the
-    session lazily from `DBUS_SESSION_BUS_ADDRESS`/`WAYLAND_DISPLAY`, so
-    pinning is purely an environment operation; it runs here, before any
-    backend import can touch a bus, and no tool code knows the difference.
+resolve_session(as_server=(__name__ == "__main__"))
 
-    `headless:<name>` picks WHICH headless desktop. Two agent sessions that
-    want to work at the same time without watching each other's windows move
-    register servers with different names; the same name means the same
-    desktop, which is what everybody shared before names existed.
-
-    Runs at IMPORT, not only as the entry point, because the live test
-    suites (`tests/test_e2e_real_task.py` and friends) drive the tools by
-    importing this module in-process -- `WCU_SESSION=headless ./tests/...`
-    is what lets the whole e2e suite run on the headless session without
-    touching the user's desktop. With the variable unset this is a no-op.
-    """
-    import os
-    session = os.environ.get("WCU_SESSION", "")
-    if "--session" in sys.argv:
-        session = sys.argv[sys.argv.index("--session") + 1]
-    if not session or session == "primary":
-        return
-    kind, _, raw_name = session.partition(":")
-    if kind != "headless":
-        print(f"unknown --session {session!r}; use 'primary', 'headless', or "
-              "'headless:<name>' for a specific virtual desktop", file=sys.stderr)
-        sys.exit(2)
-    from wcu.errors import ToolError
-    from wcu.headless import ensure, pin_env, session_name, status
-    try:
-        name = session_name(raw_name or None)
-    except ToolError as e:
-        print(e.wire_text(), file=sys.stderr)
-        sys.exit(2)
-    # The lazy path below re-reads this instead of closing over `name`, so the
-    # first tool call starts the session the flag asked for.
-    os.environ["WCU_SESSION"] = f"headless:{name}"
-    if __name__ == "__main__":
-        # Running AS the server: a cold session start costs 15-20s, and paying
-        # it here means paying it inside the MCP client's initialize window --
-        # measured 2026-08-25 killing the connection before the first call.
-        # So initialize stays instant: pin now if the session is already up,
-        # otherwise leave a marker and let the FIRST TOOL CALL start it (same
-        # total wait, no timeout window; wcu/server.py owns the marker).
-        st = status(name)
-        if st.get("running"):
-            pin_env(st)
-        else:
-            os.environ["WCU_HEADLESS_LAZY"] = "1"
-        return
-    # Imported by a test or script that will call tool functions directly,
-    # bypassing serve(): the session must be ready before the first call.
-    pin_env(ensure(name=name))
-
-
-_resolve_session()
-
-# The implementation lives in the wcu/ package. This file stays as the
-# executable entry point -- the user-scope MCP registration points at this
-# exact path -- and re-exports the public surface for existing importers
-# (the tests do `import mcp_server as srv`).
+# Re-exported for existing importers (the tests do `import mcp_server as srv`).
 from wcu.atspi import (  # noqa: F401
     DEFAULT_FIND_DEPTH,
     DEFAULT_TREE_DEPTH,
@@ -224,12 +167,6 @@ from wcu.shell import (  # noqa: F401
 from wcu.steps import DO_STEPS_MAX, tool_do_steps  # noqa: F401
 
 if __name__ == "__main__":
-    if "--self-test" in sys.argv:
-        # The self-test calls tool functions in-process, not through serve(),
-        # so a deferred headless start must happen before it, not lazily.
-        import os as _os
-        if _os.environ.pop("WCU_HEADLESS_LAZY", None):
-            from wcu.headless import ensure, pin_env
-            pin_env(ensure())
-        sys.exit(self_test())
-    sys.exit(serve())
+    from wcu.cli import main
+
+    sys.exit(main())

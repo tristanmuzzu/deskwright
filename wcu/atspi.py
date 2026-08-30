@@ -21,13 +21,21 @@ MAX_FIND_NODES = 4000
 
 
 # ---- AT-SPI --------------------------------------------------------------
+# Said in full wherever PyGObject turns out to be missing: it is the one
+# dependency pip cannot solve, so the message has to carry the fix.
+GI_HINT = (
+    "PyGObject has no PyPI wheels, so an isolated venv cannot see it: install the distro package (python3-gi / python3-gobject / python-gobject) and let this package see it -- `pipx install --system-site-packages wayland-computer-use`. `wcu-setup --check` names the exact line for your distro."
+)
+
+
 def _atspi():
     try:
         import gi
         gi.require_version("Atspi", "2.0")
         from gi.repository import Atspi
     except Exception as e:
-        raise ToolError(f"AT-SPI is unavailable ({type(e).__name__}: {e})",
+        hint = (" " + GI_HINT) if isinstance(e, ImportError) else ""
+        raise ToolError(f"AT-SPI is unavailable ({type(e).__name__}: {e}).{hint}",
                         code="atspi_unavailable") from None
     Atspi.init()
     return Atspi
@@ -108,7 +116,7 @@ def _find_app(app_name: str):
     matches = exact or [(n, a) for n, a in apps if wanted.lower() in n.lower()]
 
     if wanted_pid is not None:
-        for name, app in matches or apps:
+        for _name, app in matches or apps:
             if _app_pid(app) == wanted_pid:
                 return app
         raise ToolError(
@@ -662,7 +670,7 @@ def tool_ui_read_text(a: dict) -> dict:
     try:
         from .tripwire import check as _injection_check
         warning = _injection_check(content)
-    except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+    except Exception:
         warning = None
     if warning:
         out["injection_warning"] = warning

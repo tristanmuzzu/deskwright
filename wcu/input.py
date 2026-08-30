@@ -176,7 +176,7 @@ def combo_keysyms(combo: str) -> list[int]:
     position on a US keyboard and a keysym is the key that was meant.
     """
     parse_combo(combo)                  # refusals and unknown-key errors first
-    import remote_input
+    from . import remote_input
     syms = []
     for part in [p.strip().lower() for p in str(combo).split("+") if p.strip()]:
         sym = remote_input.KEYSYMS.get(part)
@@ -231,14 +231,16 @@ def _input():
         choice = "mutter" if _mutter_api_present() else "portal"
     try:
         if choice == "portal":
-            import portal_input as backend
+            from . import portal_input as backend
         else:
-            import remote_input as backend
+            from . import remote_input as backend
     except Exception as e:                                  # pragma: no cover
+        from .atspi import GI_HINT
+        hint = (" " + GI_HINT) if isinstance(e, ImportError) else ""
         raise ToolError(
             f"the {choice} pointer layer is unavailable "
-            f"({type(e).__name__}: {e}). It needs PyGObject (python3-gi) "
-            "and a session bus.",
+            f"({type(e).__name__}: {e}). It needs PyGObject and a session "
+            f"bus.{hint}",
             code="input_backend_failed",
         ) from None
     _INPUT_BACKEND = backend
@@ -961,7 +963,7 @@ def tool_clipboard_read(a: dict) -> dict:
         try:
             from .tripwire import check as _injection_check
             warning = _injection_check(text)
-        except Exception:  # noqa: BLE001 -- the tripwire is a bonus, never a break
+        except Exception:
             warning = None
         if warning:
             out["injection_warning"] = warning
@@ -1060,7 +1062,7 @@ def _clipboard_write_text(text: str) -> dict:
     got: str | None = None
     why = ""
     try:
-        for attempt in range(2):
+        for _attempt in range(2):
             got, why = _read_clipboard_text()
             if got == text:
                 result["verified"] = True

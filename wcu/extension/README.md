@@ -14,7 +14,7 @@ tried first and denied: `org.gnome.Shell.Screenshot` answers
 `AccessDenied: GrabAccelerator is not allowed`, and there is no protocol at all
 for a client to read the pointer, learn window geometry, or raise a window.
 Inside the compositor every one of these is an ordinary call, so that is where
-this code lives. (Full denial table in the main [README](../README.md).)
+this code lives. (Full denial table in the main [README](../../README.md).)
 
 ## Install
 

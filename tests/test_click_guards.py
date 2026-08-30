@@ -167,14 +167,14 @@ def test_drag_default_path_is_the_measured_one(rig):
     """dwell_ms defaults to 0 because the current timings landed 5/5 and the
     slower variant landed 4/5 (2026-08-24). The default must stay untouched."""
     wi.tool_pointer_drag({"from_x": 10, "from_y": 10, "to_x": 90, "to_y": 90})
-    (_, args, kwargs), = [e for e in rig["pointer"].events if e[0] == "drag"]
+    (_, _args, kwargs), = [e for e in rig["pointer"].events if e[0] == "drag"]
     assert kwargs["dwell_ms"] == 0
 
 
 def test_drag_dwell_is_passed_through(rig):
     wi.tool_pointer_drag({"from_x": 10, "from_y": 10, "to_x": 90, "to_y": 90,
                           "dwell_ms": 400})
-    (_, args, kwargs), = [e for e in rig["pointer"].events if e[0] == "drag"]
+    (_, _args, kwargs), = [e for e in rig["pointer"].events if e[0] == "drag"]
     assert kwargs["dwell_ms"] == 400
 
 

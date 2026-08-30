@@ -6,8 +6,7 @@ from typing import Any
 
 from .atspi import _window_for_atspi_app
 from .capture import _Look, _look, _look_before, _parse_region
-from .errors import ToolError
-from .errors import CODES
+from .errors import CODES, ToolError
 from .shell import WAIT_CONDITIONS, _resolve_target, window_at
 
 

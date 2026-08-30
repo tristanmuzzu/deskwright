@@ -5,7 +5,8 @@ import os
 import shutil
 import subprocess
 import sys
-from typing import Any, Callable
+from collections.abc import Callable
+from typing import Any
 
 from .atspi import (
     DEFAULT_FIND_DEPTH,
@@ -59,8 +60,8 @@ from .shell import (
     _extension_state,
     _needs_relogin,
     extension_methods,
-    list_windows,
     halt_active,
+    list_windows,
     tool_activate_window,
     tool_assert_state,
     tool_list_windows,

@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "wayland-computer-use": {
+      "command": "${CLAUDE_PLUGIN_ROOT}/mcp_server.py",
+      "args": []
+    }
+  }
+}

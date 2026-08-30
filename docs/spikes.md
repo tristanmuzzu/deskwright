@@ -8,7 +8,7 @@
 > broke the PRIMARY session's a11y), and `gio launch`'s D-Bus activation
 > loses the window on the private session (direct Exec spawn instead).
 > **Update 2026-08-24 (later):** Spike 2 is productized too —
-> `portal_input.py`, selected automatically or via `WCU_INPUT_BACKEND`
+> `wcu/portal_input.py`, selected automatically or via `WCU_INPUT_BACKEND`
 > (README § "Two input backends"). The `Invalid position` wire is closed the
 > way the spec intends: the RemoteDesktop session doubles as a ScreenCast
 > session and every coordinate is mapped into the stream containing it.

@@ -25,7 +25,7 @@ import hashlib
 import json
 import os
 import time
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -39,12 +39,13 @@ HASH_MAX_BYTES = 64 * 1024 * 1024   # a shot is ~100KB; never grind on a giant f
 _REDACT_MAX_DEPTH = 8
 
 # The seam server.py consults: journal acted tools, skip reading tools.
-SHOULD_JOURNAL = lambda tool_name, read_only: not read_only
+def SHOULD_JOURNAL(tool_name: str, read_only: bool) -> bool:
+    return not read_only
 
 
 def _today() -> date:
     """Local calendar date, matching the local-time file names."""
-    return datetime.now(timezone.utc).astimezone().date()
+    return datetime.now(UTC).astimezone().date()
 
 
 def _journal_dir() -> Path:
@@ -72,7 +73,7 @@ def _session() -> str:
             # LAST ')' so fields 3+ are clean. starttime is field 22.
             fields = stat.rsplit(")", 1)[1].split()
             _session_id = f"{pid}-{fields[19]}"
-        except Exception:  # noqa: BLE001 -- any surprise falls back to wall time
+        except Exception:
             _session_id = f"{pid}-{int(time.time())}"
     return _session_id
 
@@ -111,7 +112,7 @@ def _sha256_of(path: str) -> str | None:
             for chunk in iter(lambda: f.read(1 << 20), b""):
                 h.update(chunk)
         return h.hexdigest()
-    except Exception:  # noqa: BLE001 -- a hash is a bonus, never a failure
+    except Exception:
         return None
 
 
@@ -156,7 +157,7 @@ def record(tool: str, args: dict, outcome: dict) -> None:
     """
     try:
         entry = {
-            "ts": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
+            "ts": datetime.now(UTC).isoformat(timespec="milliseconds"),
             "session": _session(),
             # WHICH desktop. With several named headless sessions live at
             # once, "a click happened" is not a reviewable record unless it
@@ -180,7 +181,7 @@ def record(tool: str, args: dict, outcome: dict) -> None:
             os.write(fd, line.encode("utf-8"))
         finally:
             os.close(fd)
-    except Exception:  # noqa: BLE001, S110 -- fire-and-forget is the contract
+    except Exception:
         pass  # the journal must never fail the action it describes
 
 
@@ -205,7 +206,7 @@ def _rotate() -> None:
                     p.unlink()
                 except OSError:
                     pass
-    except Exception:  # noqa: BLE001, S110 -- retention is best-effort
+    except Exception:
         pass
 
 
@@ -215,7 +216,7 @@ def tool_journal(a: dict) -> dict:
         tail = int(a.get("tail") or DEFAULT_TAIL)
     except (TypeError, ValueError):
         raise ToolError(f"tail must be an integer, got {a.get('tail')!r}",
-                        code="bad_args")
+                        code="bad_args") from None
     tail = max(1, min(tail, MAX_TAIL))
     session = str(a.get("session") or "current")
     if session not in ("current", "all"):

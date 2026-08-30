@@ -1,16 +1,42 @@
 # wayland-computer-use
 
-**Native computer use for AI agents on GNOME Wayland.** Nothing mainstream
-covers this ground: Anthropic's reference computer-use environment is a Docker
-container running X11, and the desktop-automation stories of Claude Code and
-Codex skip Linux entirely. Meanwhile the classic Linux automation tools —
-`xdotool`, `wmctrl`, `grim` — are X11- or wlroots-only and fail on GNOME in
-ways that look like your own mistake. This project is an MCP server plus a
-small GNOME Shell extension that together give an agent the real desktop:
-screenshots and recordings, the accessibility tree, compositor-performed
-pointer and keyboard input, window management, OCR and clipboard — with every
-action verified and its result shown, because the agent's round trips, not the
-work, are the cost.
+[![CI](https://github.com/tristanmuzzu/wayland-computer-use/actions/workflows/ci.yml/badge.svg)](https://github.com/tristanmuzzu/wayland-computer-use/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/wayland-computer-use.svg)](https://pypi.org/project/wayland-computer-use/)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
+
+**Drive a GNOME/Wayland desktop from an agent — optionally on a second desktop
+you cannot see, while you keep using your screen.**
+
+An MCP server plus a small GNOME Shell extension. The agent gets the real
+desktop: the accessibility tree, compositor-performed pointer and keyboard
+input, window management, screenshots and recordings, OCR and the clipboard.
+Every action is verified and its result reported, because the agent's round
+trips — not the work — are the cost.
+
+What is different here:
+
+- **An invisible second desktop.** `WCU_SESSION=headless` runs the whole thing
+  on a private virtual monitor. Windows do not steal your focus, a long
+  unattended run does not fight you for the screen, and two named sessions can
+  work at once without watching each other's windows move.
+- **Clicks that are verified, not hoped for.** A click reports what changed on
+  screen. `expect_window` refuses a click that would land in the wrong window
+  and names the blocker. `ui_press` re-checks widget identity before pressing.
+  Typing proves focus first and reads the widget back.
+- **The accessibility tree first, pixels last.** `ui_press` invokes the
+  widget's own action, so it cannot miss; `find_text` (OCR) covers Chrome,
+  Electron and Qt, which expose almost nothing. A screenshot is the last
+  resort, not the first move.
+- **Evidence after the fact.** Every acted call is journaled with arguments,
+  outcome and verdict, and `Super+Ctrl+Escape` is a halt switch grabbed inside
+  the compositor that injected input cannot press or clear.
+
+Wayland deliberately denies all of this to ordinary clients, and the classic
+X11 tools (`xdotool`, `wmctrl`, `grim`) either do not work on GNOME or fail in
+ways that look like your own mistake. This project uses the four mechanisms
+that do exist: a shell extension over D-Bus, AT-SPI,
+`org.gnome.Mutter.RemoteDesktop`, and `xdg-desktop-portal` as the
+cross-compositor route.
 
 ## Support matrix
 
@@ -24,22 +50,57 @@ work, are the cost.
 ## Install
 
 ```bash
-git clone https://github.com/wayland-computer-use/wayland-computer-use
-cd wayland-computer-use
-bin/wcu-setup
+pipx install --system-site-packages wayland-computer-use
+wcu-setup
 ```
 
-`wcu-setup` enables the accessibility toolkit flag, installs the bundled GNOME
-Shell extension (`extension/wcu@wayland-computer-use` — one logout/login is
-required before the shell loads it; the setup says so), optionally sets up the
-`ydotoold` fallback, and prints the `claude mcp add` / `.mcp.json` snippet for
-your client. For Claude Code specifically — including the recommended
-auto-approval allowlist that makes unattended runs possible — see
-[docs/claude-code-setup.md](docs/claude-code-setup.md).
+That is the whole install — no checkout anywhere. The GNOME Shell extension
+ships inside the wheel and `wcu-setup` copies it into place.
 
-Then prove it works:
+`--system-site-packages` is not optional and not decoration. PyGObject
+publishes no wheels to PyPI, so it is a distro package everywhere
+(`python3-gi`, `python3-gobject`, `python-gobject`) and an isolated
+environment cannot see it. `wcu-setup --check` names the exact install line
+for your distro and exits nonzero if anything hard is missing.
+
+`wcu-setup` also enables the `toolkit-accessibility` flag, installs and
+enables the extension (**one logout/login is required** before gnome-shell
+loads it — the setup says so, loudly), prints the optional `ydotoold` unit,
+and prints the client registration line:
 
 ```bash
+claude mcp add wayland-computer-use --scope user -- wayland-computer-use
+```
+
+For Claude Code specifically — including the recommended auto-approval
+allowlist that makes unattended runs possible — see
+[docs/claude-code-setup.md](docs/claude-code-setup.md).
+
+Then prove it works, on a desktop you cannot see:
+
+```bash
+WCU_SESSION=headless wayland-computer-use --self-test
+```
+
+### As a Claude Code plugin
+
+The repository is also a plugin marketplace, which registers the MCP server
+and a skill that teaches the tool ordering:
+
+```bash
+claude plugin marketplace add tristanmuzzu/wayland-computer-use
+claude plugin install wayland-computer-use@wayland-computer-use
+```
+
+The plugin runs the server straight from its own checkout, so it needs the
+system dependencies (`wcu-setup --check` lists them) but no pip install.
+
+### From a clone
+
+```bash
+git clone https://github.com/tristanmuzzu/wayland-computer-use
+cd wayland-computer-use
+bin/wcu-setup
 ./mcp_server.py --self-test
 ```
 
@@ -155,15 +216,15 @@ them is documented somewhere as the way to do it.
 Every application exposes its real widgets with roles, names and invokable
 actions. Pressing the actual button beats clicking a pixel: it cannot miss, it
 cannot be defeated by a window moving, and it needs no pointer. The `ui_*`
-tools are built on it; `atspi_ui.py` is the standalone CLI for poking at it by
+tools are built on it; `wcu/atspi_ui.py` is the standalone CLI for poking at it by
 hand:
 
 ```bash
-./atspi_ui.py apps
-./atspi_ui.py tree "Google Chrome" --depth 6
-./atspi_ui.py find "Reload" --role "push button"
-./atspi_ui.py actions "gnome-tweaks/0"
-./atspi_ui.py do "gnome-tweaks/0" 0
+python3 -m wcu.atspi_ui apps
+python3 -m wcu.atspi_ui tree "Google Chrome" --depth 6
+python3 -m wcu.atspi_ui find "Reload" --role "push button"
+python3 -m wcu.atspi_ui actions "gnome-tweaks/0"
+python3 -m wcu.atspi_ui do "gnome-tweaks/0" 0
 ```
 
 One hard requirement: **`toolkit-accessibility` must be true before an
@@ -181,20 +242,20 @@ not know where it is. Use the tree for *what* to press, never for *where*.
 **The compositor itself, via the bundled extension.**
 Screenshots, the window list, focus control, window management, pointer
 position and the halt switch come from the **bundled GNOME Shell extension**
-(`extension/wcu@wayland-computer-use`, D-Bus name `org.wcu.Helpers`). An
+(`wcu/extension/wcu@wayland-computer-use`, D-Bus name `org.wcu.Helpers`). An
 extension runs inside gnome-shell, so the calls the compositor refuses to a
-client are ordinary calls to it. `desktop.py` is the standalone CLI over the
+client are ordinary calls to it. `wcu/desktop.py` is the standalone CLI over the
 same mechanisms:
 
 ```bash
-./desktop.py windows
-./desktop.py activate <id>
-./desktop.py screenshot shot.png
-./desktop.py type "hello"
-./desktop.py key ctrl+s
+python3 -m wcu.desktop windows
+python3 -m wcu.desktop activate <id>
+python3 -m wcu.desktop screenshot shot.png
+python3 -m wcu.desktop type "hello"
+python3 -m wcu.desktop key ctrl+s
 ```
 
-Keystrokes from `desktop.py` go through `ydotool` and `/dev/uinput`, below the
+Keystrokes from `wcu/desktop.py` go through `ydotool` and `/dev/uinput`, below the
 compositor. This is **focus-blind** — it types wherever focus happens to be, so
 call `activate` first — and it is also **layout-blind**: ydotool sends
 US-QWERTY keycodes and the compositor maps them through the active layout, so
@@ -206,7 +267,7 @@ problem; it sends keysyms through the compositor instead.
 `Ctrl+Alt+F1` … `F12` is `switch-to-session` in mutter. Injecting one throws the
 desktop onto a different virtual terminal showing a login screen, which is
 indistinguishable from a frozen machine — it cost a session and a hard
-power-off on 2026-08-08. `desktop.py key` and the server both refuse it rather
+power-off on 2026-08-08. `python3 -m wcu.desktop key` and the server both refuse it rather
 than trusting the caller to remember.
 
 ## The MCP server — the way this is actually meant to be used
@@ -261,7 +322,7 @@ Two things that are NOT true and were assumed to be:
 ### Pointing, and how to know where to point
 
 The pointer goes through `org.gnome.Mutter.RemoteDesktop` (see
-`remote_input.py`), which takes absolute coordinates in the same space
+`wcu/remote_input.py`), which takes absolute coordinates in the same space
 `list_windows` reports geometry in. No acceleration curve, no consent dialog,
 no closed loop. Proven by `tests/test_pointer.py`, which puts a witness window
 on screen and asserts against what it actually received.
@@ -550,12 +611,14 @@ Three measured characteristics to know:
 
 - GNOME Shell 48–50 on Wayland.
 - The bundled `wcu@wayland-computer-use` extension, installed and enabled
-  (`bin/wcu-setup`, or see [extension/README.md](extension/README.md)). It is
-  only picked up at session start; there is no way to reload gnome-shell on
-  Wayland without ending the session.
-- `python3-gi` and Pillow (`python3-pil`). PyGObject is what talks to
-  `org.gnome.Mutter.RemoteDesktop`; Pillow does the cropping, scaling and
-  annotation.
+  (`wcu-setup`, or see
+  [wcu/extension/README.md](wcu/extension/README.md)). It ships inside the
+  package, and is only picked up at session start; there is no way to reload
+  gnome-shell on Wayland without ending the session.
+- `python3-gi` (PyGObject) as a **distro** package — it has no PyPI wheels,
+  which is why the install line carries `--system-site-packages`. It is what
+  talks to `org.gnome.Mutter.RemoteDesktop` and AT-SPI. Pillow is a normal
+  dependency and does the cropping, scaling and annotation.
 - `gsettings set org.gnome.desktop.interface toolkit-accessibility true`.
 - Optional: `ydotoold` as a **system** service with its socket at
   `/run/ydotoold.socket` — only needed for the `via: "ydotool"` fallback.

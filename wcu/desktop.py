@@ -16,11 +16,11 @@ one of them to a client:
       atspi_ui.py. Prefer it. Pressing the real button cannot miss.
 
 Usage:
-    ./desktop.py windows
-    ./desktop.py activate <id>
-    ./desktop.py screenshot out.png [--cursor]
-    ./desktop.py type "hello world"
-    ./desktop.py key ctrl+s
+    python3 -m wcu.desktop windows
+    python3 -m wcu.desktop activate <id>
+    python3 -m wcu.desktop screenshot out.png [--cursor]
+    python3 -m wcu.desktop type "hello world"
+    python3 -m wcu.desktop key ctrl+s
 """
 from __future__ import annotations
 
@@ -82,7 +82,7 @@ MODIFIERS = {"ctrl", "control", "leftctrl", "shift", "leftshift", "alt",
              "leftalt", "super", "meta", "win"}
 
 
-def die(msg: str) -> "NoReturn":  # noqa: F821
+def die(msg: str) -> NoReturn:  # noqa: F821
     print(msg, file=sys.stderr)
     sys.exit(1)
 

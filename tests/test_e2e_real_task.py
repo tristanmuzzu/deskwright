@@ -75,7 +75,7 @@ SERVER = REPO / "mcp_server.py"
 # same _resolve_session() the server runs; with WCU_SESSION unset it is a
 # no-op and the test behaves exactly as before.
 sys.path.insert(0, str(REPO))
-import mcp_server  # noqa: E402,F401  (imported for its session pinning)
+import mcp_server  # noqa: F401  (imported for its session pinning)
 
 EDITOR_APP = "gnome-text-editor"
 EDITOR_SETTLE_S = 9.0

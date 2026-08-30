@@ -43,7 +43,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from wcu import headless                                        # noqa: E402
+from wcu import headless
 
 NAMES = ("wcutest-a", "wcutest-b")
 passed = failed = 0
@@ -170,7 +170,7 @@ def main() -> int:
 
         # Real work on both, one after the other, each in its own process.
         results = {}
-        for i, name in enumerate(NAMES):
+        for name in NAMES:
             mine = f"written-into-{name}"
             results[name] = drive(name, f"MINE = {mine!r}\n@@\n" + LAUNCH_AND_TYPE)
             check(f"{name}: an app launched and took text",

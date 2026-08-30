@@ -394,7 +394,9 @@ def _start_locked(name: str, size: str, display: str) -> dict[str, Any]:
         _cleanup_state(name)      # stale file from a dead session
 
     log_path = _rotate_log(os.path.join(_state_dir(), f"headless-shell{_suffix(name)}.log"))
-    log = open(log_path, "ab")
+    # Deliberately not a context manager: this handle is the child shell's
+    # stdout/stderr and has to outlive this function.
+    log = open(log_path, "ab")  # noqa: SIM115
 
     # A PRIVATE runtime dir, because two sessions sharing one is how the
     # headless session broke the user's desktop (2026-08-24): both sessions'

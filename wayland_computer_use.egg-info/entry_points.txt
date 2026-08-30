@@ -1,2 +1,0 @@
-[console_scripts]
-wcu-setup = wcu.setup_cli:main

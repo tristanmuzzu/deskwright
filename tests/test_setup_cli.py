@@ -201,29 +201,64 @@ def test_check_extension_states(monkeypatch, capsys, fake_repo,
     assert "enabled: yes" in out
 
 
-def test_repo_falls_back_to_own_checkout(monkeypatch, capsys, tmp_path,
-                                         no_subprocess):
-    """A bad --repo and a foreign cwd still resolve to the checkout the
-    package itself lives in (bin/wcu-setup run from anywhere)."""
+def test_no_argument_finds_the_extension_bundled_with_the_package(
+        monkeypatch, capsys, tmp_path, no_subprocess):
+    """The install story: `pipx install ... && wcu-setup`, no clone anywhere.
+
+    The extension ships inside the `wcu` package, so with no --repo, no
+    checkout and a foreign cwd, setup still knows what to copy.
+    """
     _patch_probes(monkeypatch, tmp_path)
     monkeypatch.chdir(tmp_path)           # cwd has no checkout
-    rc = setup_cli.run(check_only=True, repo_arg=str(tmp_path / "nowhere"))
+    rc = setup_cli.run(check_only=True, repo_arg=None)
     out = capsys.readouterr().out
     assert rc == 0
-    own_root = Path(setup_cli.__file__).resolve().parent.parent
-    assert f"repo: {own_root}" in out
+    packaged = Path(setup_cli.__file__).resolve().parent / "extension" / UUID
+    assert f"extension source: {packaged}" in out
+    assert "NOT FOUND" not in out
 
 
-def test_repo_truly_absent_is_reported(monkeypatch, capsys, tmp_path,
-                                       no_subprocess):
+def test_missing_extension_source_is_reported(monkeypatch, capsys, tmp_path,
+                                              no_subprocess):
     _patch_probes(monkeypatch, tmp_path)
-    monkeypatch.setattr(setup_cli, "find_repo_root", lambda explicit: None)
+    monkeypatch.setattr(setup_cli, "find_extension_source",
+                        lambda explicit: None)
     rc = setup_cli.run(check_only=True, repo_arg=None)
     out = capsys.readouterr().out
     assert rc == 0                        # dep report alone is still useful
-    assert "repo: NOT FOUND" in out
-    assert "repo checkout not found" in out
+    assert "extension source: NOT FOUND" in out
+    assert "extension source not found" in out
 
 
-def test_find_repo_root(fake_repo):
-    assert setup_cli.find_repo_root(str(fake_repo)) == fake_repo.resolve()
+def test_find_extension_source_default_is_the_packaged_copy():
+    packaged = Path(setup_cli.__file__).resolve().parent / "extension" / UUID
+    assert setup_cli.find_extension_source(None) == packaged
+    assert (packaged / "metadata.json").is_file()
+
+
+@pytest.mark.parametrize("layout", ["extension", "wcu/extension", "direct"])
+def test_find_extension_source_accepts_explicit_overrides(tmp_path, layout):
+    """--repo takes a checkout in either layout, or the extension dir itself."""
+    ext = tmp_path / UUID if layout == "direct" else tmp_path / layout / UUID
+    ext.mkdir(parents=True)
+    (ext / "metadata.json").write_text(f'{{"uuid": "{UUID}"}}\n')
+    arg = str(ext) if layout == "direct" else str(tmp_path)
+    assert setup_cli.find_extension_source(arg) == ext.resolve()
+
+
+def test_find_extension_source_rejects_a_path_with_no_extension(tmp_path):
+    assert setup_cli.find_extension_source(str(tmp_path / "nowhere")) is None
+
+
+def test_server_command_prefers_the_installed_console_script(monkeypatch):
+    monkeypatch.setattr(setup_cli, "_which",
+                        lambda n: "/usr/local/bin/wayland-computer-use"
+                        if n == "wayland-computer-use" else None)
+    assert setup_cli.server_command() == "/usr/local/bin/wayland-computer-use"
+
+
+def test_server_command_falls_back_to_the_checkout(monkeypatch):
+    monkeypatch.setattr(setup_cli, "_which", lambda n: None)
+    cmd = setup_cli.server_command()
+    assert cmd.endswith("mcp_server.py")
+    assert Path(cmd).is_file()

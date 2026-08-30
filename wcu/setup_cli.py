@@ -40,6 +40,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from .config import EXTENSION_DIR
+
 EXTENSION_UUID = "wcu@wayland-computer-use"
 EXTENSIONS_DIR = Path.home() / ".local/share/gnome-shell/extensions"
 A11Y_SCHEMA = "org.gnome.desktop.interface"
@@ -240,7 +242,7 @@ def list_with_uuid(gvariant: str, uuid: str) -> str | None:
     items = parse_string_list(gvariant)
     if uuid in items:
         return None
-    return format_string_list(items + [uuid])
+    return format_string_list([*items, uuid])
 
 
 def list_without_uuid(gvariant: str, uuid: str) -> str | None:
@@ -251,20 +253,30 @@ def list_without_uuid(gvariant: str, uuid: str) -> str | None:
     return format_string_list([i for i in items if i != uuid])
 
 
-# ---------------------------------------------------------------- repo
+# ------------------------------------------------------- extension source
 
-def find_repo_root(explicit: str | None) -> Path | None:
-    """The checkout that holds mcp_server.py and the bundled extension."""
-    candidates: list[Path] = []
+def find_extension_source(explicit: str | None) -> Path | None:
+    """Where the gnome-shell extension is read FROM.
+
+    It ships inside the `wcu` package (`wcu/extension/<uuid>/`), so a wheel
+    installed from PyPI carries it and there is nothing to clone. `--repo`
+    stays as an override for anyone testing an edited copy: pass either a
+    checkout, or the extension directory itself.
+    """
+    def valid(p: Path) -> Path | None:
+        return p.resolve() if (p / "metadata.json").is_file() else None
+
     if explicit:
-        candidates.append(Path(explicit).expanduser())
-    candidates.append(Path.cwd())
-    candidates.append(Path(__file__).resolve().parent.parent)
-    for c in candidates:
-        if (c / "mcp_server.py").is_file() and \
-                (c / "extension" / EXTENSION_UUID / "metadata.json").is_file():
-            return c.resolve()
-    return None
+        base = Path(explicit).expanduser()
+        for cand in (base,
+                     base / EXTENSION_UUID,
+                     base / "extension" / EXTENSION_UUID,
+                     base / "wcu" / "extension" / EXTENSION_UUID):
+            found = valid(cand)
+            if found:
+                return found
+        return None
+    return valid(EXTENSION_DIR / EXTENSION_UUID)
 
 
 def _dirs_identical(a: Path, b: Path) -> bool:
@@ -307,16 +319,14 @@ def step_accessibility(check_only: bool) -> None:
          " that app restarts.")
 
 
-def step_extension(repo: Path | None, check_only: bool) -> None:
+def step_extension(src: Path | None, check_only: bool) -> None:
     _header("gnome-shell extension (compositor-side helpers)")
-    if repo is None:
-        _say("  repo checkout not found -- run from the clone or pass"
-             " --repo /path/to/wayland-computer-use.")
-        _say("  (The extension and the MCP server are used from the checkout;"
-             " there is nothing to install without it.)")
+    if src is None:
+        _say("  extension source not found -- the copy bundled with this"
+             " install is missing, and --repo did not point at one either.")
+        _say(f"  (Expected it at {EXTENSION_DIR / EXTENSION_UUID}.)")
         return
 
-    src = repo / "extension" / EXTENSION_UUID
     dest = EXTENSIONS_DIR / EXTENSION_UUID
     installed = dest.is_dir()
     up_to_date = installed and _dirs_identical(src, dest)
@@ -430,24 +440,34 @@ def step_ydotoold() -> None:
          f" {'present' if has_socket else 'absent'}")
 
 
-def step_mcp(repo: Path | None) -> None:
+def server_command() -> str:
+    """How to invoke the MCP server on this machine.
+
+    The installed console script when it is on PATH (the pip/pipx route), and
+    otherwise the checkout's `mcp_server.py`, which is what a `git clone` has
+    before anything is installed.
+    """
+    found = _which("wayland-computer-use")
+    if found:
+        return found
+    local = Path(__file__).resolve().parent.parent / "mcp_server.py"
+    return str(local) if local.is_file() else "wayland-computer-use"
+
+
+def step_mcp() -> None:
     _header("Claude Code registration (printed, not run)")
-    where = str(repo) if repo else "/path/to/wayland-computer-use"
-    _say(f"  cd {where}")
-    _say('  claude mcp add wayland-computer-use --scope user --'
-         ' "$PWD/mcp_server.py"')
-    _say("  The MCP server itself stays path-invoked from the checkout --"
-         " it is not wrapped by this package.")
+    cmd = server_command()
+    _say(f'  claude mcp add wayland-computer-use --scope user -- "{cmd}"')
+    if not cmd.endswith("mcp_server.py"):
+        _say("  (`wayland-computer-use` is the console script this package"
+             " installs; it needs no checkout.)")
     _say("  Auto-approval allowlist and the reasoning behind it:"
          " docs/claude-code-setup.md")
 
 
-def step_self_test(repo: Path | None) -> None:
+def step_self_test() -> None:
     _header("proving it works")
-    if repo:
-        _say(f"  {repo}/mcp_server.py --self-test")
-    else:
-        _say("  ./mcp_server.py --self-test   (from the checkout)")
+    _say(f"  {server_command()} --self-test")
     _say("  Not run by this script: the self-test injects input (it probes the"
          " key-combo guards),")
     _say("  so run it yourself when you are looking at the screen.")
@@ -457,11 +477,12 @@ def step_self_test(repo: Path | None) -> None:
 
 def run(check_only: bool, repo_arg: str | None) -> int:
     family = detect_host_family()
-    repo = find_repo_root(repo_arg)
+    src = find_extension_source(repo_arg)
     _say("wcu-setup"
          + (" --check (read-only, changes nothing)" if check_only else "")
          + f" -- distro family: {family}"
-         + (f" -- repo: {repo}" if repo else " -- repo: NOT FOUND"))
+         + (f" -- extension source: {src}" if src
+            else " -- extension source: NOT FOUND"))
 
     _header("dependencies")
     lines, missing_hard = probe_deps(family)
@@ -469,10 +490,10 @@ def run(check_only: bool, repo_arg: str | None) -> int:
         _say(line)
 
     step_accessibility(check_only)
-    step_extension(repo, check_only)
+    step_extension(src, check_only)
     step_ydotoold()
-    step_mcp(repo)
-    step_self_test(repo)
+    step_mcp()
+    step_self_test()
 
     _say()
     if missing_hard:
@@ -495,8 +516,9 @@ def main(argv: list[str] | None = None) -> int:
                         help="read-only: detect everything, change nothing,"
                              " exit nonzero if a hard requirement is missing")
     parser.add_argument("--repo", metavar="DIR", default=None,
-                        help="path to the wayland-computer-use checkout"
-                             " (default: autodetect from cwd / this file)")
+                        help="install the gnome-shell extension from this"
+                             " checkout (or extension directory) instead of"
+                             " the copy bundled with this package")
     args = parser.parse_args(argv)
     return run(check_only=args.check, repo_arg=args.repo)
 

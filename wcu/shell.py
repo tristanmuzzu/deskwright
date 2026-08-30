@@ -480,7 +480,7 @@ WAIT_TIMEOUT_MIN_S = 0.2
 
 def _probe_text_appears(text: str, target: Any) -> tuple[bool, str]:
     """One OCR pass over the target window: is the string visible yet?"""
-    from .ocr import tool_find_text     # late: ocr imports capture imports shell
+    from .ocr import tool_find_text  # late: ocr imports capture imports shell
     try:
         found = tool_find_text({"text": text, "window": target, "limit": 1})
     except ToolError as e:
@@ -490,7 +490,7 @@ def _probe_text_appears(text: str, target: Any) -> tuple[bool, str]:
 
 
 def _probe_widget_exists(app: Any, text: Any, role: Any) -> tuple[bool, str]:
-    from .atspi import tool_ui_find     # late: atspi imports capture imports shell
+    from .atspi import tool_ui_find  # late: atspi imports capture imports shell
     query = {"app": app}
     if text:
         query["text"] = text
@@ -505,7 +505,7 @@ def _probe_widget_exists(app: Any, text: Any, role: Any) -> tuple[bool, str]:
 
 
 def _read_clipboard_now() -> str | None:
-    from .input import tool_clipboard_read      # late: input imports shell
+    from .input import tool_clipboard_read  # late: input imports shell
     try:
         return tool_clipboard_read({}).get("text")
     except ToolError:

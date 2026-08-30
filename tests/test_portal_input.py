@@ -7,7 +7,6 @@ without one: token persistence per session, the not-allowed self-heal,
 stream-relative coordinate mapping, and the rule that a failed look must never
 fail the action it measures.
 """
-import json
 import sys
 from pathlib import Path
 
@@ -15,14 +14,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu.errors import ToolError  # noqa: E402
+from wcu.errors import ToolError
 
 
 @pytest.fixture
 def portal(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
     monkeypatch.delenv("WCU_HEADLESS", raising=False)
-    import portal_input
+    from wcu import portal_input
     return portal_input
 
 
@@ -97,8 +96,7 @@ def test_backend_choice_is_explicit(monkeypatch):
 def test_gestures_are_shared_by_both_backends():
     """One drag implementation, not two -- the timings are measured and must
     not drift apart between the mutter and portal paths."""
-    import portal_input
-    import remote_input
+    from wcu import portal_input, remote_input
     assert issubclass(remote_input.RemoteInput, remote_input.Gestures)
     assert issubclass(portal_input.PortalInput, remote_input.Gestures)
     assert portal_input.PortalInput.drag is remote_input.Gestures.drag

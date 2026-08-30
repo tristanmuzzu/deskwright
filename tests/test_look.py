@@ -21,7 +21,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-from mcpdrv import Server                                    # noqa: E402
+from mcpdrv import Server
 
 CHECKS: list[tuple[str, bool, str]] = []
 

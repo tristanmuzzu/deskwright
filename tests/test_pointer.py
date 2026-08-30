@@ -37,7 +37,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import mcp_server as srv  # noqa: E402
+import mcp_server as srv
 
 PASS, FAIL, SKIP = "PASS", "FAIL", "SKIP"
 results: list[tuple[str, str, str]] = []
@@ -74,7 +74,7 @@ def check(name: str, fn) -> None:
         results.append((PASS, name, detail or ""))
     except AssertionError as exc:
         results.append((FAIL, name, str(exc)))
-    except Exception as exc:  # noqa: BLE001 - a test file wants the reason, not a trace
+    except Exception as exc:
         results.append((FAIL, name, f"{type(exc).__name__}: {exc}"))
 
 
@@ -85,7 +85,8 @@ class Witness:
         self.script = tmp / "witness.py"
         self.script.write_text(WITNESS)
         self.log = tmp / f"witness-{at[0]}-{at[1]}.log"
-        self.handle = open(self.log, "w")
+        # Outlives this method: it is the witness process's stdout.
+        self.handle = open(self.log, "w")  # noqa: SIM115
         env = dict(os.environ, GDK_BACKEND="x11")
         self.proc = subprocess.Popen(
             [sys.executable, str(self.script), str(size[0]), str(size[1]),
@@ -240,7 +241,7 @@ def test_window_at_agrees_with_the_stack(witness: Witness) -> str:
 
 def test_session_is_released(_: Witness) -> str:
     """The sharing indicator must not live in the top bar forever."""
-    import remote_input
+    from wcu import remote_input
     ri = remote_input.shared()
     ri.move_to(960, 540)
     assert ri.active, "a move did not open a session"

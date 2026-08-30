@@ -40,7 +40,7 @@ class Server:
         self.proc: subprocess.Popen | None = None
         self._id = 0
 
-    def __enter__(self) -> "Server":
+    def __enter__(self) -> Server:
         self.proc = subprocess.Popen(
             [sys.executable, self.server],
             stdin=subprocess.PIPE, stdout=subprocess.PIPE,

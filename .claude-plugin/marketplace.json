@@ -1,0 +1,16 @@
+{
+  "name": "wayland-computer-use",
+  "owner": {
+    "name": "Tristan Rafe Muzzu",
+    "url": "https://github.com/tristanmuzzu"
+  },
+  "plugins": [
+    {
+      "name": "wayland-computer-use",
+      "displayName": "Wayland Computer Use",
+      "description": "Computer use on GNOME Wayland: verified clicks, accessibility tree, and an invisible second desktop.",
+      "version": "0.1.0",
+      "source": "./"
+    }
+  ]
+}

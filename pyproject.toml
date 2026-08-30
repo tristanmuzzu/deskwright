@@ -1,11 +1,17 @@
-# Packaging exists for ONE console script: `wcu-setup`, the fresh-machine
-# setup/checker. The MCP server itself stays path-invoked
-# (`claude mcp add wayland-computer-use --scope user -- "$PWD/mcp_server.py"`)
-# and is deliberately NOT wrapped as an entry point -- it depends on the
-# checkout (extension/, top-level modules) and on system packages (python3-gi)
-# that an isolated pipx/uvx venv cannot see. `uvx --from . wcu-setup --check`
-# works from a clone; PyGObject is intentionally absent from `dependencies`
-# because it is a system package (python3-gi), not sanely pip-installable.
+# The whole runtime ships in the wheel: the MCP server, the four compositor
+# backends, and the gnome-shell extension as package data. That is what makes
+#
+#     pipx install --system-site-packages wayland-computer-use && wcu-setup
+#
+# a complete install with no checkout anywhere.
+#
+# `--system-site-packages` is not decoration. PyGObject has no wheels on PyPI
+# (verified 2026-08-30: "all versions of pygobject have no usable wheels"), it
+# is a system package everywhere -- python3-gi / python3-gobject /
+# python-gobject -- and building it from source needs girepository and cairo
+# headers most machines do not have. So it is deliberately absent from
+# `dependencies`, and the venv is told to see the distro's copy instead.
+# `wcu-setup --check` reports it by name with the exact install line.
 
 [build-system]
 requires = ["setuptools>=77"]
@@ -14,22 +20,91 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "wayland-computer-use"
 version = "0.1.0"
-description = "Drive a GNOME/Wayland desktop from an agent: MCP server plus compositor-side gnome-shell extension"
+description = "Computer use for AI agents on GNOME Wayland: an MCP server with verified clicks, an accessibility-tree-first tool surface, an invisible second desktop, a human halt switch, and an action journal."
 readme = "README.md"
 requires-python = ">=3.11"
-license = "Apache-2.0"  # placeholder; LICENSE file tracked separately
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "Tristan Rafe Muzzu", email = "tristan@zeticle.com" }]
+keywords = [
+    "mcp", "model-context-protocol", "computer-use", "ai-agents",
+    "wayland", "gnome", "desktop-automation", "accessibility", "at-spi",
+    "claude", "linux",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: X11 Applications :: Gnome",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Desktop Environment :: Gnome",
+    "Topic :: Software Development :: Testing",
+    "Topic :: Adaptive Technologies",
+]
 dependencies = [
     "Pillow",
 ]
 
+[project.urls]
+Homepage = "https://github.com/tristanmuzzu/wayland-computer-use"
+Source = "https://github.com/tristanmuzzu/wayland-computer-use"
+Issues = "https://github.com/tristanmuzzu/wayland-computer-use/issues"
+Changelog = "https://github.com/tristanmuzzu/wayland-computer-use/blob/main/ROADMAP.md"
+
 [project.scripts]
+# The MCP server. Register a client against this name, not against a path
+# inside a checkout: `claude mcp add wayland-computer-use --scope user --
+# wayland-computer-use`. `mcp_server.py` in a clone is the same entry point.
+wayland-computer-use = "wcu.cli:main"
+# Fresh-machine setup and checker: dependencies, the accessibility flag, the
+# bundled gnome-shell extension, and the client registration line.
 wcu-setup = "wcu.setup_cli:main"
-# Lifecycle of the second (virtual-monitor) session; light imports only,
-# so unlike the server it works from an isolated venv too.
+# Lifecycle of the invisible second (virtual-monitor) session.
 wcu-headless = "wcu.headless:main"
 
 [tool.setuptools]
-# Only the wcu package is installed. The server's runtime companions
-# (mcp_server.py, desktop.py, remote_input.py, screencast.py, frames.py,
-# extension/) live in the checkout, which is where the server runs from.
 packages = ["wcu"]
+
+[tool.setuptools.package-data]
+# The gnome-shell extension travels with the wheel -- `wcu-setup` copies it
+# out of the package into ~/.local/share/gnome-shell/extensions.
+wcu = [
+    "extension/README.md",
+    "extension/*/*.js",
+    "extension/*/*.json",
+    "extension/*/*.sh",
+    "extension/*/schemas/*.xml",
+    "extension/*/schemas/gschemas.compiled",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+# The desktop is an unreliable peer: AT-SPI, D-Bus and the portal all raise
+# arbitrary toolkit exceptions, and a tool that dies on one is worse than a
+# tool that degrades. Blanket-except rules are off for that reason, not by
+# neglect -- every such site either falls back or re-raises a ToolError.
+select = ["E", "F", "W", "I", "UP", "B", "C4", "SIM", "RUF"]
+ignore = [
+    "E501",    # long lines are prose in docstrings; line-length still applies to code
+    "B008",    # call-in-default is used deliberately for the seams
+    "SIM105",  # contextlib.suppress reads worse than the try/except it replaces here
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]        # sys.path bootstrap before imports, on purpose
+"mcp_server.py" = ["E402"]  # session pinning must run before the re-exports
+# gi.require_version() has to run before `from gi.repository import ...`;
+# that is PyGObject's documented idiom, not a stray import.
+"wcu/screencast.py" = ["E402"]
+"wcu/remote_input.py" = ["E402"]
+"wcu/portal_input.py" = ["E402"]
+"wcu/atspi_ui.py" = ["E402"]
