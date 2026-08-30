@@ -16,6 +16,35 @@ from __future__ import annotations
 import os
 import sys
 
+_RESOLVED = False
+
+
+def pinned_name() -> str | None:
+    """The headless session name `WCU_SESSION` currently asks for, or None.
+
+    Three callers need this answer -- the entry point, the deferred start in
+    `wcu/server.py`, and the self-test -- and each deriving it separately is
+    how `--self-test` on a cold `headless:alpha` ended up starting `default`
+    instead. `session_name()` still owns validation.
+    """
+    from .headless import session_name
+    kind, _, raw = os.environ.get("WCU_SESSION", "").partition(":")
+    if kind != "headless":
+        return None
+    return session_name(raw or None)
+
+
+def start_deferred() -> bool:
+    """Pay a deferred headless start now, for the session actually pinned.
+
+    True when a start was owed and made; False when there was nothing to do.
+    """
+    if not os.environ.pop("WCU_HEADLESS_LAZY", None):
+        return False
+    from .headless import ensure, pin_env
+    pin_env(ensure(name=pinned_name()))
+    return True
+
 
 def resolve_session(as_server: bool, argv: list[str] | None = None) -> None:
     """Set the environment that pins this process to the requested session.
@@ -31,6 +60,14 @@ def resolve_session(as_server: bool, argv: list[str] | None = None) -> None:
 
     With `WCU_SESSION` unset this is a no-op.
     """
+    global _RESOLVED
+    if _RESOLVED:
+        # `./mcp_server.py` resolves at import and then hands off to
+        # `wcu.cli.main`, which would otherwise re-probe the session -- two
+        # `gdbus` round trips inside the MCP initialize window the deferred
+        # start exists to protect.
+        return
+    _RESOLVED = True
     argv = sys.argv if argv is None else argv
     session = os.environ.get("WCU_SESSION", "")
     if "--session" in argv:

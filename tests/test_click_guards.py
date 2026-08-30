@@ -186,3 +186,41 @@ def test_failed_drop_does_not_blame_the_timings(rig, monkeypatch):
     assert "not the first thing to suspect" in hint
     assert "input grab" in hint
     assert "dwell_ms:400" in hint
+
+
+# ----------------------------------------------------------- the halt gate
+
+def test_a_halt_switch_that_vanishes_counts_as_halted(monkeypatch):
+    """`launch_app` is an arbitrary-exec primitive by design, so an agent can
+    run `gnome-extensions disable wcu@wayland-computer-use` -- which
+    unregisters the keybinding AND unowns the bus name. While a probe failure
+    counted as not-halted, that single call defeated the whole safety budget
+    before any human could press anything. Once the switch has answered,
+    silence is treated as halted."""
+    from wcu import shell
+    from wcu.errors import ToolError
+
+    monkeypatch.setattr(shell, "_HALT_WAS_ANSWERING", False)
+    monkeypatch.setattr(shell, "extension_methods", lambda: {"HaltActive"})
+
+    answers = ["(false,)"]
+
+    def fake_gdbus(method, *a, **k):
+        if not answers:
+            raise ToolError("the extension is not on the bus",
+                            code="extension_unavailable")
+        return answers.pop(0)
+
+    monkeypatch.setattr(shell, "_gdbus", fake_gdbus)
+    assert shell.halt_active() is False        # it answered: not halted
+    assert shell.halt_active() is True         # it stopped answering: halted
+
+
+def test_a_switch_that_was_never_there_does_not_block_everything(monkeypatch):
+    """Before the logout that loads the extension, nothing can be halted --
+    refusing every acted call there would make a fresh install useless."""
+    from wcu import shell
+
+    monkeypatch.setattr(shell, "_HALT_WAS_ANSWERING", False)
+    monkeypatch.setattr(shell, "extension_methods", lambda: set())
+    assert shell.halt_active() is False

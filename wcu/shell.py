@@ -63,7 +63,7 @@ def _gdbus(method: str, *args: str, timeout: float = 30.0) -> str:
     if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
         raise ToolError(
             "DBUS_SESSION_BUS_ADDRESS is not set, so the session bus is "
-            "unreachable. This server has to run inside Tristan's graphical "
+            "unreachable. This server has to run inside the user's graphical "
             "session -- it cannot work over a bare ssh login or from a system "
             "service.",
             code="extension_unavailable",
@@ -125,9 +125,10 @@ def _extension_diagnosis() -> str:
                 '"unlock-dialog". Nothing is broken. Screenshots and window '
                 "geometry come back on unlock. AT-SPI (ui_find / ui_press / "
                 "ui_tree) keeps working while locked, so prefer those. To keep "
-                "this working while locked, Tristan has to add "
-                '"unlock-dialog" to session-modes and log out once -- that is his '
-                "call, because it also makes screenshots possible while locked."
+                "this working while locked, add "
+                '"unlock-dialog" to the extension\'s session-modes and log out '
+                "once -- a deliberate choice, because it also makes screenshots "
+                "possible while the screen is locked."
             )
         return ("State is INACTIVE despite declaring unlock-dialog -- the extension "
                 "itself failed to load. Check journalctl --user -b for its error.")
@@ -695,20 +696,34 @@ def tool_assert_state(a: dict) -> dict:
                        "assertions hold")}
 
 
+_HALT_WAS_ANSWERING = False
+
+
 def halt_active() -> bool:
     """Whether the human kill switch is engaged.
 
     Only the bundled extension has it; on a shell that has not loaded it yet
-    this is a cached no at zero cost. Any probe failure counts as not-halted:
-    the switch exists to let a human stop the server, never to let a D-Bus
-    hiccup stop it.
+    this is a cached no at zero cost -- a switch that was never present cannot
+    be engaged, and refusing every acted call on a machine that simply has not
+    logged out yet would make the server useless.
+
+    Once it HAS answered, though, the reasoning inverts. A switch that
+    disappears mid-run is a stronger signal than a D-Bus hiccup: the same
+    `launch_app` primitive an agent uses for real work can run
+    `gnome-extensions disable wcu@wayland-computer-use`, which unregisters
+    the keybinding and unowns the bus name -- and a probe failure that counted
+    as not-halted turned that into a one-call defeat of the whole safety
+    budget. So after the first successful answer, silence counts as halted.
     """
+    global _HALT_WAS_ANSWERING
     if "HaltActive" not in extension_methods():
-        return False
+        return _HALT_WAS_ANSWERING
     try:
-        return "true" in _gdbus("HaltActive", timeout=5.0).lower()
+        answer = "true" in _gdbus("HaltActive", timeout=5.0).lower()
     except ToolError:
-        return False
+        return _HALT_WAS_ANSWERING
+    _HALT_WAS_ANSWERING = True
+    return answer
 
 
 _WINDOW_VERBS = {

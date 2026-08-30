@@ -102,6 +102,53 @@ def _redact(value: Any, depth: int = 0) -> Any:
     return value
 
 
+# Tools whose text argument is, sometimes, a password. Everything an agent
+# uses to enter one goes through exactly these three, and a password is
+# comfortably under the 200-character truncation, so it landed verbatim in a
+# file on disk. The journal never needed the characters: what a reviewer
+# reconstructs from it is "something was typed here, this much of it, and it
+# was/was not the same string as that other time" -- which a length and a
+# digest answer exactly. `WCU_JOURNAL_TEXT=1` restores the old behaviour for
+# anyone debugging their own flows.
+TEXT_BEARING = {
+    "type_text": ("text",),
+    "clipboard_write": ("text",),
+    "ui_set_text": ("text",),
+}
+
+
+def _fingerprint(text: str) -> dict:
+    return {"chars": len(text),
+            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]}
+
+
+# The same three tools reached through `do_steps`, by their step verb. A
+# password typed inside a batch is still a password.
+STEP_VERBS_BEARING_TEXT = {"type", "set_text", "clipboard_write"}
+
+
+def _redact_text_args(tool: str, args: dict) -> dict:
+    if os.environ.get("WCU_JOURNAL_TEXT") == "1":
+        return args
+    out = dict(args)
+    for key in TEXT_BEARING.get(str(tool), ()):
+        value = out.get(key)
+        if isinstance(value, str):
+            out[key] = _fingerprint(value)
+    if str(tool) == "do_steps" and isinstance(out.get("steps"), (list, tuple)):
+        out["steps"] = [_redact_step(st) for st in out["steps"]]
+    return out
+
+
+def _redact_step(step: Any) -> Any:
+    if not isinstance(step, dict):
+        return step
+    verb = str(step.get("do") or "").strip().lower()
+    if verb not in STEP_VERBS_BEARING_TEXT or not isinstance(step.get("text"), str):
+        return step
+    return {**step, "text": _fingerprint(step["text"])}
+
+
 def _sha256_of(path: str) -> str | None:
     try:
         p = Path(path)
@@ -167,7 +214,7 @@ def record(tool: str, args: dict, outcome: dict) -> None:
             "desktop": os.environ.get("WCU_HEADLESS_NAME")
             or ("headless" if os.environ.get("WCU_HEADLESS") else "primary"),
             "tool": str(tool),
-            "args": _redact(dict(args or {})),
+            "args": _redact(_redact_text_args(tool, dict(args or {}))),
             "outcome": _summary(outcome),
         }
         line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"

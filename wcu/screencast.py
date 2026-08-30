@@ -11,7 +11,7 @@ WHY IT DOES NOT USE THE PORTAL
 
 `org.freedesktop.portal.ScreenCast` is the documented route and it pops a
 "share your screen?" dialog every single run, which makes it useless to an
-agent working while Tristan is doing something else. `org.gnome.Mutter.ScreenCast`
+agent working while the user is doing something else. `org.gnome.Mutter.ScreenCast`
 is the layer underneath it and, on this machine, answers CreateSession for an
 ordinary session-bus client. Verified, not assumed: see tests/test_screencast.py.
 

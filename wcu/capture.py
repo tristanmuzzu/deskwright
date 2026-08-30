@@ -24,7 +24,10 @@ def _shot_path(a: dict) -> tuple[Path, bool]:
     throwaway /tmp path was pure ceremony on every single call."""
     raw = str(a.get("path") or "").strip()
     if not raw:
-        SHOT_CACHE.mkdir(parents=True, exist_ok=True)
+        # 0700: these are unredacted full-desktop captures kept for a while,
+        # so the cache must not be readable by other accounts on the machine.
+        SHOT_CACHE.mkdir(parents=True, mode=0o700, exist_ok=True)
+        SHOT_CACHE.chmod(0o700)
         _prune_shot_cache()
         return SHOT_CACHE / f"shot-{time.time():.3f}.png", False
 

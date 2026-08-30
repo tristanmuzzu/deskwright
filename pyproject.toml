@@ -71,14 +71,11 @@ packages = ["wcu"]
 [tool.setuptools.package-data]
 # The gnome-shell extension travels with the wheel -- `wcu-setup` copies it
 # out of the package into ~/.local/share/gnome-shell/extensions.
-wcu = [
-    "extension/README.md",
-    "extension/*/*.js",
-    "extension/*/*.json",
-    "extension/*/*.sh",
-    "extension/*/schemas/*.xml",
-    "extension/*/schemas/gschemas.compiled",
-]
+# Everything, recursively. A per-suffix allowlist silently drops whatever it
+# was not told about -- a stylesheet.css, an icons/ directory, a po/ -- and
+# the failure surfaces only as gnome-shell refusing to load the extension
+# after a logout. CI diffs `git ls-files wcu/extension` against the wheel.
+wcu = ["extension/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

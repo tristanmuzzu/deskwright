@@ -55,23 +55,27 @@ jobs:
       - run: python -m build
       - run: twine check dist/*
       # The install story is "no checkout anywhere", which is only true if the
-      # gnome-shell extension is inside the wheel. Prove it every build.
-      - name: the gnome-shell extension is in the wheel
+      # gnome-shell extension is inside the wheel. A hardcoded filename list
+      # would not notice a NEW extension file that package-data failed to
+      # pick up, so this diffs what git tracks against what shipped.
+      - name: every tracked extension file is in the wheel and the sdist
         run: |
           python - <<'PY'
-          import glob, sys, zipfile
-          names = zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist()
-          need = [
-              "wcu/extension/wcu@wayland-computer-use/metadata.json",
-              "wcu/extension/wcu@wayland-computer-use/extension.js",
-              "wcu/extension/wcu@wayland-computer-use/dbus.js",
-              "wcu/extension/wcu@wayland-computer-use/indicator.js",
-              "wcu/extension/wcu@wayland-computer-use/schemas/gschemas.compiled",
-          ]
-          missing = [n for n in need if n not in names]
-          if missing:
-              sys.exit("wheel is missing: " + ", ".join(missing))
-          print("extension present in the wheel:", len(need), "files")
+          import glob, subprocess, sys, tarfile, zipfile
+          tracked = set(subprocess.run(
+              ["git", "ls-files", "wcu/extension"],
+              capture_output=True, text=True, check=True).stdout.split())
+          if not tracked:
+              sys.exit("no tracked files under wcu/extension -- wrong checkout?")
+          wheel = set(zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist())
+          with tarfile.open(glob.glob("dist/*.tar.gz")[0]) as tar:
+              # sdist members are prefixed with <name>-<version>/
+              sdist = {n.split("/", 1)[1] for n in tar.getnames() if "/" in n}
+          for label, shipped in (("wheel", wheel), ("sdist", sdist)):
+              missing = sorted(tracked - shipped)
+              if missing:
+                  sys.exit(f"{label} is missing: " + ", ".join(missing))
+          print(f"all {len(tracked)} tracked extension files ship in both")
           PY
 
   server-json:

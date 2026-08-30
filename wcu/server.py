@@ -73,7 +73,19 @@ from .shell import (
 from .steps import DO_STEPS_MAX, tool_do_steps
 
 PROTOCOL_VERSION = "2025-06-18"
-SERVER_INFO = {"name": "wayland-computer-use", "version": "1.0.0"}
+
+
+def _version() -> str:
+    """The installed package version, so the version an MCP client is told in
+    `initialize` cannot drift from the one on PyPI."""
+    try:
+        from importlib.metadata import version
+        return version("wayland-computer-use")
+    except Exception:  # not installed: running straight from a checkout
+        return "0+unknown"
+
+
+SERVER_INFO = {"name": "wayland-computer-use", "version": _version()}
 
 
 def tool_health(_: dict) -> dict:
@@ -1184,11 +1196,8 @@ def handle(msg: dict) -> None:
             # of inside the MCP client's connect window. The marker is cleared
             # only on success, so a failed start is retried by the next call
             # (its ToolError still reaches the model either way).
-            if os.environ.get("WCU_HEADLESS_LAZY"):
-                from .headless import ensure, pin_env, session_name
-                _, _, _pinned = os.environ.get("WCU_SESSION", "").partition(":")
-                pin_env(ensure(name=session_name(_pinned or None)))
-                os.environ.pop("WCU_HEADLESS_LAZY", None)
+            from .session import start_deferred
+            start_deferred()
             # The kill switch gates every state-changing tool at one choke
             # point. Reading tools keep working while halted -- a human who
             # stopped the hands still wants the eyes.

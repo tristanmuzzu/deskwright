@@ -122,15 +122,21 @@ def no_subprocess(monkeypatch):
 
 
 def _patch_probes(monkeypatch, tmp_path, *, missing_bins=(), missing_mods=(),
-                  a11y="true", enabled=None):
+                  only_system_mods=(), a11y="true", enabled=None):
     # this machine has the extension really installed -- point the dest
     # elsewhere so the check reads the fake state, not the real one
     monkeypatch.setattr(setup_cli, "EXTENSIONS_DIR", tmp_path / "gnome-ext")
     monkeypatch.setattr(
         setup_cli, "_which",
         lambda name: None if name in missing_bins else f"/usr/bin/{name}")
+    # Two interpreters, two seams: `_import_ok_here` is the one the console
+    # script runs under, `_import_ok_system` is the distro python3 the
+    # checkout's shebang and the plugin route use.
     monkeypatch.setattr(
-        setup_cli, "_py_import_ok",
+        setup_cli, "_import_ok_here",
+        lambda mod: mod not in missing_mods and mod not in only_system_mods)
+    monkeypatch.setattr(
+        setup_cli, "_import_ok_system",
         lambda mod: mod not in missing_mods)
     values = {
         (setup_cli.A11Y_SCHEMA, setup_cli.A11Y_KEY): a11y,
@@ -225,7 +231,7 @@ def test_missing_extension_source_is_reported(monkeypatch, capsys, tmp_path,
                         lambda explicit: None)
     rc = setup_cli.run(check_only=True, repo_arg=None)
     out = capsys.readouterr().out
-    assert rc == 0                        # dep report alone is still useful
+    assert rc == 1                        # nothing was installed; say so
     assert "extension source: NOT FOUND" in out
     assert "extension source not found" in out
 
@@ -254,11 +260,56 @@ def test_server_command_prefers_the_installed_console_script(monkeypatch):
     monkeypatch.setattr(setup_cli, "_which",
                         lambda n: "/usr/local/bin/wayland-computer-use"
                         if n == "wayland-computer-use" else None)
-    assert setup_cli.server_command() == "/usr/local/bin/wayland-computer-use"
+    assert setup_cli.server_command() == (
+        "/usr/local/bin/wayland-computer-use", None)
 
 
-def test_server_command_falls_back_to_the_checkout(monkeypatch):
+def test_server_command_finds_the_script_beside_the_interpreter(monkeypatch, tmp_path):
+    """A pipx install whose bin dir is not on PATH must still get a command
+    that runs -- printing the bare name there hands the client an ENOENT."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    (bindir / "python").write_text("")
+    script = bindir / "wayland-computer-use"
+    script.write_text("#!/bin/sh\n")
     monkeypatch.setattr(setup_cli, "_which", lambda n: None)
-    cmd = setup_cli.server_command()
+    monkeypatch.setattr(setup_cli.sys, "executable", str(bindir / "python"))
+    cmd, caveat = setup_cli.server_command()
+    assert cmd == str(script)
+    assert "PATH" in caveat
+
+
+def test_server_command_falls_back_to_the_checkout(monkeypatch, tmp_path):
+    monkeypatch.setattr(setup_cli, "_which", lambda n: None)
+    monkeypatch.setattr(setup_cli.sys, "executable", str(tmp_path / "python"))
+    cmd, caveat = setup_cli.server_command()
     assert cmd.endswith("mcp_server.py")
     assert Path(cmd).is_file()
+    assert caveat is None
+
+
+def test_a_venv_without_system_site_packages_is_called_out(
+        monkeypatch, capsys, tmp_path, no_subprocess):
+    """The green check that used to be earned by the WRONG interpreter.
+
+    `pipx install` without `--system-site-packages` leaves the venv unable to
+    import gi while the distro python3 can. Every pointer and AT-SPI call
+    then fails against a setup report that said everything was present.
+    """
+    _patch_probes(monkeypatch, tmp_path, only_system_mods=("gi",))
+    rc = setup_cli.run(check_only=True, repo_arg=None)
+    out = capsys.readouterr().out
+    assert rc == 0                       # it IS present, for one of the routes
+    assert "NOTE: the system python3 has 'gi'" in out
+    assert "--system-site-packages" in out
+
+
+def test_missing_extension_source_is_a_failure_not_a_quiet_success(
+        monkeypatch, capsys, tmp_path, no_subprocess):
+    _patch_probes(monkeypatch, tmp_path)
+    monkeypatch.setattr(setup_cli, "find_extension_source",
+                        lambda explicit: None)
+    rc = setup_cli.run(check_only=True, repo_arg=None)
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert "RESULT:" in out and "extension" in out

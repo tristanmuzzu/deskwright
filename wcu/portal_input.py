@@ -87,7 +87,7 @@ START_TIMEOUT_S = 120.0
 def _token_file() -> str:
     state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
     d = os.path.join(state, "wayland-computer-use")
-    os.makedirs(d, exist_ok=True)
+    os.makedirs(d, mode=0o700, exist_ok=True)
     return os.path.join(d, "portal-tokens.json")
 
 
@@ -117,8 +117,16 @@ def _save_token(token: str | None, forget: bool = False) -> None:
         tokens.pop(_token_key(), None)
     else:
         tokens[_token_key()] = token
-    with open(_token_file(), "w") as f:
+    # A restore_token IS the capability: with persist_mode 2 it replays
+    # pointer injection, keyboard injection and monitor capture with no
+    # consent dialog, and it survives a reboot. So it is written 0600 by
+    # construction rather than by the user's umask -- plenty of distros ship
+    # 0755 home directories, and the file must not be readable there.
+    path = _token_file()
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(fd, "w") as f:
         json.dump(tokens, f, indent=1)
+    os.chmod(path, 0o600)
 
 
 class PortalInput(Gestures):

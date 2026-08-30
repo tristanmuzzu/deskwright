@@ -24,7 +24,8 @@ second run changes nothing and says so. Every state change prints the value
 before and after.
 
 Testability: every external read goes through a module-level seam
-(`_which`, `_py_import_ok`, `_gsettings_get`, `_bus_has_owner`) so the tests
+(`_which`, `_import_ok_here`, `_import_ok_system`, `_gsettings_get`,
+`_bus_has_owner`) so the tests
 monkeypatch those and never touch the real machine.
 """
 
@@ -149,10 +150,22 @@ def _which(name: str) -> str | None:
     return shutil.which(name)
 
 
-def _py_import_ok(module: str) -> bool:
-    """Import-probe the SYSTEM python3 (the one mcp_server.py's shebang runs),
-    not necessarily the interpreter running this script (uvx/pipx venvs do not
-    see distro packages like python3-gi)."""
+def _import_ok_here(module: str) -> bool:
+    """Can THIS interpreter import it? This is the one that matters for a
+    pip/pipx install: the console script runs under `sys.executable`, so a
+    venv built without `--system-site-packages` cannot see python3-gi no
+    matter what the distro python has."""
+    import importlib.util
+    try:
+        return importlib.util.find_spec(module) is not None
+    except (ImportError, ValueError):
+        return False
+
+
+def _import_ok_system(module: str) -> bool:
+    """Can the system python3 import it? This is the interpreter the
+    checkout's `./mcp_server.py` shebang and the Claude Code plugin route
+    use, so it still has to be reported."""
     py = shutil.which("python3")
     if not py:
         return False
@@ -162,6 +175,17 @@ def _py_import_ok(module: str) -> bool:
             capture_output=True, timeout=20, check=False).returncode == 0
     except (OSError, subprocess.TimeoutExpired):
         return False
+
+
+def _py_import_ok(module: str) -> bool:
+    """Present for either route the server can be started by.
+
+    Reporting only one of them is how `pipx install` WITHOUT
+    `--system-site-packages` used to earn a green check: the distro python
+    has python3-gi, the venv does not, and the server that actually runs is
+    the venv's. `probe_deps` says which route is missing it.
+    """
+    return _import_ok_here(module) or _import_ok_system(module)
 
 
 def _gsettings_get(schema: str, key: str) -> str | None:
@@ -209,10 +233,29 @@ def probe_deps(family: str) -> tuple[list[str], list[Dep]]:
     lines: list[str] = []
     missing_hard: list[Dep] = []
     for dep in DEPS:
-        found = (_py_import_ok(dep.target) if dep.kind == "py"
-                 else _which(dep.target) is not None)
+        if dep.kind == "py":
+            here, system = _import_ok_here(dep.target), _import_ok_system(dep.target)
+            found = here or system
+        else:
+            here = system = found = _which(dep.target) is not None
         if found:
             lines.append(f"  [ok]       {dep.label}")
+            if dep.kind == "py" and system and not here:
+                # The distro python has it and this one does not. Every tool
+                # that needs it will fail at the first call with a green
+                # setup report behind it, so name the fix here.
+                lines.append(
+                    f"             NOTE: the system python3 has {dep.target!r}"
+                    f" but {sys.executable} does not.")
+                lines.append(
+                    "             The console script runs under the latter,"
+                    " so reinstall letting it see distro packages:")
+                lines.append(
+                    "               pipx install --system-site-packages"
+                    " wayland-computer-use")
+                lines.append(
+                    "             (Fine to ignore if you start the server from"
+                    " a checkout or the Claude Code plugin.)")
         elif dep.hard:
             missing_hard.append(dep)
             lines.append(f"  [MISSING]  {dep.label} -- {dep.why}")
@@ -356,6 +399,12 @@ def step_extension(src: Path | None, check_only: bool) -> None:
         _say(f"  before: {dest} {'exists (stale)' if installed else 'absent'}")
         _say(f"  copying {src} -> {dest}")
         dest.parent.mkdir(parents=True, exist_ok=True)
+        if installed:
+            # copytree(dirs_exist_ok=True) never DELETES, so a file this
+            # version dropped would linger forever -- and `_dirs_identical`
+            # counts it, so every later run would report "stale" and re-copy.
+            # Replacing the tree is what makes the idempotence claim true.
+            shutil.rmtree(dest)
         shutil.copytree(src, dest, dirs_exist_ok=True)
         _say(f"  after:  {dest} installed"
              f" ({sum(1 for p in dest.rglob('*') if p.is_file())} files)")
@@ -440,34 +489,50 @@ def step_ydotoold() -> None:
          f" {'present' if has_socket else 'absent'}")
 
 
-def server_command() -> str:
-    """How to invoke the MCP server on this machine.
+def server_command() -> tuple[str, str | None]:
+    """How to invoke the MCP server on this machine, and any caveat.
 
-    The installed console script when it is on PATH (the pip/pipx route), and
-    otherwise the checkout's `mcp_server.py`, which is what a `git clone` has
-    before anything is installed.
+    Three routes, in the order they should be preferred: the console script on
+    PATH; the console script beside this interpreter (a pipx or venv install
+    whose bin directory the user has not added to PATH -- printing the bare
+    name there hands the MCP client an ENOENT); the checkout's
+    `mcp_server.py`, which is what a clone has before anything is installed.
     """
     found = _which("wayland-computer-use")
     if found:
-        return found
+        return found, None
+    beside = Path(sys.executable).with_name("wayland-computer-use")
+    if beside.is_file():
+        return str(beside), (f"{beside.parent} is not on your PATH -- the"
+                             " absolute path above works regardless, and"
+                             " `pipx ensurepath` fixes the PATH itself.")
     local = Path(__file__).resolve().parent.parent / "mcp_server.py"
-    return str(local) if local.is_file() else "wayland-computer-use"
+    if local.is_file():
+        return str(local), None
+    return "wayland-computer-use", ("not found on PATH, beside this"
+                                    " interpreter, or in a checkout -- install"
+                                    " the package before registering it.")
 
 
 def step_mcp() -> None:
     _header("Claude Code registration (printed, not run)")
-    cmd = server_command()
+    cmd, caveat = server_command()
     _say(f'  claude mcp add wayland-computer-use --scope user -- "{cmd}"')
     if not cmd.endswith("mcp_server.py"):
         _say("  (`wayland-computer-use` is the console script this package"
              " installs; it needs no checkout.)")
+    if caveat:
+        _say(f"  NOTE: {caveat}")
     _say("  Auto-approval allowlist and the reasoning behind it:"
          " docs/claude-code-setup.md")
 
 
 def step_self_test() -> None:
     _header("proving it works")
-    _say(f"  {server_command()} --self-test")
+    cmd, _ = server_command()
+    _say(f"  {cmd} --self-test")
+    _say(f"  WCU_SESSION=headless {cmd} --self-test"
+         "   # ...or on a desktop you cannot see")
     _say("  Not run by this script: the self-test injects input (it probes the"
          " key-combo guards),")
     _say("  so run it yourself when you are looking at the screen.")
@@ -499,6 +564,16 @@ def run(check_only: bool, repo_arg: str | None) -> int:
     if missing_hard:
         _say(f"RESULT: {len(missing_hard)} hard requirement(s) missing --"
              " install them (lines above), then re-run wcu-setup.")
+        return 1
+    if src is None:
+        # Silently exiting 0 here told the user everything was fine while the
+        # compositor half was never installed -- the failure would only show
+        # up as missing window verbs after a logout.
+        _say("RESULT: dependencies are fine, but the gnome-shell extension"
+             " source was not found, so nothing was installed."
+             + (f" --repo {repo_arg!r} does not contain"
+                f" extension/{EXTENSION_UUID}." if repo_arg else
+                " Reinstall the package: the bundled copy is missing."))
         return 1
     _say("RESULT: all hard requirements present."
          + ("" if check_only else " Setup steps applied (idempotent -- safe"

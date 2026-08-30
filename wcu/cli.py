@@ -14,10 +14,9 @@ because existing registrations point at that exact path.
 """
 from __future__ import annotations
 
-import os
 import sys
 
-from .session import resolve_session
+from .session import resolve_session, start_deferred
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,10 +25,9 @@ def main(argv: list[str] | None = None) -> int:
     from .server import self_test, serve
     if "--self-test" in argv:
         # The self-test calls tool functions in-process, not through serve(),
-        # so a deferred headless start must happen before it, not lazily.
-        if os.environ.pop("WCU_HEADLESS_LAZY", None):
-            from .headless import ensure, pin_env
-            pin_env(ensure())
+        # so a deferred headless start must happen before it, not lazily --
+        # and it must start the session that was actually named.
+        start_deferred()
         return self_test()
     return serve()
 

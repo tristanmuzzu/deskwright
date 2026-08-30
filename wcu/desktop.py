@@ -33,8 +33,19 @@ import shutil
 import subprocess
 import sys
 
-BUS_NAME = "org.tristan.MigrationHelpers"
-OBJ_PATH = "/org/tristan/MigrationHelpers"
+# The bundled extension owns org.wcu.Helpers. The migration-helpers names are
+# the predecessor this grew out of and are kept only as a fallback, so a
+# machine still running the old extension is not stranded -- but the shipped
+# one has to be tried FIRST, or this CLI looks broken on every fresh install.
+NEW_BUS = "org.wcu.Helpers"
+NEW_PATH = "/org/wcu/Helpers"
+NEW_UUID = "wcu@wayland-computer-use"
+OLD_BUS = "org.tristan.MigrationHelpers"
+OLD_PATH = "/org/tristan/MigrationHelpers"
+OLD_UUID = "migration-helpers@tristan.local"
+
+BUS_NAME, OBJ_PATH, EXTENSION_UUID = NEW_BUS, NEW_PATH, NEW_UUID
+_BUS_PROBED = False
 YDOTOOL_SOCKET = "/run/ydotoold.socket"
 
 # Linux evdev keycodes for the keys we can name.
@@ -89,7 +100,26 @@ def die(msg: str) -> NoReturn:  # noqa: F821
 
 # --------------------------------------------------------------------- D-Bus
 
+def _pick_bus() -> None:
+    """Prefer the bundled extension's bus; fall back to migration-helpers.
+
+    Mirrors `wcu/shell.py::_pick_bus`; this CLI predates it and used to
+    hardcode the old name, so it failed on every machine but its author's.
+    """
+    global BUS_NAME, OBJ_PATH, EXTENSION_UUID, _BUS_PROBED
+    if _BUS_PROBED:
+        return
+    _BUS_PROBED = True
+    probe = subprocess.run(
+        ["gdbus", "introspect", "--session", "--dest", NEW_BUS,
+         "--object-path", NEW_PATH, "--xml"],
+        capture_output=True, text=True)
+    if probe.returncode != 0 or "<method" not in probe.stdout:
+        BUS_NAME, OBJ_PATH, EXTENSION_UUID = OLD_BUS, OLD_PATH, OLD_UUID
+
+
 def call(method: str, *args: str) -> str:
+    _pick_bus()
     cmd = [
         "gdbus", "call", "--session", "--dest", BUS_NAME,
         "--object-path", OBJ_PATH,
@@ -100,8 +130,8 @@ def call(method: str, *args: str) -> str:
         err = result.stderr.strip()
         if "ServiceUnknown" in err or "was not provided" in err:
             die(
-                "the Migration Helpers extension is not running.\n"
-                "  gnome-extensions info migration-helpers@tristan.local\n"
+                f"the {EXTENSION_UUID} extension is not running.\n"
+                f"  gnome-extensions info {EXTENSION_UUID}\n"
                 "If it was just installed or changed, the shell only picks that up\n"
                 "at session start — log out and back in."
             )

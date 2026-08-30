@@ -104,8 +104,9 @@ def test_missing_shot_file_records_path_without_hash(jdir):
 
 # ------------------------------------------------------------ 2. redaction
 def test_long_text_argument_is_truncated_with_length_note(jdir):
+    """Truncation still applies to text that is not password-shaped."""
     long = "x" * 500
-    journal.record("type_text", {"text": long, "target": "editor"}, {"ok": 1})
+    journal.record("find_text", {"text": long, "target": "editor"}, {"ok": 1})
     args = _read_lines(jdir)[0]["args"]
     assert len(args["text"]) < 300
     assert args["text"].startswith("x" * 200)
@@ -113,11 +114,41 @@ def test_long_text_argument_is_truncated_with_length_note(jdir):
     assert args["target"] == "editor"
 
 
-def test_long_text_nested_in_steps_is_truncated(jdir):
+def test_typed_text_is_fingerprinted_not_stored(jdir):
+    """An agent enters a password through type_text / ui_set_text /
+    clipboard_write, and a password is well under the truncation limit, so
+    verbatim storage put it in a file on disk. Length plus a digest keeps
+    every property the journal is actually read for."""
+    journal.record("type_text", {"text": "hunter2", "target": "editor"}, {"ok": 1})
+    args = _read_lines(jdir)[0]["args"]
+    assert args["text"] == {"chars": 7,
+                            "sha256": journal._fingerprint("hunter2")["sha256"]}
+    assert "hunter2" not in json.dumps(args)
+    assert args["target"] == "editor"
+
+
+def test_same_text_twice_is_still_recognisable_as_the_same(jdir):
+    journal.record("ui_set_text", {"text": "abc"}, {})
+    journal.record("clipboard_write", {"text": "abc"}, {})
+    journal.record("ui_set_text", {"text": "abd"}, {})
+    a, b, c = (line["args"]["text"]["sha256"] for line in _read_lines(jdir))
+    assert a == b and a != c
+
+
+def test_text_typed_inside_do_steps_is_fingerprinted_too(jdir):
     journal.record("do_steps",
-                   {"steps": [{"do": "type", "text": "y" * 400}]}, {})
-    step = _read_lines(jdir)[0]["args"]["steps"][0]
-    assert "400 chars total" in step["text"]
+                   {"steps": [{"do": "type", "text": "y" * 400},
+                              {"do": "click", "x": 1, "y": 2}]}, {})
+    steps = _read_lines(jdir)[0]["args"]["steps"]
+    assert steps[0]["text"] == {"chars": 400,
+                                "sha256": journal._fingerprint("y" * 400)["sha256"]}
+    assert steps[1] == {"do": "click", "x": 1, "y": 2}
+
+
+def test_verbatim_text_is_available_when_asked_for(jdir, monkeypatch):
+    monkeypatch.setenv("WCU_JOURNAL_TEXT", "1")
+    journal.record("type_text", {"text": "hunter2"}, {})
+    assert _read_lines(jdir)[0]["args"]["text"] == "hunter2"
 
 
 def test_image_fields_never_stored(jdir):
