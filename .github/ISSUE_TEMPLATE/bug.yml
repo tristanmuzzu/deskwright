@@ -1,0 +1,75 @@
+name: Bug report
+description: Something does not work on a GNOME Wayland session
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The single most useful thing you can paste is `desktop_health` output —
+        it says which mechanisms are actually usable on your machine right now,
+        which answers most reports on its own.
+  - type: textarea
+    id: health
+    attributes:
+      label: desktop_health output
+      description: >-
+        Ask your agent to call the `desktop_health` tool and paste the whole
+        JSON. From a shell instead:
+        `wayland-computer-use --self-test` (or `./mcp_server.py --self-test`
+        from a checkout) and paste the report.
+      render: json
+    validations:
+      required: true
+  - type: input
+    id: gnome
+    attributes:
+      label: GNOME Shell version
+      description: "`gnome-shell --version`"
+      placeholder: "GNOME Shell 50.1"
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution
+      placeholder: "Ubuntu 26.04"
+    validations:
+      required: true
+  - type: dropdown
+    id: install
+    attributes:
+      label: How is it installed?
+      options:
+        - pipx / pip
+        - git clone
+        - Claude Code plugin
+        - other
+    validations:
+      required: true
+  - type: dropdown
+    id: session
+    attributes:
+      label: Which desktop was it driving?
+      options:
+        - the primary session (my screen)
+        - a headless session (WCU_SESSION=headless)
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: >-
+        The tool call and its arguments, what came back, and what you expected.
+        If a tool returned an error code, include it verbatim.
+    validations:
+      required: true
+  - type: checkboxes
+    id: logout
+    attributes:
+      label: The one thing that explains most reports
+      options:
+        - label: >-
+            I have logged out and back in since installing or updating the
+            extension. (gnome-shell cannot reload an extension on Wayland; until
+            the next login the copied code is not running.)

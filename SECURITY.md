@@ -52,16 +52,16 @@ Designed-in properties:
 
 Stated limitations, honestly:
 
-- **The halt switch exists only when the extension is loaded.** On a shell
-  that has never loaded it — before the post-install re-login — `halt_active()`
-  answers no at zero cost: a switch that was never there cannot be engaged,
-  and refusing every acted call on a machine that simply has not logged out
-  yet would make a fresh install useless. **Once it has answered, that
-  reverses**: a probe failure after the first successful answer counts as
-  *halted*, because the same `launch_app` primitive an agent uses for real
-  work can run `gnome-extensions disable wcu@wayland-computer-use` and unown
-  the bus name. A disappearing kill switch is a stronger signal than a D-Bus
-  hiccup.
+- **A probe failure counts as not-halted, on purpose.** If the extension is
+  not loaded, or the bus does not answer, `halt_active()` says no and work
+  continues. The switch exists to let a human stop the server, never to let a
+  D-Bus hiccup stop it. That does mean the switch can be removed: `launch_app`
+  is an arbitrary-exec primitive, so an agent could run
+  `gnome-extensions disable wcu@wayland-computer-use` and unown the bus name.
+  Under this project's posture that is not a hole to plug — the agent is
+  trusted, and a fence that fires on its own costs more than it buys. If your
+  deployment disagrees, `WCU_HALT_FAIL_CLOSED=1` makes silence *after* the
+  switch has once answered count as halted. Off by default.
 - **It gates this server, not the agent.** Nearly every real deployment gives
   the same agent a shell, and a shell can kill the server process or disable
   the extension. The halt switch is a stop button for a cooperating agent and
@@ -97,28 +97,36 @@ and a warning only helps if the model heeds it. It is a seatbelt reminder,
 not a seatbelt. The real defense is the reviewing model and the evidence
 trail — treat all captured screen content as untrusted data.
 
-## The extension's D-Bus service is not access-controlled
+## The extension's D-Bus service is open to your session bus, by design
 
 The bundled extension owns `org.wcu.Helpers` on the **session bus** and does
 not check the caller. The session bus default-allows any process running as
-the same user, so once the extension is enabled, **every process on your
-session bus** can call it — including `Screenshot` (full desktop, to any path,
-with no portal dialog and no screen-share indicator), `GetClipboardText`,
-`ClearHalt`, and the window verbs. That is true whether or not the MCP server
-is running.
+the same user, so once the extension is enabled, **every process running as
+you** can call it — `Screenshot` (full desktop, to any path, with no portal
+dialog and no screen-share indicator), `ScreenshotArea`, `ScreenshotWindow`,
+`GetClipboardText`, `SetClipboardText`, `ClearHalt`, and the window verbs.
+That is true whether or not the MCP server is running.
 
-This matters more than "same uid, so who cares", and we would rather say it
-than have you find it: on Wayland an ordinary client *cannot* screenshot, and
-`xdg-desktop-portal` gates capture behind per-app consent. Installing this
-extension removes that guarantee for everything on the bus. A malicious
-package postinstall, a `curl | bash` script, or a Flatpak granted
-`--socket=session-bus` inherits it.
+This is a deliberate trade, not an oversight, and it is worth being precise
+about what you are trading. On Wayland an ordinary client *cannot* screenshot;
+`xdg-desktop-portal` gates capture behind per-app consent, with a dialog and a
+visible indicator. Enabling this extension removes that guarantee for
+everything on your session bus. A malicious package postinstall, a
+`curl | bash` script, or a Flatpak granted `--socket=session-bus` inherits the
+capability.
 
-Tightening this — a shared secret written 0600 at enable time and checked
-against `invocation.get_sender()` — is on the ROADMAP. Until then, treat
-enabling the extension as a machine-level decision, not a per-application one.
-Disabling the extension (`gnome-extensions disable wcu@wayland-computer-use`)
-removes the surface entirely.
+What you get for it is the thing the project exists to provide: an agent that
+can see and act without a consent dialog in front of every call, on a
+compositor that otherwise refuses all of it. An authenticated variant — a
+shared secret written 0600 at enable time, checked against
+`invocation.get_sender()` — is tractable and would be the right default for a
+multi-tenant or hostile-local-software environment. It is not the default
+here.
+
+**So treat enabling the extension as a machine-level decision.** If you would
+not run an agent with a shell on this machine, do not enable it.
+`gnome-extensions disable wcu@wayland-computer-use` removes the surface
+entirely, and the server degrades to what AT-SPI and the portal allow.
 
 ## What is written to disk, and where
 

@@ -702,26 +702,29 @@ _HALT_WAS_ANSWERING = False
 def halt_active() -> bool:
     """Whether the human kill switch is engaged.
 
-    Only the bundled extension has it; on a shell that has not loaded it yet
-    this is a cached no at zero cost -- a switch that was never present cannot
-    be engaged, and refusing every acted call on a machine that simply has not
-    logged out yet would make the server useless.
+    Only the bundled extension has it, and a probe failure counts as
+    NOT halted. That is deliberate and it is the project's default: the
+    switch exists to let a human stop the server, never to let a D-Bus hiccup
+    stop it, and a fence that fires on its own is exactly what this project
+    does not ship (see the design philosophy -- restrictive policy is opt-in
+    configuration, defaulting to off).
 
-    Once it HAS answered, though, the reasoning inverts. A switch that
-    disappears mid-run is a stronger signal than a D-Bus hiccup: the same
-    `launch_app` primitive an agent uses for real work can run
-    `gnome-extensions disable wcu@wayland-computer-use`, which unregisters
-    the keybinding and unowns the bus name -- and a probe failure that counted
-    as not-halted turned that into a one-call defeat of the whole safety
-    budget. So after the first successful answer, silence counts as halted.
+    `WCU_HALT_FAIL_CLOSED=1` inverts that for deployments that want it: once
+    the switch HAS answered, later silence counts as halted. The case it
+    covers is real -- `launch_app` is an arbitrary-exec primitive, so an agent
+    can run `gnome-extensions disable wcu@wayland-computer-use`, which unowns
+    the bus name and makes every later probe fail -- but the cost is that any
+    genuine bus interruption stops the run, and on the default posture the
+    agent is trusted not to do that in the first place.
     """
     global _HALT_WAS_ANSWERING
+    fail_closed = os.environ.get("WCU_HALT_FAIL_CLOSED") == "1"
     if "HaltActive" not in extension_methods():
-        return _HALT_WAS_ANSWERING
+        return _HALT_WAS_ANSWERING if fail_closed else False
     try:
         answer = "true" in _gdbus("HaltActive", timeout=5.0).lower()
     except ToolError:
-        return _HALT_WAS_ANSWERING
+        return _HALT_WAS_ANSWERING if fail_closed else False
     _HALT_WAS_ANSWERING = True
     return answer
 

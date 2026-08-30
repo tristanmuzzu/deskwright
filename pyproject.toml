@@ -52,7 +52,8 @@ dependencies = [
 Homepage = "https://github.com/tristanmuzzu/wayland-computer-use"
 Source = "https://github.com/tristanmuzzu/wayland-computer-use"
 Issues = "https://github.com/tristanmuzzu/wayland-computer-use/issues"
-Changelog = "https://github.com/tristanmuzzu/wayland-computer-use/blob/main/ROADMAP.md"
+Changelog = "https://github.com/tristanmuzzu/wayland-computer-use/blob/main/CHANGELOG.md"
+Security = "https://github.com/tristanmuzzu/wayland-computer-use/blob/main/SECURITY.md"
 
 [project.scripts]
 # The MCP server. Register a client against this name, not against a path

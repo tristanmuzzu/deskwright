@@ -1,0 +1,37 @@
+name: Compositor support
+description: Ask for KDE, wlroots, or another compositor
+labels: ["portability"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Current state: the **input** half already works anywhere
+        `xdg-desktop-portal` implements `RemoteDesktop` — that includes KDE and
+        wlroots. What is missing is the half the gnome-shell extension
+        provides: window enumeration and the window verbs, extension-side
+        screenshots, pointer position, and the halt switch. Window enumeration
+        is the piece that unblocks the rest.
+  - type: input
+    id: compositor
+    attributes:
+      label: Compositor and version
+      placeholder: "KDE Plasma 6.4 / Hyprland 0.45 / Sway 1.10"
+    validations:
+      required: true
+  - type: textarea
+    id: portal
+    attributes:
+      label: What your portal offers
+      description: >-
+        Paste the output of:
+        `gdbus introspect --session --dest org.freedesktop.portal.Desktop
+        --object-path /org/freedesktop/portal/desktop --xml | grep -A2 interface`
+      render: shell
+  - type: textarea
+    id: windows
+    attributes:
+      label: How windows are enumerated on your compositor
+      description: >-
+        The blocker. KWin has a scripting API; wlroots has
+        `wlr-foreign-toplevel-management`. If you know the route, say so — it
+        is most of the work.
