@@ -222,6 +222,15 @@ deskwright-headless list                     # every session, memory used, memor
 DESKWRIGHT_SESSION=headless:work deskwright
 ```
 
+Give a session its own home and it boots a GNOME that has never been used: no
+desktop icons, no session restore, no recent files. That is what you want for
+a recorded demo or a clean-room test, where the default behaviour of sharing
+your home means an editor opens your last document.
+
+```bash
+deskwright-headless start --name demo --home /tmp/demo-home
+```
+
 There are guards on this, because each session is a real compositor at around
 205 MB: a per-name start lock so two agents can't both spawn one, a session cap
 (`DESKWRIGHT_HEADLESS_MAX`, default 4), and a free-memory floor that refuses a start

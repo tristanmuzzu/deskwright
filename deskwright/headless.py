@@ -64,10 +64,12 @@ import signal
 import subprocess
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 from .errors import ToolError
 from .shell import BUS_CANDIDATES, NEW_BUS
+from .shell import NEW_UUID as EXTENSION_UUID
 
 DEFAULT_SIZE = "1280x720"
 DEFAULT_NAME = "default"
@@ -252,7 +254,7 @@ def status(name: str | None = None) -> dict[str, Any]:
         "shell_process": shell_ok, "dbus_process": dbus_ok,
         "bus_reachable": bus_ok, "extension_answering": ext_ok,
         **{k: state[k] for k in ("bus_address", "wayland_display", "size",
-                                 "runtime_dir", "shell_pid", "dbus_pid",
+                                 "runtime_dir", "home", "shell_pid", "dbus_pid",
                                  "started_at", "log")
            if k in state},
     }
@@ -367,11 +369,22 @@ def _check_capacity(name: str) -> None:
 
 
 def start(size: str = DEFAULT_SIZE, display: str | None = None,
-          name: str | None = None) -> dict[str, Any]:
+          name: str | None = None, home: str | None = None) -> dict[str, Any]:
     """Bring up the private bus + headless shell, wait until the extension
     answers on it, record the result. Idempotent by refusal: a live session
     of this NAME is returned as-is, never doubled (two shells on one name
-    would fight over the display name and the runtime dir)."""
+    would fight over the display name and the runtime dir).
+
+    `home` points the session at a different HOME, which is a bigger change
+    than it sounds. A headless session shares the user's home by default, so
+    it inherits their desktop icons, their GTK recent-files list and every
+    app's session-restore state: launch a text editor on it and the user's
+    last document opens. That is right for driving your own desktop and
+    wrong for two other things, a recorded demo and a clean-room test, where
+    what you want is a GNOME that has never been used. Pass a directory and
+    it becomes HOME, XDG_*_HOME and the desktop directory for that session
+    only; the user's home is not touched.
+    """
     name = session_name(name)
     display = display or default_display(name)
     current = status(name)
@@ -397,10 +410,11 @@ def start(size: str = DEFAULT_SIZE, display: str | None = None,
                     f"another process is starting headless session {name!r} and "
                     f"it has not come up within {START_TIMEOUT_S:.0f}s; check "
                     f"`deskwright-headless status --name {name}`", code="timeout")
-        return _start_locked(name, size, display)
+        return _start_locked(name, size, display, home)
 
 
-def _start_locked(name: str, size: str, display: str) -> dict[str, Any]:
+def _start_locked(name: str, size: str, display: str,
+                  home: str | None = None) -> dict[str, Any]:
     _check_capacity(name)
     if _read_state(name):
         _cleanup_state(name)      # stale file from a dead session
@@ -442,6 +456,8 @@ def _start_locked(name: str, size: str, display: str) -> dict[str, Any]:
     daemon_env = os.environ.copy()
     daemon_env["WAYLAND_DISPLAY"] = display
     daemon_env["XDG_RUNTIME_DIR"] = runtime_dir
+    if home:
+        daemon_env.update(_home_env(home))
     daemon_env.pop("DISPLAY", None)
     dbus = subprocess.Popen(
         ["dbus-daemon", "--session", "--print-address=1", "--nofork"],
@@ -457,6 +473,14 @@ def _start_locked(name: str, size: str, display: str) -> dict[str, Any]:
     env = os.environ.copy()
     env["DBUS_SESSION_BUS_ADDRESS"] = address
     env["XDG_RUNTIME_DIR"] = runtime_dir
+    if home:
+        env.update(_home_env(home))
+        # After the bus and before the shell, in that order. dconf writes go
+        # through the dconf service on the session bus, so seeding earlier
+        # wrote the settings into the USER's dconf and left the fresh home
+        # empty; seeding later is too late, because gnome-shell reads
+        # enabled-extensions at startup.
+        _seed_home(home, env)
     # The headless shell CREATES a display; it must not attach to the user's.
     env.pop("WAYLAND_DISPLAY", None)
     env.pop("DISPLAY", None)
@@ -499,6 +523,7 @@ def _start_locked(name: str, size: str, display: str) -> dict[str, Any]:
         "name": name,
         "bus_address": address, "wayland_display": display, "size": size,
         "runtime_dir": runtime_dir,
+        "home": os.path.abspath(os.path.expanduser(home)) if home else None,
         "shell_pid": shell.pid, "dbus_pid": dbus.pid,
         "started_at": time.time(), "log": log_path,
     }
@@ -581,8 +606,54 @@ def _rotate_log(path: str, keep_bytes: int = 2 * 1024 * 1024) -> str:
     return path
 
 
+def _home_env(home: str) -> dict[str, str]:
+    """Every variable that has to move for a session to have its own home.
+
+    HOME alone is not enough: GLib reads XDG_*_HOME independently, so a
+    session with a fresh HOME and the user's XDG_CONFIG_HOME still restores
+    the user's documents and still paints their desktop icons.
+    """
+    root = os.path.abspath(os.path.expanduser(home))
+    for sub in ("", ".config", ".local/share", ".local/state", ".cache", "Desktop",
+                "Documents", "Downloads"):
+        os.makedirs(os.path.join(root, sub), mode=0o700, exist_ok=True)
+    return {
+        "HOME": root,
+        "XDG_CONFIG_HOME": os.path.join(root, ".config"),
+        "XDG_DATA_HOME": os.path.join(root, ".local/share"),
+        "XDG_STATE_HOME": os.path.join(root, ".local/state"),
+        "XDG_CACHE_HOME": os.path.join(root, ".cache"),
+        "XDG_DESKTOP_DIR": os.path.join(root, "Desktop"),
+    }
+
+
+def _seed_home(home: str, env: dict[str, str] | None = None) -> None:
+    """Make a fresh home able to run this project's shell extension.
+
+    A brand new home has no `~/.local/share/gnome-shell/extensions` and no
+    dconf, so the shell starts with no extension and the session never
+    answers on the bus. `deskwright-setup` does this for the user's real
+    home; this is the same two things, scoped to the session's home and run
+    before the shell starts, because gnome-shell reads both at startup.
+    """
+    env = dict(env or os.environ, **_home_env(home))
+    src = Path(__file__).resolve().parent / "extension" / EXTENSION_UUID
+    dest = Path(env["XDG_DATA_HOME"]) / "gnome-shell/extensions" / EXTENSION_UUID
+    if not dest.exists():
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(src, dest)
+    for schema, key, value in (
+            ("org.gnome.shell", "enabled-extensions", f"['{EXTENSION_UUID}']"),
+            ("org.gnome.desktop.interface", "toolkit-accessibility", "true"),
+            # A demo of a desktop should not show whatever is in Desktop/,
+            # and a clean-room test should not depend on it either.
+            ("org.gnome.shell.extensions.ding", "show-home", "false")):
+        subprocess.run(["gsettings", "set", schema, key, value],
+                       env=env, capture_output=True, timeout=15, check=False)
+
+
 def ensure(size: str = DEFAULT_SIZE, display: str | None = None,
-           name: str | None = None) -> dict[str, Any]:
+           name: str | None = None, home: str | None = None) -> dict[str, Any]:
     """Running session of this name, starting one if needed. What a pinned
     server calls at startup so `DESKWRIGHT_SESSION=headless[:name]` is
     self-sufficient."""
@@ -590,7 +661,7 @@ def ensure(size: str = DEFAULT_SIZE, display: str | None = None,
     current = status(name)
     if current["running"]:
         return current
-    return start(size=size, display=display, name=name)
+    return start(size=size, display=display, name=name, home=home)
 
 
 def pin_env(state: dict[str, Any], env: Any = os.environ) -> None:
@@ -603,6 +674,10 @@ def pin_env(state: dict[str, Any], env: Any = os.environ) -> None:
         env["XDG_RUNTIME_DIR"] = state["runtime_dir"]
     # The flag input.py checks to refuse ydotool -- uinput injection lands on
     # the real seat regardless of this environment.
+    if state.get("home"):
+        # Otherwise the shell has the session home and every app launched
+        # into it has the user's, which is the worst of both.
+        env.update(_home_env(state["home"]))
     env["DESKWRIGHT_HEADLESS"] = "1"
     # Which session, for the action journal: with several desktops live, "a
     # click happened" is not a useful record unless it says where.
@@ -636,8 +711,11 @@ def _require_binaries() -> None:
 
 USAGE = (
     "usage: deskwright-headless [start|stop|status|list|env] [--name NAME] "
-    f"[--size {DEFAULT_SIZE}] [--display NAME] [--all]\n"
+    f"[--size {DEFAULT_SIZE}] [--display NAME] [--home DIR] [--all]\n"
     "  start   bring up a session (idempotent per name)\n"
+    "  --home  give the session its own HOME, so it boots a GNOME that has\n"
+    "          never been used: no desktop icons, no session restore, no\n"
+    "          recent files. For demos and clean-room tests\n"
     "  stop    end one session, or every one with --all\n"
     "  status  one session; `list` for all of them at once\n"
     "  env     shell exports that pin a SHELL to a session"
@@ -653,11 +731,12 @@ def main(argv: list[str] | None = None) -> int:
     size = args[args.index("--size") + 1] if "--size" in args else DEFAULT_SIZE
     display = args[args.index("--display") + 1] if "--display" in args else None
     raw_name = args[args.index("--name") + 1] if "--name" in args else None
+    home = args[args.index("--home") + 1] if "--home" in args else None
     every = "--all" in args
     try:
         name = session_name(raw_name)
         if cmd == "start":
-            report = start(size=size, display=display, name=name)
+            report = start(size=size, display=display, name=name, home=home)
         elif cmd == "stop":
             report = stop_all() if every else stop(name)
         elif cmd == "status":

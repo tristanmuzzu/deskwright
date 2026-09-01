@@ -238,3 +238,60 @@ def test_launch_app_headless_uses_exec_spawn(monkeypatch, tmp_path):
                                  "wait_window": False})
     assert seen["argv"] == ["example-app"]
     assert out["via"] == "exec (headless)"
+
+
+# ------------------------------------------------------- a session's own home
+
+def test_home_env_moves_every_variable_that_matters(tmp_path):
+    """HOME alone is not enough. GLib reads the XDG_*_HOME variables
+    independently, so a session with a fresh HOME and the user's
+    XDG_CONFIG_HOME still restores the user's documents and still paints
+    their desktop icons."""
+    env = headless._home_env(str(tmp_path / "h"))
+    root = str((tmp_path / "h").resolve())
+    assert env["HOME"] == root
+    for key in ("XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
+                "XDG_CACHE_HOME", "XDG_DESKTOP_DIR"):
+        assert env[key].startswith(root), (key, env[key])
+
+
+def test_home_env_creates_the_directories_it_names(tmp_path):
+    """gnome-shell will not create them, and a missing XDG_DATA_HOME means no
+    extensions directory, which means the session never answers on the bus."""
+    env = headless._home_env(str(tmp_path / "h"))
+    from pathlib import Path
+    for key in ("HOME", "XDG_CONFIG_HOME", "XDG_DATA_HOME", "XDG_DESKTOP_DIR"):
+        assert Path(env[key]).is_dir(), key
+
+
+def test_a_session_home_is_reported_by_status(tmp_path, monkeypatch):
+    """pin_env reads it off the status report to point launched apps at the
+    same home as the shell. It was dropped by a key whitelist once, and the
+    symptom was an app opening the user's last document on a 'clean' desktop."""
+    state = {"name": "demo", "bus_address": "unix:path=/tmp/x",
+             "wayland_display": "wayland-deskwright-demo", "size": "1280x720",
+             "runtime_dir": "/run/user/1000/x", "home": str(tmp_path),
+             "shell_pid": 1, "dbus_pid": 2, "started_at": 0.0, "log": "/tmp/l"}
+    monkeypatch.setattr(headless, "_read_state", lambda name: state)
+    monkeypatch.setattr(headless, "_pid_is", lambda pid, comm: False)
+    assert headless.status("demo")["home"] == str(tmp_path)
+
+
+def test_pin_env_sends_launched_apps_to_the_session_home(tmp_path):
+    """Otherwise the shell has the session home and every app launched into it
+    has the user's, which is the worst of both."""
+    env: dict = {}
+    headless.pin_env({"bus_address": "unix:path=/tmp/x",
+                      "wayland_display": "wayland-deskwright-demo",
+                      "runtime_dir": "/run/user/1000/x",
+                      "home": str(tmp_path), "name": "demo"}, env)
+    assert env["HOME"] == str(tmp_path.resolve())
+    assert env["XDG_DATA_HOME"].startswith(str(tmp_path.resolve()))
+
+
+def test_a_session_without_a_home_leaves_the_environment_alone(tmp_path):
+    env: dict = {}
+    headless.pin_env({"bus_address": "unix:path=/tmp/x",
+                      "wayland_display": "wayland-deskwright-demo",
+                      "runtime_dir": "/run/user/1000/x", "name": "demo"}, env)
+    assert "HOME" not in env
