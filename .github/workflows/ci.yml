@@ -7,8 +7,64 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
-    name: lint + tests (python ${{ matrix.python }})
+  # The job that has to pass. It runs on the DISTRO python, because that is the
+  # only interpreter on a GitHub runner that can import PyGObject: apt installs
+  # gi into /usr/lib/python3/dist-packages, and `actions/setup-python` provides
+  # a completely separate interpreter that cannot see it. Getting that wrong is
+  # how eight portal tests errored on the first CI run of this file.
+  tests:
+    name: lint + tests (distro python, with PyGObject)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            python3-gi python3-venv gir1.2-glib-2.0 gir1.2-atspi-2.0 \
+            libgirepository-1.0-1
+
+      # --system-site-packages is the same shape the README tells users to
+      # install with, so CI exercises the documented environment rather than a
+      # cleaner one that nobody has.
+      - name: install
+        run: |
+          python3 -m venv --system-site-packages .venv
+          .venv/bin/pip install --upgrade pip
+          .venv/bin/pip install ruff pytest
+          .venv/bin/pip install -e .
+
+      - name: PyGObject and the AT-SPI typelib are really importable
+        run: |
+          .venv/bin/python - <<'PY'
+          import gi
+          gi.require_version("Atspi", "2.0")
+          from gi.repository import Atspi  # noqa: F401
+          print("gi and Atspi import fine")
+          PY
+
+      - name: lint
+        run: .venv/bin/ruff check .
+
+      # -rs prints the reason for every skip, and the check below fails if there
+      # is one. On this interpreter nothing has an excuse to skip, so a skip
+      # means a test quietly stopped covering anything.
+      - name: tests
+        run: |
+          .venv/bin/python -m pytest -q -rs | tee /tmp/pytest.out
+          if grep -qE '[0-9]+ skipped' /tmp/pytest.out; then
+            echo "::error::a test skipped on the interpreter that has PyGObject"
+            exit 1
+          fi
+
+  # Everything that is pure Python, across the versions pyproject claims to
+  # support. The portal tests skip here by design: PyGObject has no wheels, so
+  # a setup-python interpreter cannot have it, and pretending otherwise would
+  # mean building it from source on every run. The job above is what covers
+  # them.
+  versions:
+    name: tests (python ${{ matrix.python }}, no PyGObject)
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -16,32 +72,11 @@ jobs:
         python: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
-
-      # PyGObject has no PyPI wheels, so it comes from apt here for the same
-      # reason it comes from apt on a user's machine. The runner has no
-      # Wayland session: the suites that need one are scripts with their own
-      # main() and are not collected (tests/conftest.py says which).
-      - name: system dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            python3-gi gir1.2-glib-2.0 gir1.2-atspi-2.0 libgirepository-1.0-1
-
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
-
-      - name: install
-        run: |
-          python -m pip install --upgrade pip
-          pip install ruff pytest
-          pip install -e .
-
-      - name: lint
-        run: ruff check .
-
-      - name: tests
-        run: python -m pytest -q
+      - run: pip install pytest -e .
+      - run: python -m pytest -q -rs
 
   build:
     name: wheel carries the extension

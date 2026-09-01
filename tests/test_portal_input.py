@@ -14,6 +14,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
+# `deskwright.portal_input` imports PyGObject at module level, so without it
+# these collect as errors rather than as an honest "not testable here". That
+# is the right answer on a contributor's machine with no python3-gi, and CI
+# has a job whose whole point is that gi IS present, so a skip here cannot
+# quietly cost coverage.
+pytest.importorskip("gi", reason="PyGObject (python3-gi) is not installed")
+
 from deskwright.errors import ToolError
 
 
