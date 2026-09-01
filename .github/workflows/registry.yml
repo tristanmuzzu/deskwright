@@ -53,16 +53,25 @@ jobs:
           ./mcp-publisher login github-oidc
           ./mcp-publisher publish
 
+      # The registry nests each hit under a "server" key. Reading the name off
+      # the outer object gives None, which failed this check on a publish that
+      # had actually succeeded. Unwrap, and retry rather than sleeping once,
+      # since the index takes a moment to catch up.
       - name: confirm the listing resolves
         run: |
-          sleep 10
           python3 - <<'PY'
-          import json, sys, urllib.request
+          import json, sys, time, urllib.parse, urllib.request
           name = json.load(open("server.json"))["name"]
-          url = "https://registry.modelcontextprotocol.io/v0/servers?search=deskwright"
-          data = json.load(urllib.request.urlopen(url, timeout=30))
-          servers = data.get("servers") or data.get("data") or []
-          if not any(s.get("name") == name for s in servers):
-              sys.exit(f"{name} is not in the registry after publishing")
-          print(f"{name} is listed")
+          url = ("https://registry.modelcontextprotocol.io/v0/servers?search="
+                 + urllib.parse.quote(name))
+          for attempt in range(6):
+              data = json.load(urllib.request.urlopen(url, timeout=30))
+              hits = data.get("servers") or data.get("data") or []
+              for hit in hits:
+                  server = hit.get("server", hit)
+                  if server.get("name") == name:
+                      print(f"{name} {server.get('version')} is listed")
+                      sys.exit(0)
+              time.sleep(10)
+          sys.exit(f"{name} is not in the registry after publishing")
           PY
