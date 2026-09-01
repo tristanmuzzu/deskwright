@@ -327,6 +327,12 @@ The short version:
 | KDE Plasma, Sway, Hyprland | **Input only.** The portal backend drives pointer and keyboard, but window management and screenshots need per-compositor work that isn't done. `desktop_health` will say it's not usable, and it means it. |
 | X11 | Not a target. `xdotool` already does this well there. |
 
+**Claude Code, not Cowork.** On Linux the desktop app runs Cowork tasks inside
+a QEMU/KVM virtual machine, so an MCP server it starts lives in that VM and
+cannot see your session bus, your gnome-shell or your screen. Everything here
+would fail there. Use it from the Claude Code CLI, the Code tab, or any other
+MCP client running on the host itself.
+
 Packages, using Debian names (`deskwright-setup` prints yours): `python3-gi`,
 `gir1.2-atspi-2.0`, `python3-pil`, `libglib2.0-bin`, `wl-clipboard`,
 `tesseract-ocr`. `ydotool` is optional and only used as an input fallback. The
