@@ -1,7 +1,7 @@
 """Append-only action journal: evidence, not surveillance.
 
 Every acted (non-read-only) tool call appends one JSON line to
-$XDG_STATE_HOME/wayland-computer-use/journal/<YYYY-MM-DD>.jsonl so a human
+$XDG_STATE_HOME/deskwright/journal/<YYYY-MM-DD>.jsonl so a human
 can review an unattended run afterwards, an agent can re-read its own trail
 after context loss, and a bug report becomes replayable. Reading tools are
 NOT journaled -- that would be noise, and the caller (server.py) decides via
@@ -51,7 +51,7 @@ def _today() -> date:
 def _journal_dir() -> Path:
     """Resolved on every call so a test's XDG_STATE_HOME override is honoured."""
     state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    return Path(state) / "wayland-computer-use" / "journal"
+    return Path(state) / "deskwright" / "journal"
 
 
 _session_id: str | None = None
@@ -108,7 +108,7 @@ def _redact(value: Any, depth: int = 0) -> Any:
 # file on disk. The journal never needed the characters: what a reviewer
 # reconstructs from it is "something was typed here, this much of it, and it
 # was/was not the same string as that other time" -- which a length and a
-# digest answer exactly. `WCU_JOURNAL_TEXT=1` restores the old behaviour for
+# digest answer exactly. `DESKWRIGHT_JOURNAL_TEXT=1` restores the old behaviour for
 # anyone debugging their own flows.
 TEXT_BEARING = {
     "type_text": ("text",),
@@ -128,7 +128,7 @@ STEP_VERBS_BEARING_TEXT = {"type", "set_text", "clipboard_write"}
 
 
 def _redact_text_args(tool: str, args: dict) -> dict:
-    if os.environ.get("WCU_JOURNAL_TEXT") == "1":
+    if os.environ.get("DESKWRIGHT_JOURNAL_TEXT") == "1":
         return args
     out = dict(args)
     for key in TEXT_BEARING.get(str(tool), ()):
@@ -211,8 +211,8 @@ def record(tool: str, args: dict, outcome: dict) -> None:
             # says where -- and telling a headless action from one on the
             # user's real screen is the first question anyone asks of this
             # file. Read at call time, because pin_env() sets it after import.
-            "desktop": os.environ.get("WCU_HEADLESS_NAME")
-            or ("headless" if os.environ.get("WCU_HEADLESS") else "primary"),
+            "desktop": os.environ.get("DESKWRIGHT_HEADLESS_NAME")
+            or ("headless" if os.environ.get("DESKWRIGHT_HEADLESS") else "primary"),
             "tool": str(tool),
             "args": _redact(_redact_text_args(tool, dict(args or {}))),
             "outcome": _summary(outcome),

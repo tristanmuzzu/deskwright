@@ -11,17 +11,28 @@ from typing import Any
 
 from .errors import ToolError
 
-# Two extensions can serve this server. The bundled one (extension/ in this
-# repo) is preferred; the legacy migration-helpers bus keeps everything
-# working on a machine that has not loaded it yet. The pick happens once per
-# process, on first use -- gnome-shell cannot gain or lose an extension
-# without a re-login anyway, so probing more often buys nothing.
-NEW_BUS = "org.wcu.Helpers"
-NEW_PATH = "/org/wcu/Helpers"
-NEW_UUID = "wcu@wayland-computer-use"
+# Three extensions can serve this server, and the pick happens once per
+# process on first use. gnome-shell cannot gain or lose an extension without a
+# re-login anyway, so probing more often buys nothing.
+#
+# The order is newest first. `org.wcu.Helpers` is the same extension under the
+# name it had before the 0.1.0 rename, and it is here for exactly one reason:
+# a machine that installed the old one is still running it until its next
+# logout, and a rename should not take the desktop away in the meantime.
+# `migration-helpers` is the predecessor this project grew out of. Both can go
+# once nobody is running them.
+NEW_BUS = "com.zeticle.deskwright"
+NEW_PATH = "/com/zeticle/deskwright"
+NEW_UUID = "deskwright@zeticle.com"
+WCU_BUS = "org.wcu.Helpers"
+WCU_PATH = "/org/wcu/Helpers"
+WCU_UUID = "wcu@wayland-computer-use"
 OLD_BUS = "org.tristan.MigrationHelpers"
 OLD_PATH = "/org/tristan/MigrationHelpers"
 OLD_UUID = "migration-helpers@tristan.local"
+
+BUS_CANDIDATES = ((NEW_BUS, NEW_PATH, NEW_UUID),
+                  (WCU_BUS, WCU_PATH, WCU_UUID))
 
 BUS_NAME = OLD_BUS
 OBJ_PATH = OLD_PATH
@@ -44,15 +55,17 @@ def _introspect_methods(bus: str, path: str) -> set[str]:
 
 
 def _pick_bus() -> None:
-    """Prefer the bundled extension's bus; fall back to migration-helpers."""
+    """Take the newest extension that is actually answering on this session."""
     global BUS_NAME, OBJ_PATH, EXTENSION_UUID, _BUS_PROBED, _EXTENSION_METHODS
     if _BUS_PROBED:
         return
     _BUS_PROBED = True
-    methods = _introspect_methods(NEW_BUS, NEW_PATH)
-    if methods:
-        BUS_NAME, OBJ_PATH, EXTENSION_UUID = NEW_BUS, NEW_PATH, NEW_UUID
-        _EXTENSION_METHODS = methods
+    for bus, path, uuid in BUS_CANDIDATES:
+        methods = _introspect_methods(bus, path)
+        if methods:
+            BUS_NAME, OBJ_PATH, EXTENSION_UUID = bus, path, uuid
+            _EXTENSION_METHODS = methods
+            return
 
 
 # =========================================================================
@@ -709,16 +722,16 @@ def halt_active() -> bool:
     does not ship (see the design philosophy -- restrictive policy is opt-in
     configuration, defaulting to off).
 
-    `WCU_HALT_FAIL_CLOSED=1` inverts that for deployments that want it: once
+    `DESKWRIGHT_HALT_FAIL_CLOSED=1` inverts that for deployments that want it: once
     the switch HAS answered, later silence counts as halted. The case it
     covers is real -- `launch_app` is an arbitrary-exec primitive, so an agent
-    can run `gnome-extensions disable wcu@wayland-computer-use`, which unowns
+    can run `gnome-extensions disable deskwright@zeticle.com`, which unowns
     the bus name and makes every later probe fail -- but the cost is that any
     genuine bus interruption stops the run, and on the default posture the
     agent is trusted not to do that in the first place.
     """
     global _HALT_WAS_ANSWERING
-    fail_closed = os.environ.get("WCU_HALT_FAIL_CLOSED") == "1"
+    fail_closed = os.environ.get("DESKWRIGHT_HALT_FAIL_CLOSED") == "1"
     if "HaltActive" not in extension_methods():
         return _HALT_WAS_ANSWERING if fail_closed else False
     try:

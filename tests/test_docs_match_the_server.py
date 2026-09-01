@@ -19,10 +19,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from wcu.server import _READ_ONLY_TOOLS, TOOLS
+from deskwright.server import _READ_ONLY_TOOLS, TOOLS
 
 DOC = ROOT / "docs" / "claude-code-setup.md"
-PREFIX = "mcp__wayland-computer-use__"
+PREFIX = "mcp__deskwright__"
 
 
 def _tool_names() -> set[str]:

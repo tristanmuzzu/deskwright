@@ -1,10 +1,10 @@
 /*
  * Computer Use Helpers — GNOME Shell extension.
  *
- * The compositor-side half of wayland-computer-use. Everything an agent needs
+ * The compositor-side half of deskwright. Everything an agent needs
  * that GNOME on Wayland refuses to give an ordinary client -- screenshots,
  * window geometry and control, the pointer position, a trustworthy clipboard,
- * an on-screen activity border -- lives in dbus.js behind org.wcu.Helpers.
+ * an on-screen activity border -- lives in dbus.js behind com.zeticle.deskwright.
  *
  * This file only wires it up, plus the one thing that must be registered from
  * here: the halt keybinding. It is registered with Main.wm.addKeybinding
@@ -35,7 +35,7 @@ export default class ComputerUseHelpersExtension extends Extension {
         try {
             sweepOrphanIndicators();
         } catch (e) {
-            logError(e, 'wcu: orphan indicator sweep');
+            logError(e, 'deskwright: orphan indicator sweep');
         }
 
         this._dbus = new DBusService();

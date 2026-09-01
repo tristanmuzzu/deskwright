@@ -24,7 +24,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import capture, ocr, tripwire
+from deskwright import capture, ocr, tripwire
 
 # =========================================================================
 # scan(): pattern hits
@@ -216,13 +216,13 @@ def test_changed_text_skip_note_has_no_warning_field(monkeypatch) -> None:
 # wiring: clipboard_read (the classic injection channel)
 # =========================================================================
 
-from wcu import atspi as wcu_atspi
-from wcu import input as wcu_input
+from deskwright import atspi as dw_atspi
+from deskwright import input as dw_input
 
 
 def _run_clipboard_read(monkeypatch: pytest.MonkeyPatch, text: str) -> dict:
-    monkeypatch.setattr(wcu_input, "_read_clipboard_text", lambda: (text, ""))
-    return wcu_input.tool_clipboard_read({})
+    monkeypatch.setattr(dw_input, "_read_clipboard_text", lambda: (text, ""))
+    return dw_input.tool_clipboard_read({})
 
 
 def test_clipboard_read_warns_on_hostile_text(monkeypatch) -> None:
@@ -245,11 +245,11 @@ def test_clipboard_read_benign_has_no_warning_field(monkeypatch) -> None:
 
 def _run_ui_read_text(monkeypatch: pytest.MonkeyPatch, text: str) -> dict:
     node = types.SimpleNamespace(get_role_name=lambda: "text")
-    monkeypatch.setattr(wcu_atspi, "_locate_text_widget",
+    monkeypatch.setattr(dw_atspi, "_locate_text_widget",
                         lambda app, path: (node, "fakeapp/0/1"))
-    monkeypatch.setattr(wcu_atspi, "_read_text", lambda n: text)
-    monkeypatch.setattr(wcu_atspi, "_is_focused", lambda n: False)
-    return wcu_atspi.tool_ui_read_text({"app": "fakeapp"})
+    monkeypatch.setattr(dw_atspi, "_read_text", lambda n: text)
+    monkeypatch.setattr(dw_atspi, "_is_focused", lambda n: False)
+    return dw_atspi.tool_ui_read_text({"app": "fakeapp"})
 
 
 def test_ui_read_text_warns_on_hostile_text(monkeypatch) -> None:

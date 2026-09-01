@@ -9,14 +9,14 @@ validation + per-step retry; `wait_for` with `text_appears` /
 clipboard read/write; `hold_key`; drag verification; `launch_app`;
 scroll-into-view; document-identity pinning (+ the widget-focus-void
 fix); "what changed" as text; `window_manage`; the bundled
-`wcu@wayland-computer-use` extension (window verbs, clipboard, halt
+`deskwright@zeticle.com` extension (window verbs, clipboard, halt
 switch, activity indicator) with bus preference + fallback; the halt
 gate; Set-of-Mark refs; the action journal; the injection tripwire;
-the `wcu-setup` installer + `pyproject.toml`; public README / LICENSE /
+the `deskwright-setup` installer + `pyproject.toml`; public README / LICENSE /
 CONTRIBUTING / SECURITY; and the Claude Code auto-approval doc.
 
-**Shipped 2026-08-24: the headless second session (#19).** `wcu-headless`
-start/stop/status/env + `WCU_SESSION=headless` server pinning; input over
+**Shipped 2026-08-24: the headless second session (#19).** `deskwright-headless`
+start/stop/status/env + `DESKWRIGHT_SESSION=headless` server pinning; input over
 the private session's own mutter RemoteDesktop (the spike's open question,
 it follows the bus like everything else); private `XDG_RUNTIME_DIR` after
 a shared one broke the primary session's a11y bus; `gio launch` replaced by
@@ -27,19 +27,19 @@ screenshot, all on the virtual monitor. README § "The headless second
 session".
 
 **Shipped 2026-08-24: the portal input backend (#32), both moats now real.**
-`wcu/portal_input.py` speaks `org.freedesktop.portal.RemoteDesktop` +
+`deskwright/portal_input.py` speaks `org.freedesktop.portal.RemoteDesktop` +
 `ScreenCast`; absolute motion is mapped into the containing stream (the
 spike's open wire); `restore_token` persisted per session, with a self-heal
 that discards a token granted without *Allow Remote Interaction*; backend
 auto-selected (mutter when its API answers, portal otherwise) or forced with
-`WCU_INPUT_BACKEND`. Gestures (click/drag) now live in one shared mixin so
+`DESKWRIGHT_INPUT_BACKEND`. Gestures (click/drag) now live in one shared mixin so
 both backends cannot drift. Proven live: consent once, then motion + clicks +
 typing through the portal with compositor-confirmed positions, and a
 dialog-free 1.0 s session on reuse. **This is the door to #33 KDE and #34
 wlroots**, both now need window enumeration, not input.
 
 **Shipped 2026-08-25: the e2e suite runs on the headless session (#53
-groundwork).** `WCU_SESSION=headless ./tests/test_e2e_real_task.py` = 22/22;
+groundwork).** `DESKWRIGHT_SESSION=headless ./tests/test_e2e_real_task.py` = 22/22;
 `mcp_server` pins the session at import so every live script suite follows
 the same variable, and constraint C1 ("the desktop is a serialized test
 resource") is retired, live verification no longer needs the user's screen.
@@ -348,7 +348,7 @@ one action can't destroy the machine, everything leaves evidence.
 
 ## Tier 9, Positioning decisions (not code)
 
-60. **Name.** `wayland-computer-use` is descriptive but unownable. Deferred:
+60. **Name.** `deskwright` is descriptive but unownable. Deferred:
     the name is now the PyPI package, the registry id, the plugin name, the
     D-Bus name and the extension UUID -- and the UUID cannot change without
     every existing user reinstalling and logging out again. Revisit only if

@@ -1,13 +1,15 @@
-# wayland-computer-use
+# Deskwright
 
-[![CI](https://github.com/tristanmuzzu/wayland-computer-use/actions/workflows/ci.yml/badge.svg)](https://github.com/tristanmuzzu/wayland-computer-use/actions/workflows/ci.yml)
-[![PyPI](https://img.shields.io/pypi/v/wayland-computer-use.svg)](https://pypi.org/project/wayland-computer-use/)
+[![CI](https://github.com/tristanmuzzu/deskwright/actions/workflows/ci.yml/badge.svg)](https://github.com/tristanmuzzu/deskwright/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/deskwright.svg)](https://pypi.org/project/deskwright/)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![GNOME Shell](https://img.shields.io/badge/GNOME%20Shell-48--50-4a86cf)](#requirements)
 [![Wayland](https://img.shields.io/badge/Wayland-native-blue)](#how-it-actually-works)
 
-**Let your coding agent use your Linux desktop. Or give it one of its own, so
-it stops stealing your mouse.**
+**Computer use for AI agents on GNOME Wayland.**
+
+Let your coding agent use your Linux desktop. Or give it one of its own, so it
+stops stealing your mouse.
 
 [Install](#install) &nbsp;•&nbsp;
 [What it can do](#what-it-can-do) &nbsp;•&nbsp;
@@ -28,8 +30,8 @@ and it hands an agent the actual desktop: launching apps, reading widgets,
 clicking, typing, dragging, window management, OCR and screen recording. Any
 MCP client can drive it. Claude Code, Codex, Cursor, your own script.
 
-The part people tend to like most: `WCU_SESSION=headless` runs all of it on a
-virtual monitor that isn't on any of your screens. Your agent gets a real GNOME
+The part people tend to like most: `DESKWRIGHT_SESSION=headless` runs all of
+it on a virtual monitor that isn't on any of your screens. Your agent gets a real GNOME
 desktop to work on, and it never takes your focus.
 
 ## Why this exists
@@ -61,7 +63,7 @@ $XDG_SESSION_TYPE`, which should mention GNOME and wayland.
 
 Open Claude Code, or Codex, or whatever you use, and say:
 
-> Set up https://github.com/tristanmuzzu/wayland-computer-use on this machine,
+> Set up https://github.com/tristanmuzzu/deskwright on this machine,
 > follow the AGENTS.md.
 
 [`AGENTS.md`](AGENTS.md) is a runbook written for agents. Every command, how to
@@ -73,11 +75,11 @@ involvement.
 ### By hand: two commands and a logout
 
 ```bash
-pipx install --system-site-packages wayland-computer-use
-wcu-setup
+pipx install --system-site-packages deskwright
+deskwright-setup
 ```
 
-`wcu-setup` narrates every step. It turns on the accessibility flag, installs
+`deskwright-setup` narrates every step. It turns on the accessibility flag, installs
 the bundled shell extension, and tells you about any missing system package
 with the right install line for your distro, so you're never guessing at
 package names. It never runs sudo itself.
@@ -88,7 +90,7 @@ Wayland, gnome-shell only picks up an extension at session start.
 Last step, point your client at it:
 
 ```bash
-claude mcp add wayland-computer-use --scope user -- wayland-computer-use
+claude mcp add deskwright --scope user -- deskwright
 ```
 
 That's it. Ask your agent to open an app and it will.
@@ -103,7 +105,7 @@ dies on the first click with `input_backend_failed`.
 
 `uvx` has no equivalent flag, which is the only reason this says pipx. If you'd
 rather skip pipx, a plain `python3 -m venv --system-site-packages` followed by
-`pip install wayland-computer-use` works identically.
+`pip install deskwright` works identically.
 </details>
 
 <details>
@@ -113,8 +115,8 @@ The repo is also a plugin marketplace. It registers the server plus a skill
 that teaches an agent which tool to reach for first.
 
 ```bash
-claude plugin marketplace add tristanmuzzu/wayland-computer-use
-claude plugin install wayland-computer-use@wayland-computer-use
+claude plugin marketplace add tristanmuzzu/deskwright
+claude plugin install deskwright@deskwright
 ```
 
 The plugin runs the server from its own checkout, so there's no pip install.
@@ -122,7 +124,7 @@ You still need the system packages and the extension, so run the setup out of
 the checkout Claude Code cloned for you, once:
 
 ```bash
-~/.claude/plugins/marketplaces/wayland-computer-use/bin/wcu-setup
+~/.claude/plugins/marketplaces/deskwright/bin/deskwright-setup
 ```
 
 Then log out and back in, same as above.
@@ -132,13 +134,13 @@ Then log out and back in, same as above.
 <summary><b>From a clone, if you want to hack on it</b></summary>
 
 ```bash
-git clone https://github.com/tristanmuzzu/wayland-computer-use
-cd wayland-computer-use
-bin/wcu-setup
+git clone https://github.com/tristanmuzzu/deskwright
+cd deskwright
+bin/deskwright-setup
 ./mcp_server.py --self-test
 ```
 
-`./mcp_server.py` is the same entry point as the `wayland-computer-use`
+`./mcp_server.py` is the same entry point as the `deskwright`
 command, by the path older registrations already point at.
 [`CONTRIBUTING.md`](CONTRIBUTING.md) has the layout and which test suites need
 a real session.
@@ -147,14 +149,14 @@ a real session.
 ## Check it works
 
 ```bash
-WCU_SESSION=headless wayland-computer-use --self-test
+DESKWRIGHT_SESSION=headless deskwright --self-test
 ```
 
 You want `18/18 passed`. It runs on a virtual monitor rather than your screen,
 so it's safe to run while you're working. The first run takes about 20 seconds
 because it has to start a second gnome-shell.
 
-Drop `WCU_SESSION=headless` and it tests your real desktop instead. Do that one
+Drop `DESKWRIGHT_SESSION=headless` and it tests your real desktop instead. Do that one
 while you're looking at the screen: the self-test injects real input, because
 it's checking the guards that refuse dangerous key combinations.
 
@@ -194,35 +196,35 @@ Accessibility tree first, pixels last.
 
 ## A second desktop it uses while you work
 
-An agent that needs your screen is only half useful. `wcu-headless` starts a
+An agent that needs your screen is only half useful. `deskwright-headless` starts a
 separate GNOME session on a virtual monitor, with its own session bus, its own
 `gnome-shell --headless` and its own runtime directory. A server pinned to it
 drives that desktop with the same 33 tools while you keep the physical one.
 
 ```bash
-wcu-headless start                    # about 200 MB of gnome-shell, idempotent
-wcu-headless status                   # liveness, memory, bus address
-wcu-headless stop                     # don't leave it idling on an 8 GB machine
+deskwright-headless start                    # about 200 MB of gnome-shell, idempotent
+deskwright-headless status                   # liveness, memory, bus address
+deskwright-headless stop                     # don't leave it idling on an 8 GB machine
 ```
 
 Register it as a second MCP server and you can hand it long jobs:
 
 ```bash
-claude mcp add wcu-headless --scope user --env WCU_SESSION=headless -- wayland-computer-use
+claude mcp add deskwright-headless --scope user --env DESKWRIGHT_SESSION=headless -- deskwright
 ```
 
 Sessions are named, so two agents can each have a desktop of their own and
 never watch each other's windows move:
 
 ```bash
-wcu-headless start --name work
-wcu-headless list                     # every session, memory used, memory free
-WCU_SESSION=headless:work wayland-computer-use
+deskwright-headless start --name work
+deskwright-headless list                     # every session, memory used, memory free
+DESKWRIGHT_SESSION=headless:work deskwright
 ```
 
 There are guards on this, because each session is a real compositor at around
 205 MB: a per-name start lock so two agents can't both spawn one, a session cap
-(`WCU_HEADLESS_MAX`, default 4), and a free-memory floor that refuses a start
+(`DESKWRIGHT_HEADLESS_MAX`, default 4), and a free-memory floor that refuses a start
 which would push the machine into swap. The agent that would cause that can't
 see it coming, so the server does.
 
@@ -247,13 +249,13 @@ gets you a real tree at a small performance cost.
 `--system-site-packages`. Reinstall with the flag:
 
 ```bash
-pipx install --force --system-site-packages wayland-computer-use
+pipx install --force --system-site-packages deskwright
 ```
 
 **Every `ui_*` call says "Namespace Atspi not available".** You have
 `python3-gi` but not the AT-SPI typelib, which is a separate package:
 `gir1.2-atspi-2.0` on Debian and Ubuntu, `at-spi2-core` on Fedora and Arch.
-`wcu-setup --check` catches this and names it.
+`deskwright-setup --check` catches this and names it.
 
 **A tool returns `halted`.** Somebody pressed `Super+Ctrl+Escape`, which is the
 halt switch. Press it again to clear it.
@@ -314,7 +316,7 @@ before you change the code.
 
 ## Requirements
 
-`wcu-setup --check` is the real answer. It detects everything, names the
+`deskwright-setup --check` is the real answer. It detects everything, names the
 package for your distro and exits nonzero if a hard requirement is missing.
 The short version:
 
@@ -325,7 +327,7 @@ The short version:
 | KDE Plasma, Sway, Hyprland | **Input only.** The portal backend drives pointer and keyboard, but window management and screenshots need per-compositor work that isn't done. `desktop_health` will say it's not usable, and it means it. |
 | X11 | Not a target. `xdotool` already does this well there. |
 
-Packages, using Debian names (`wcu-setup` prints yours): `python3-gi`,
+Packages, using Debian names (`deskwright-setup` prints yours): `python3-gi`,
 `gir1.2-atspi-2.0`, `python3-pil`, `libglib2.0-bin`, `wl-clipboard`,
 `tesseract-ocr`. `ydotool` is optional and only used as an input fallback. The
 headless session additionally wants `gnome-shell` and `dbus-daemon` as

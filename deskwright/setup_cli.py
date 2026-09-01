@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""One-command setup for a fresh machine (`wcu-setup`).
+"""One-command setup for a fresh machine (`deskwright-setup`).
 
 What a new user needs, in the order they need it:
 
@@ -43,7 +43,7 @@ from pathlib import Path
 
 from .config import EXTENSION_DIR
 
-EXTENSION_UUID = "wcu@wayland-computer-use"
+EXTENSION_UUID = "deskwright@zeticle.com"
 EXTENSIONS_DIR = Path.home() / ".local/share/gnome-shell/extensions"
 A11Y_SCHEMA = "org.gnome.desktop.interface"
 A11Y_KEY = "toolkit-accessibility"
@@ -311,7 +311,7 @@ def probe_deps(family: str) -> tuple[list[str], list[Dep]]:
                     " so reinstall letting it see distro packages:")
                 lines.append(
                     "               pipx install --system-site-packages"
-                    " wayland-computer-use")
+                    " deskwright")
                 lines.append(
                     "             (Fine to ignore if you start the server from"
                     " a checkout or the Claude Code plugin.)")
@@ -360,7 +360,7 @@ def list_without_uuid(gvariant: str, uuid: str) -> str | None:
 def find_extension_source(explicit: str | None) -> Path | None:
     """Where the gnome-shell extension is read FROM.
 
-    It ships inside the `wcu` package (`wcu/extension/<uuid>/`), so a wheel
+    It ships inside the `deskwright` package (`deskwright/extension/<uuid>/`), so a wheel
     installed from PyPI carries it and there is nothing to clone. `--repo`
     stays as an override for anyone testing an edited copy: pass either a
     checkout, or the extension directory itself.
@@ -373,7 +373,7 @@ def find_extension_source(explicit: str | None) -> Path | None:
         for cand in (base,
                      base / EXTENSION_UUID,
                      base / "extension" / EXTENSION_UUID,
-                     base / "wcu" / "extension" / EXTENSION_UUID):
+                     base / "deskwright" / "extension" / EXTENSION_UUID):
             found = valid(cand)
             if found:
                 return found
@@ -439,7 +439,7 @@ def step_extension(src: Path | None, check_only: bool) -> None:
     disabled_now = _gsettings_get(SHELL_SCHEMA, DISABLED_KEY)
     in_disabled = (disabled_now is not None
                    and EXTENSION_UUID in parse_string_list(disabled_now))
-    live = _bus_has_owner("org.wcu.Helpers")
+    live = _bus_has_owner("com.zeticle.deskwright")
 
     if check_only:
         _say(f"  files:   {'up to date' if up_to_date else 'stale copy' if installed else 'not installed'}"
@@ -447,7 +447,7 @@ def step_extension(src: Path | None, check_only: bool) -> None:
         _say(f"  enabled: {'yes' if in_enabled else 'no'}"
              f" (in {SHELL_SCHEMA} {ENABLED_KEY})"
              + ("; ALSO in disabled-extensions -- remove it there" if in_disabled else ""))
-        _say(f"  live on D-Bus (org.wcu.Helpers): "
+        _say(f"  live on D-Bus (com.zeticle.deskwright): "
              f"{'yes' if live else 'no -- needs a log out/in after install' if live is not None else 'could not ask the session bus'}")
         return
 
@@ -503,7 +503,7 @@ def step_extension(src: Path | None, check_only: bool) -> None:
                          f" {_gsettings_get(SHELL_SCHEMA, DISABLED_KEY)}")
 
     if live:
-        _say("  extension is already live on D-Bus (org.wcu.Helpers) --"
+        _say("  extension is already live on D-Bus (com.zeticle.deskwright) --"
              " no logout needed.")
     else:
         _say()
@@ -557,10 +557,10 @@ def server_command() -> tuple[str, str | None]:
     name there hands the MCP client an ENOENT); the checkout's
     `mcp_server.py`, which is what a clone has before anything is installed.
     """
-    found = _which("wayland-computer-use")
+    found = _which("deskwright")
     if found:
         return found, None
-    beside = Path(sys.executable).with_name("wayland-computer-use")
+    beside = Path(sys.executable).with_name("deskwright")
     if beside.is_file():
         return str(beside), (f"{beside.parent} is not on your PATH -- the"
                              " absolute path above works regardless, and"
@@ -568,7 +568,7 @@ def server_command() -> tuple[str, str | None]:
     local = Path(__file__).resolve().parent.parent / "mcp_server.py"
     if local.is_file():
         return str(local), None
-    return "wayland-computer-use", ("not found on PATH, beside this"
+    return "deskwright", ("not found on PATH, beside this"
                                     " interpreter, or in a checkout -- install"
                                     " the package before registering it.")
 
@@ -576,14 +576,14 @@ def server_command() -> tuple[str, str | None]:
 def step_mcp() -> None:
     _header("Claude Code registration (printed, not run)")
     cmd, caveat = server_command()
-    _say(f'  claude mcp add wayland-computer-use --scope user -- "{cmd}"')
+    _say(f'  claude mcp add deskwright --scope user -- "{cmd}"')
     if not cmd.endswith("mcp_server.py"):
-        _say("  (`wayland-computer-use` is the console script this package"
+        _say("  (`deskwright` is the console script this package"
              " installs; it needs no checkout.)")
     if caveat:
         _say(f"  NOTE: {caveat}")
     _say("  Auto-approval allowlist and the reasoning behind it:")
-    _say("  https://github.com/tristanmuzzu/wayland-computer-use"
+    _say("  https://github.com/tristanmuzzu/deskwright"
          "/blob/main/docs/claude-code-setup.md")
 
 
@@ -591,7 +591,7 @@ def step_self_test() -> None:
     _header("proving it works")
     cmd, _ = server_command()
     _say(f"  {cmd} --self-test")
-    _say(f"  WCU_SESSION=headless {cmd} --self-test"
+    _say(f"  DESKWRIGHT_SESSION=headless {cmd} --self-test"
          "   # ...or on a desktop you cannot see")
     _say("  Not run by this script: the self-test injects input (it probes the"
          " key-combo guards),")
@@ -609,7 +609,7 @@ def _desktop_seam() -> tuple[str, str]:
 def check_desktop() -> str | None:
     """Why this machine is not a target, or None when it is.
 
-    Without this, `wcu-setup` on KDE or Hyprland set a GNOME gsettings key,
+    Without this, `deskwright-setup` on KDE or Hyprland set a GNOME gsettings key,
     created a `~/.local/share/gnome-shell/extensions` tree on a machine with
     no gnome-shell, demanded a logout, and exited 0. The support matrix says
     GNOME-only; the tool has to say it too, BEFORE it changes anything.
@@ -631,7 +631,7 @@ def check_desktop() -> str | None:
 def run(check_only: bool, repo_arg: str | None, force: bool = False) -> int:
     family = detect_host_family()
     src = find_extension_source(repo_arg)
-    _say("wcu-setup"
+    _say("deskwright-setup"
          + (" --check (read-only, changes nothing)" if check_only else "")
          + f" -- distro family: {family}"
          + (f" -- extension source: {src}" if src
@@ -642,7 +642,7 @@ def run(check_only: bool, repo_arg: str | None, force: bool = False) -> int:
         _header("this machine is not a target")
         _say(f"  {wrong_desktop}")
         _say("  Nothing was changed. Support matrix:")
-        _say("  https://github.com/tristanmuzzu/wayland-computer-use"
+        _say("  https://github.com/tristanmuzzu/deskwright"
              "#support-matrix")
         _say()
         _say("  Re-run with --force if you are setting up for a GNOME session"
@@ -663,7 +663,7 @@ def run(check_only: bool, repo_arg: str | None, force: bool = False) -> int:
     _say()
     if missing_hard:
         _say(f"RESULT: {len(missing_hard)} hard requirement(s) missing --"
-             " install them (lines above), then re-run wcu-setup.")
+             " install them (lines above), then re-run deskwright-setup.")
         return 1
     if src is None:
         # Silently exiting 0 here told the user everything was fine while the
@@ -683,8 +683,8 @@ def run(check_only: bool, repo_arg: str | None, force: bool = False) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        prog="wcu-setup",
-        description="Set up wayland-computer-use on a fresh machine. Never"
+        prog="deskwright-setup",
+        description="Set up deskwright on a fresh machine. Never"
                     " sudos; root-needing steps are printed, not run."
                     " Safe to run repeatedly.")
     parser.add_argument("--check", action="store_true",

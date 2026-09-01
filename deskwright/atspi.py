@@ -24,7 +24,7 @@ MAX_FIND_NODES = 4000
 # Said in full wherever PyGObject turns out to be missing: it is the one
 # dependency pip cannot solve, so the message has to carry the fix.
 GI_HINT = (
-    "PyGObject has no PyPI wheels, so an isolated venv cannot see it: install the distro package (python3-gi / python3-gobject / python-gobject) and let this package see it -- `pipx install --system-site-packages wayland-computer-use`. `wcu-setup --check` names the exact line for your distro."
+    "PyGObject has no PyPI wheels, so an isolated venv cannot see it: install the distro package (python3-gi / python3-gobject / python-gobject) and let this package see it -- `pipx install --system-site-packages deskwright`. `deskwright-setup --check` names the exact line for your distro."
 )
 
 
@@ -869,7 +869,7 @@ def tool_launch_app(a: dict) -> dict:
     else:
         desktop_path = _resolve_desktop_file(str(desktop_id))
         what = desktop_path.name
-        if os.environ.get("WCU_HEADLESS"):
+        if os.environ.get("DESKWRIGHT_HEADLESS"):
             argv = _exec_argv(desktop_path) + ([file] if file else [])
             spawn_direct, via = True, "exec (headless)"
         else:

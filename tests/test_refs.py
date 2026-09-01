@@ -32,10 +32,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import atspi
-from wcu import input as input_mod
-from wcu.capture import _Look
-from wcu.errors import ToolError
+from deskwright import atspi
+from deskwright import input as input_mod
+from deskwright.capture import _Look
+from deskwright.errors import ToolError
 
 NOT_LOOKING = _Look(False, None, None, None)
 

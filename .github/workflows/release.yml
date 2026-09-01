@@ -5,7 +5,7 @@ name: Release
 # Uses PyPI Trusted Publishing, so there is NO API token in this repository.
 # One-time setup, on pypi.org -> the project -> Publishing -> Add a pending
 # publisher:
-#   Owner: tristanmuzzu   Repository: wayland-computer-use
+#   Owner: tristanmuzzu   Repository: deskwright
 #   Workflow: release.yml  Environment: pypi
 on:
   push:
@@ -47,11 +47,11 @@ jobs:
         run: |
           python - <<'PY'
           import glob, subprocess, sys, tarfile, zipfile
-          tracked = set(subprocess.run(["git", "ls-files", "wcu/extension"],
+          tracked = set(subprocess.run(["git", "ls-files", "deskwright/extension"],
                                        capture_output=True, text=True,
                                        check=True).stdout.split())
           if not tracked:
-              sys.exit("no tracked files under wcu/extension")
+              sys.exit("no tracked files under deskwright/extension")
           wheel = set(zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist())
           with tarfile.open(glob.glob("dist/*.tar.gz")[0]) as tar:
               sdist = {n.split("/", 1)[1] for n in tar.getnames() if "/" in n}

@@ -16,11 +16,11 @@ one of them to a client:
       atspi_ui.py. Prefer it. Pressing the real button cannot miss.
 
 Usage:
-    wcu-desktop windows
-    wcu-desktop activate <id>
-    wcu-desktop screenshot out.png [--cursor]
-    wcu-desktop type "hello world"
-    wcu-desktop key ctrl+s
+    deskwright-desktop windows
+    deskwright-desktop activate <id>
+    deskwright-desktop screenshot out.png [--cursor]
+    deskwright-desktop type "hello world"
+    deskwright-desktop key ctrl+s
 """
 from __future__ import annotations
 
@@ -33,13 +33,13 @@ import shutil
 import subprocess
 import sys
 
-# The bundled extension owns org.wcu.Helpers. The migration-helpers names are
+# The bundled extension owns com.zeticle.deskwright. The migration-helpers names are
 # the predecessor this grew out of and are kept only as a fallback, so a
 # machine still running the old extension is not stranded -- but the shipped
 # one has to be tried FIRST, or this CLI looks broken on every fresh install.
-NEW_BUS = "org.wcu.Helpers"
-NEW_PATH = "/org/wcu/Helpers"
-NEW_UUID = "wcu@wayland-computer-use"
+NEW_BUS = "com.zeticle.deskwright"
+NEW_PATH = "/com/zeticle/deskwright"
+NEW_UUID = "deskwright@zeticle.com"
 OLD_BUS = "org.tristan.MigrationHelpers"
 OLD_PATH = "/org/tristan/MigrationHelpers"
 OLD_UUID = "migration-helpers@tristan.local"
@@ -103,7 +103,7 @@ def die(msg: str) -> NoReturn:  # noqa: F821
 def _pick_bus() -> None:
     """Prefer the bundled extension's bus; fall back to migration-helpers.
 
-    Mirrors `wcu/shell.py::_pick_bus`; this CLI predates it and used to
+    Mirrors `deskwright/shell.py::_pick_bus`; this CLI predates it and used to
     hardcode the old name, so it failed on every machine but its author's.
     """
     global BUS_NAME, OBJ_PATH, EXTENSION_UUID, _BUS_PROBED

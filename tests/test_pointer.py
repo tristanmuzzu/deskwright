@@ -241,7 +241,7 @@ def test_window_at_agrees_with_the_stack(witness: Witness) -> str:
 
 def test_session_is_released(_: Witness) -> str:
     """The sharing indicator must not live in the top bar forever."""
-    from wcu import remote_input
+    from deskwright import remote_input
     ri = remote_input.shared()
     ri.move_to(960, 540)
     assert ri.active, "a move did not open a session"

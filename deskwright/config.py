@@ -6,7 +6,7 @@ from pathlib import Path
 # and no checkout is required at runtime.
 PKG = Path(__file__).resolve().parent
 
-# Where the bundled gnome-shell extension ships. `wcu-setup` copies from here.
+# Where the bundled gnome-shell extension ships. `deskwright-setup` copies from here.
 EXTENSION_DIR = PKG / "extension"
 
 # Evdev keycodes. Imported from desktop.py so there is one table, not two.

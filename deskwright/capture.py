@@ -15,7 +15,7 @@ from .config import PKG
 from .errors import ToolError
 from .shell import _gdbus, _resolve_target, extension_methods, list_windows, window_at
 
-SHOT_CACHE = Path(os.path.expanduser("~/.cache/wayland-computer-use/shots"))
+SHOT_CACHE = Path(os.path.expanduser("~/.cache/deskwright/shots"))
 SHOT_CACHE_KEEP = 40
 
 

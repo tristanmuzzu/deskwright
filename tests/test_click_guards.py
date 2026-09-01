@@ -28,9 +28,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import input as wi
-from wcu.capture import _Look
-from wcu.errors import ToolError
+from deskwright import input as wi
+from deskwright.capture import _Look
+from deskwright.errors import ToolError
 
 
 class FakePointer:
@@ -192,8 +192,8 @@ def test_failed_drop_does_not_blame_the_timings(rig, monkeypatch):
 
 def _halt_rig(monkeypatch, answers):
     """A halt switch that gives `answers` and then goes silent."""
-    from wcu import shell
-    from wcu.errors import ToolError
+    from deskwright import shell
+    from deskwright.errors import ToolError
 
     monkeypatch.setattr(shell, "_HALT_WAS_ANSWERING", False)
     monkeypatch.setattr(shell, "extension_methods", lambda: {"HaltActive"})
@@ -213,7 +213,7 @@ def test_a_bus_hiccup_does_not_halt_the_run(monkeypatch):
     """The shipped default. A fence that fires on its own is the thing this
     project deliberately does not have: the switch is for a human to stop the
     server, not for D-Bus to stop it."""
-    monkeypatch.delenv("WCU_HALT_FAIL_CLOSED", raising=False)
+    monkeypatch.delenv("DESKWRIGHT_HALT_FAIL_CLOSED", raising=False)
     shell = _halt_rig(monkeypatch, ["(false,)"])
     assert shell.halt_active() is False        # it answered: not halted
     assert shell.halt_active() is False        # it went silent: still not
@@ -221,10 +221,10 @@ def test_a_bus_hiccup_does_not_halt_the_run(monkeypatch):
 
 def test_fail_closed_is_available_for_deployments_that_want_it(monkeypatch):
     """Opt-in. `launch_app` can run `gnome-extensions disable
-    wcu@wayland-computer-use`, which unowns the bus name and makes every later
+    deskwright@zeticle.com`, which unowns the bus name and makes every later
     probe fail -- so a switch that HAS answered and then goes silent counts as
     halted under this setting."""
-    monkeypatch.setenv("WCU_HALT_FAIL_CLOSED", "1")
+    monkeypatch.setenv("DESKWRIGHT_HALT_FAIL_CLOSED", "1")
     shell = _halt_rig(monkeypatch, ["(false,)"])
     assert shell.halt_active() is False
     assert shell.halt_active() is True
@@ -234,9 +234,9 @@ def test_a_switch_that_was_never_there_does_not_block_everything(monkeypatch):
     """Before the logout that loads the extension, nothing can be halted --
     refusing every acted call there would make a fresh install useless. True
     under either setting."""
-    from wcu import shell
+    from deskwright import shell
 
-    monkeypatch.setenv("WCU_HALT_FAIL_CLOSED", "1")
+    monkeypatch.setenv("DESKWRIGHT_HALT_FAIL_CLOSED", "1")
     monkeypatch.setattr(shell, "_HALT_WAS_ANSWERING", False)
     monkeypatch.setattr(shell, "extension_methods", lambda: set())
     assert shell.halt_active() is False

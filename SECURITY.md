@@ -57,10 +57,10 @@ Stated limitations, honestly:
   continues. The switch exists to let a human stop the server, never to let a
   D-Bus hiccup stop it. That does mean the switch can be removed: `launch_app`
   is an arbitrary-exec primitive, so an agent could run
-  `gnome-extensions disable wcu@wayland-computer-use` and unown the bus name.
+  `gnome-extensions disable deskwright@zeticle.com` and unown the bus name.
   Under this project's posture that is not a hole to plug, the agent is
   trusted, and a fence that fires on its own costs more than it buys. If your
-  deployment disagrees, `WCU_HALT_FAIL_CLOSED=1` makes silence *after* the
+  deployment disagrees, `DESKWRIGHT_HALT_FAIL_CLOSED=1` makes silence *after* the
   switch has once answered count as halted. Off by default.
 - **It gates this server, not the agent.** Nearly every real deployment gives
   the same agent a shell, and a shell can kill the server process or disable
@@ -72,12 +72,12 @@ Stated limitations, honestly:
   that combination, and the extension debounces a repeat within two seconds,
   but an agent with another injection path, or one that waits, is not stopped
   by the switch itself.
-- **On a headless session, the physical key does nothing.** `WCU_SESSION=headless`
+- **On a headless session, the physical key does nothing.** `DESKWRIGHT_SESSION=headless`
   runs a second gnome-shell with its own extension instance and its own halt
   flag, on a virtual monitor with no keyboard. A human's `Super+Ctrl+Escape`
   is delivered to the *primary* shell, which the headless server never
   consults. To halt a headless run today: stop the client, or
-  `wcu-headless stop --name <name>`. This is the most conspicuous gap in the
+  `deskwright-headless stop --name <name>`. This is the most conspicuous gap in the
   design and it is tracked on the ROADMAP.
 - The halt gates *this server's* tools. It does not freeze the desktop, and
   it does not stop other automation stacks on the machine.
@@ -99,7 +99,7 @@ trail. Treat all captured screen content as untrusted data.
 
 ## The extension's D-Bus service is open to your session bus, by design
 
-The bundled extension owns `org.wcu.Helpers` on the **session bus** and does
+The bundled extension owns `com.zeticle.deskwright` on the **session bus** and does
 not check the caller. No D-Bus policy file constrains that name, and the
 session bus default-allows any process running as the same user, so once the
 extension is enabled **every process running as you** can call every method on
@@ -161,29 +161,29 @@ project's posture is that the agent is trusted and capability is not fenced.
 
 **Treat enabling the extension as a machine-level decision.** If you would not
 run an agent with a shell on this machine, do not enable it.
-`gnome-extensions disable wcu@wayland-computer-use` removes the surface
+`gnome-extensions disable deskwright@zeticle.com` removes the surface
 entirely, and the server degrades to what AT-SPI, mutter and the portal allow
 on their own.
 
 ## What is written to disk, and where
 
-- **The action journal**: `$XDG_STATE_HOME/wayland-computer-use/journal/`,
+- **The action journal**: `$XDG_STATE_HOME/deskwright/journal/`,
   files 0600, kept 14 days. One line per *acted* tool call: arguments,
   outcome, hit/miss verdict, and the sha256 of any screenshot. Text that a
   password could be is **not** stored: `type_text`, `ui_set_text`,
   `clipboard_write` and the same three inside `do_steps` are recorded as a
   character count and a truncated digest, which is enough to tell that
   something was typed, how much, and whether it was the same string twice.
-  `WCU_JOURNAL_TEXT=1` stores the characters verbatim if you want that for
+  `DESKWRIGHT_JOURNAL_TEXT=1` stores the characters verbatim if you want that for
   your own debugging.
   Two honest limits: **reading** tools are not journaled, so a run that only
   looks, screenshots, `clipboard_read`, `ui_read_text`, leaves no trail;
   and the journal is plain files the agent can rewrite or delete, so it is
   evidence, not an audit log. A signed append-only mode is on the ROADMAP.
-- **The screenshot cache**: `~/.cache/wayland-computer-use/shots/`, directory
+- **The screenshot cache**: `~/.cache/deskwright/shots/`, directory
   0700, the last 40 captures. These are unredacted pictures of your desktop.
 - **The portal restore token**:
-  `$XDG_STATE_HOME/wayland-computer-use/portal-tokens.json`, 0600 in a 0700
+  `$XDG_STATE_HOME/deskwright/portal-tokens.json`, 0600 in a 0700
   directory. With `persist_mode: 2` this token replays pointer injection,
   keyboard injection and monitor capture **with no consent dialog**, and it
   survives a reboot. To revoke: delete the file *and* remove the entry in

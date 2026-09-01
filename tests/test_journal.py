@@ -35,15 +35,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import journal
-from wcu.errors import ToolError
+from deskwright import journal
+from deskwright.errors import ToolError
 
 
 @pytest.fixture
 def jdir(tmp_path, monkeypatch) -> Path:
     """Point the journal into a tmpdir and return its directory."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    return tmp_path / "wayland-computer-use" / "journal"
+    return tmp_path / "deskwright" / "journal"
 
 
 def _read_lines(jdir: Path) -> list[dict]:
@@ -146,7 +146,7 @@ def test_text_typed_inside_do_steps_is_fingerprinted_too(jdir):
 
 
 def test_verbatim_text_is_available_when_asked_for(jdir, monkeypatch):
-    monkeypatch.setenv("WCU_JOURNAL_TEXT", "1")
+    monkeypatch.setenv("DESKWRIGHT_JOURNAL_TEXT", "1")
     journal.record("type_text", {"text": "hunter2"}, {})
     assert _read_lines(jdir)[0]["args"]["text"] == "hunter2"
 
@@ -291,16 +291,16 @@ if __name__ == "__main__":
 def test_desktop_field_names_the_headless_session(jdir, monkeypatch):
     """With several virtual desktops live, 'a click happened' is only a
     reviewable record if it says where (2026-08-27)."""
-    monkeypatch.setenv("WCU_HEADLESS", "1")
-    monkeypatch.setenv("WCU_HEADLESS_NAME", "work")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS", "1")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS_NAME", "work")
     journal.record("pointer_click", {"x": 1, "y": 2}, {"detail": "ok"})
     assert _read_lines(jdir)[-1]["desktop"] == "work"
 
 
 def test_desktop_field_falls_back_when_only_the_flag_is_set(jdir, monkeypatch):
-    """A server pinned by an older wcu-headless env has WCU_HEADLESS but no
+    """A server pinned by an older deskwright-headless env has DESKWRIGHT_HEADLESS but no
     name; it must still not be recorded as the user's screen."""
-    monkeypatch.setenv("WCU_HEADLESS", "1")
-    monkeypatch.delenv("WCU_HEADLESS_NAME", raising=False)
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS", "1")
+    monkeypatch.delenv("DESKWRIGHT_HEADLESS_NAME", raising=False)
     journal.record("pointer_click", {"x": 1, "y": 2}, {"detail": "ok"})
     assert _read_lines(jdir)[-1]["desktop"] == "headless"

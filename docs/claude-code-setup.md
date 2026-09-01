@@ -22,16 +22,16 @@ User scope, so the tools are present in every session on the machine rather than
 only in this repository:
 
 ```bash
-claude mcp add wayland-computer-use --scope user -- wayland-computer-use
+claude mcp add deskwright --scope user -- deskwright
 ```
 
-`wayland-computer-use` is the console script installed by
-`pipx install --system-site-packages wayland-computer-use`. From a clone
+`deskwright` is the console script installed by
+`pipx install --system-site-packages deskwright`. From a clone
 instead, name the file by its absolute path:
 
 ```bash
-cd /path/to/wayland-computer-use
-claude mcp add wayland-computer-use --scope user -- "$PWD/mcp_server.py"
+cd /path/to/deskwright
+claude mcp add deskwright --scope user -- "$PWD/mcp_server.py"
 ```
 
 The `--` matters: everything after it is the command that runs the server, and
@@ -45,8 +45,8 @@ As a Claude Code plugin, neither step is needed. The plugin registers the
 server itself:
 
 ```bash
-claude plugin marketplace add tristanmuzzu/wayland-computer-use
-claude plugin install wayland-computer-use@wayland-computer-use
+claude plugin marketplace add tristanmuzzu/deskwright
+claude plugin install deskwright@deskwright
 ```
 
 The equivalent as a `.mcp.json` block at a project root:
@@ -54,8 +54,8 @@ The equivalent as a `.mcp.json` block at a project root:
 ```json
 {
   "mcpServers": {
-    "wayland-computer-use": {
-      "command": "/home/you/projects/wayland-computer-use/mcp_server.py",
+    "deskwright": {
+      "command": "/home/you/projects/deskwright/mcp_server.py",
       "args": []
     }
   }
@@ -74,7 +74,7 @@ Confirm it connected before writing permissions for it:
 
 ```bash
 claude mcp list                        # health per server
-claude mcp get wayland-computer-use    # the entry as Claude Code resolved it
+claude mcp get deskwright    # the entry as Claude Code resolved it
 ```
 
 ## The allowlist
@@ -83,9 +83,9 @@ Claude Code names an MCP tool `mcp__<server-name>__<tool-name>`. The server-name
 segment is **the name you registered the server under**, the first argument to
 `claude mcp add`, or the key under `mcpServers`, not the name the server
 advertises about itself in its handshake. Those happen to agree here
-(`SERVER_INFO` in `mcp_server.py` says `wayland-computer-use`), which makes the
+(`SERVER_INFO` in `mcp_server.py` says `deskwright`), which makes the
 distinction easy to miss until someone registers it as `desktop` and every rule
-below silently matches nothing. Register it under `wayland-computer-use` or
+below silently matches nothing. Register it under `deskwright` or
 substitute your name everywhere in this section.
 
 Allow rules accept a wildcard in the tool position after a literal
@@ -96,45 +96,45 @@ Allow rules accept a wildcard in the tool position after a literal
 {
   "permissions": {
     "allow": [
-      "mcp__wayland-computer-use__activate_window",
-      "mcp__wayland-computer-use__assert_state",
-      "mcp__wayland-computer-use__clipboard_read",
-      "mcp__wayland-computer-use__clipboard_write",
-      "mcp__wayland-computer-use__desktop_health",
-      "mcp__wayland-computer-use__do_steps",
-      "mcp__wayland-computer-use__find_text",
-      "mcp__wayland-computer-use__frames",
-      "mcp__wayland-computer-use__hold_key",
-      "mcp__wayland-computer-use__journal",
-      "mcp__wayland-computer-use__launch_app",
-      "mcp__wayland-computer-use__list_windows",
-      "mcp__wayland-computer-use__pointer_click",
-      "mcp__wayland-computer-use__pointer_drag",
-      "mcp__wayland-computer-use__pointer_move",
-      "mcp__wayland-computer-use__pointer_position",
-      "mcp__wayland-computer-use__pointer_scroll",
-      "mcp__wayland-computer-use__press_keys",
-      "mcp__wayland-computer-use__region_changed",
-      "mcp__wayland-computer-use__screen_map",
-      "mcp__wayland-computer-use__screencast",
-      "mcp__wayland-computer-use__screenshot",
-      "mcp__wayland-computer-use__type_text",
-      "mcp__wayland-computer-use__ui_apps",
-      "mcp__wayland-computer-use__ui_find",
-      "mcp__wayland-computer-use__ui_press",
-      "mcp__wayland-computer-use__ui_read_text",
-      "mcp__wayland-computer-use__ui_set_text",
-      "mcp__wayland-computer-use__ui_tree",
-      "mcp__wayland-computer-use__wait_for",
-      "mcp__wayland-computer-use__window_at",
-      "mcp__wayland-computer-use__window_manage",
-      "mcp__wayland-computer-use__zoom"
+      "mcp__deskwright__activate_window",
+      "mcp__deskwright__assert_state",
+      "mcp__deskwright__clipboard_read",
+      "mcp__deskwright__clipboard_write",
+      "mcp__deskwright__desktop_health",
+      "mcp__deskwright__do_steps",
+      "mcp__deskwright__find_text",
+      "mcp__deskwright__frames",
+      "mcp__deskwright__hold_key",
+      "mcp__deskwright__journal",
+      "mcp__deskwright__launch_app",
+      "mcp__deskwright__list_windows",
+      "mcp__deskwright__pointer_click",
+      "mcp__deskwright__pointer_drag",
+      "mcp__deskwright__pointer_move",
+      "mcp__deskwright__pointer_position",
+      "mcp__deskwright__pointer_scroll",
+      "mcp__deskwright__press_keys",
+      "mcp__deskwright__region_changed",
+      "mcp__deskwright__screen_map",
+      "mcp__deskwright__screencast",
+      "mcp__deskwright__screenshot",
+      "mcp__deskwright__type_text",
+      "mcp__deskwright__ui_apps",
+      "mcp__deskwright__ui_find",
+      "mcp__deskwright__ui_press",
+      "mcp__deskwright__ui_read_text",
+      "mcp__deskwright__ui_set_text",
+      "mcp__deskwright__ui_tree",
+      "mcp__deskwright__wait_for",
+      "mcp__deskwright__window_at",
+      "mcp__deskwright__window_manage",
+      "mcp__deskwright__zoom"
     ]
   }
 }
 ```
 
-A bare `mcp__wayland-computer-use`, with no tool segment, matches every tool of
+A bare `mcp__deskwright`, with no tool segment, matches every tool of
 the server too. Two limits on the syntax are worth knowing: the server segment
 itself must be glob-free, and an unanchored allow glob, `"*"`, `"mcp__*"`, is
 skipped with a warning and approves nothing, because those forms are only
@@ -154,31 +154,31 @@ one is:
 {
   "permissions": {
     "allow": [
-      "mcp__wayland-computer-use__activate_window",
-      "mcp__wayland-computer-use__desktop_health",
-      "mcp__wayland-computer-use__do_steps",
-      "mcp__wayland-computer-use__find_text",
-      "mcp__wayland-computer-use__frames",
-      "mcp__wayland-computer-use__list_windows",
-      "mcp__wayland-computer-use__pointer_click",
-      "mcp__wayland-computer-use__pointer_drag",
-      "mcp__wayland-computer-use__pointer_move",
-      "mcp__wayland-computer-use__pointer_position",
-      "mcp__wayland-computer-use__pointer_scroll",
-      "mcp__wayland-computer-use__press_keys",
-      "mcp__wayland-computer-use__region_changed",
-      "mcp__wayland-computer-use__screen_map",
-      "mcp__wayland-computer-use__screencast",
-      "mcp__wayland-computer-use__screenshot",
-      "mcp__wayland-computer-use__type_text",
-      "mcp__wayland-computer-use__ui_apps",
-      "mcp__wayland-computer-use__ui_find",
-      "mcp__wayland-computer-use__ui_press",
-      "mcp__wayland-computer-use__ui_read_text",
-      "mcp__wayland-computer-use__ui_set_text",
-      "mcp__wayland-computer-use__ui_tree",
-      "mcp__wayland-computer-use__wait_for",
-      "mcp__wayland-computer-use__window_at"
+      "mcp__deskwright__activate_window",
+      "mcp__deskwright__desktop_health",
+      "mcp__deskwright__do_steps",
+      "mcp__deskwright__find_text",
+      "mcp__deskwright__frames",
+      "mcp__deskwright__list_windows",
+      "mcp__deskwright__pointer_click",
+      "mcp__deskwright__pointer_drag",
+      "mcp__deskwright__pointer_move",
+      "mcp__deskwright__pointer_position",
+      "mcp__deskwright__pointer_scroll",
+      "mcp__deskwright__press_keys",
+      "mcp__deskwright__region_changed",
+      "mcp__deskwright__screen_map",
+      "mcp__deskwright__screencast",
+      "mcp__deskwright__screenshot",
+      "mcp__deskwright__type_text",
+      "mcp__deskwright__ui_apps",
+      "mcp__deskwright__ui_find",
+      "mcp__deskwright__ui_press",
+      "mcp__deskwright__ui_read_text",
+      "mcp__deskwright__ui_set_text",
+      "mcp__deskwright__ui_tree",
+      "mcp__deskwright__wait_for",
+      "mcp__deskwright__window_at"
     ]
   }
 }

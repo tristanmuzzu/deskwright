@@ -67,12 +67,12 @@ REPO = HERE.parent
 SERVER = REPO / "mcp_server.py"
 
 # Pin THIS process to the session under test, not just the server subprocess.
-# The server pins itself from WCU_SESSION, but the editor below is spawned by
+# The server pins itself from DESKWRIGHT_SESSION, but the editor below is spawned by
 # this test's Popen with this test's environment -- unpinned, it opens on the
 # USER'S desktop while the server looks for it on the headless one, which is
 # exactly what happened on the first headless run (editor flashing on the real
 # screen, every tier failing app_not_on_bus). Importing mcp_server runs the
-# same _resolve_session() the server runs; with WCU_SESSION unset it is a
+# same _resolve_session() the server runs; with DESKWRIGHT_SESSION unset it is a
 # no-op and the test behaves exactly as before.
 sys.path.insert(0, str(REPO))
 import mcp_server  # noqa: F401  (imported for its session pinning)
@@ -178,7 +178,7 @@ def tier1_atspi(client: Client) -> None:
     check("ui_apps enumerates the bus", ok and apps.get("count", 0) >= 3,
           f'{apps.get("count") if ok else apps} apps')
 
-    marker = f"wcu-e2e-{uuid.uuid4().hex[:8]}"
+    marker = f"deskwright-e2e-{uuid.uuid4().hex[:8]}"
 
     # Write with no focus and no keyboard at all.
     ok, res = client.call("ui_set_text", {"app": EDITOR_APP, "text": marker,
@@ -295,7 +295,7 @@ def tier2_extension(client: Client, health: dict) -> None:
           ok and typed.strip() in res.get("text", ""),
           f'widget holds {res.get("text", "")[:40]!r}' if ok else res)
 
-    shot = Path("/tmp") / f"wcu-e2e-{uuid.uuid4().hex[:6]}.png"
+    shot = Path("/tmp") / f"deskwright-e2e-{uuid.uuid4().hex[:6]}.png"
     ok, res = client.call("screenshot", {"path": str(shot)})
     check("screenshot is a real PNG with real dimensions",
           ok and res.get("bytes", 0) > 10000 and "x" in (res.get("dimensions") or ""),
@@ -333,22 +333,22 @@ def main() -> int:
     # editor, and every run's tabs accumulate in an instance that also
     # restores its previous session -- which is how this test spent a day
     # failing against ghost tabs holding earlier runs' filenames (measured
-    # 2026-08-23: readback found 'wcu-e2e-<old hex>' from an instance three
+    # 2026-08-23: readback found 'deskwright-e2e-<old hex>' from an instance three
     # runs old). --standalone implies --ignore-session: a fresh process, a
     # tree with exactly one document, and a terminate() that actually ends
     # it. A scratch file keeps the target unambiguous and the test harmless
     # either way.
-    scratch = Path(tempfile.gettempdir()) / f"wcu-e2e-{uuid.uuid4().hex[:8]}.txt"
-    scratch.write_text("scratch file for the wayland-computer-use e2e test\n")
+    scratch = Path(tempfile.gettempdir()) / f"deskwright-e2e-{uuid.uuid4().hex[:8]}.txt"
+    scratch.write_text("scratch file for the deskwright e2e test\n")
     # A throwaway XDG_DATA_HOME, because --standalone is NOT stateless: the
     # editor still restores every unsaved draft from
     # ~/.local/share/org.gnome.TextEditor/, and this test's own terminated
     # runs are exactly what leaves such drafts. Measured 2026-08-25: thirty
-    # accumulated wcu-e2e-* drafts meant every launch opened extra windows,
+    # accumulated deskwright-e2e-* drafts meant every launch opened extra windows,
     # the tree pegged at the 400-node cap (popover growth invisible), and
     # typed keystrokes landed in the focused window while the readback pin
     # resolved into a restored one. Isolated state: one window, every run.
-    data_home = Path(tempfile.mkdtemp(prefix="wcu-e2e-xdg-"))
+    data_home = Path(tempfile.mkdtemp(prefix="deskwright-e2e-xdg-"))
     editor = subprocess.Popen(["gnome-text-editor", "--standalone", str(scratch)],
                               env={**os.environ, "XDG_DATA_HOME": str(data_home)},
                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)

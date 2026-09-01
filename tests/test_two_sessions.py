@@ -43,7 +43,7 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
 sys.path.insert(0, str(ROOT))
 
-from wcu import headless
+from deskwright import headless
 
 NAMES = ("wcutest-a", "wcutest-b")
 passed = failed = 0
@@ -75,8 +75,8 @@ def drive(name: str, script: str) -> dict:
     prelude = textwrap.dedent(f"""
         import json, os, sys, tempfile
         sys.path.insert(0, {str(ROOT)!r})
-        os.environ["WCU_SESSION"] = "headless:{name}"
-        os.environ["XDG_DATA_HOME"] = tempfile.mkdtemp(prefix="wcu-two-sessions-")
+        os.environ["DESKWRIGHT_SESSION"] = "headless:{name}"
+        os.environ["XDG_DATA_HOME"] = tempfile.mkdtemp(prefix="deskwright-two-sessions-")
         import mcp_server              # pins this process at import
         out = {{}}
     """)
@@ -98,9 +98,9 @@ def drive(name: str, script: str) -> dict:
 
 LAUNCH_AND_TYPE = """
     import time
-    from wcu.atspi import (list_atspi_apps, tool_launch_app, tool_ui_read_text,
+    from deskwright.atspi import (list_atspi_apps, tool_launch_app, tool_ui_read_text,
                            tool_ui_set_text)
-    from wcu.shell import list_windows
+    from deskwright.shell import list_windows
     app = tool_launch_app({"desktop_id": "org.gnome.TextEditor",
                            "wait_window": True})
     out["window"] = app.get("window", {}).get("title")
@@ -122,8 +122,8 @@ LAUNCH_AND_TYPE = """
 """
 
 LOOK_ONLY = """
-    from wcu.shell import list_windows
-    from wcu.atspi import list_atspi_apps
+    from deskwright.shell import list_windows
+    from deskwright.atspi import list_atspi_apps
     out["windows"] = [w["title"] for w in list_windows()]
     out["apps"] = sorted({a["name"] for a in list_atspi_apps()})
     out["display"] = os.environ["WAYLAND_DISPLAY"]
@@ -198,8 +198,8 @@ def main() -> int:
                   all(others_text not in w for w in after["windows"]))
 
         # And the user's own desktop is untouched by either.
-        from wcu.atspi import list_atspi_apps
-        from wcu.shell import list_windows
+        from deskwright.atspi import list_atspi_apps
+        from deskwright.shell import list_windows
         primary_titles = [w["title"] for w in list_windows()]
         check("the primary session sees neither editor",
               not any("written-into-" in t for t in primary_titles),

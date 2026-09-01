@@ -24,12 +24,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import (
+from deskwright import (
     server,
     steps,
 )
-from wcu.capture import _Look
-from wcu.errors import ToolError
+from deskwright.capture import _Look
+from deskwright.errors import ToolError
 
 
 class Harness:
@@ -60,7 +60,7 @@ class Harness:
 
         def look_before(a, hint_window=None, point=None):
             # The real resolver, minus the captures it would take.
-            from wcu.capture import _look_region
+            from deskwright.capture import _look_region
             mode, region, window = _look_region(a, hint_window, point)
             return _Look(mode, region, window, None)
 

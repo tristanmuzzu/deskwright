@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""wcu-setup, fully in-process: no gsettings, no D-Bus, no subprocess.
+"""deskwright-setup, fully in-process: no gsettings, no D-Bus, no subprocess.
 
 Three claims:
   1. Distro-family detection reads synthetic /etc/os-release content
@@ -26,7 +26,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import setup_cli
+from deskwright import setup_cli
 
 UUID = setup_cli.EXTENSION_UUID
 
@@ -164,7 +164,7 @@ def test_check_all_present_exits_zero(monkeypatch, capsys, fake_repo,
     assert "[MISSING]" not in out
     assert "all hard requirements present" in out
     # the plan still names every later step without doing it
-    assert "claude mcp add wayland-computer-use --scope user" in out
+    assert "claude mcp add deskwright --scope user" in out
     assert "--self-test" in out
     assert "LOG OUT" not in out          # check mode never reaches the banner
 
@@ -214,9 +214,9 @@ def test_check_extension_states(monkeypatch, capsys, fake_repo,
 
 def test_no_argument_finds_the_extension_bundled_with_the_package(
         monkeypatch, capsys, tmp_path, no_subprocess):
-    """The install story: `pipx install ... && wcu-setup`, no clone anywhere.
+    """The install story: `pipx install ... && deskwright-setup`, no clone anywhere.
 
-    The extension ships inside the `wcu` package, so with no --repo, no
+    The extension ships inside the `deskwright` package, so with no --repo, no
     checkout and a foreign cwd, setup still knows what to copy.
     """
     _patch_probes(monkeypatch, tmp_path)
@@ -247,7 +247,7 @@ def test_find_extension_source_default_is_the_packaged_copy():
     assert (packaged / "metadata.json").is_file()
 
 
-@pytest.mark.parametrize("layout", ["extension", "wcu/extension", "direct"])
+@pytest.mark.parametrize("layout", ["extension", "deskwright/extension", "direct"])
 def test_find_extension_source_accepts_explicit_overrides(tmp_path, layout):
     """--repo takes a checkout in either layout, or the extension dir itself."""
     ext = tmp_path / UUID if layout == "direct" else tmp_path / layout / UUID
@@ -263,10 +263,10 @@ def test_find_extension_source_rejects_a_path_with_no_extension(tmp_path):
 
 def test_server_command_prefers_the_installed_console_script(monkeypatch):
     monkeypatch.setattr(setup_cli, "_which",
-                        lambda n: "/usr/local/bin/wayland-computer-use"
-                        if n == "wayland-computer-use" else None)
+                        lambda n: "/usr/local/bin/deskwright"
+                        if n == "deskwright" else None)
     assert setup_cli.server_command() == (
-        "/usr/local/bin/wayland-computer-use", None)
+        "/usr/local/bin/deskwright", None)
 
 
 def test_server_command_finds_the_script_beside_the_interpreter(monkeypatch, tmp_path):
@@ -275,7 +275,7 @@ def test_server_command_finds_the_script_beside_the_interpreter(monkeypatch, tmp
     bindir = tmp_path / "bin"
     bindir.mkdir()
     (bindir / "python").write_text("")
-    script = bindir / "wayland-computer-use"
+    script = bindir / "deskwright"
     script.write_text("#!/bin/sh\n")
     monkeypatch.setattr(setup_cli, "_which", lambda n: None)
     monkeypatch.setattr(setup_cli.sys, "executable", str(bindir / "python"))

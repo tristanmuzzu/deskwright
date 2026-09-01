@@ -16,8 +16,8 @@ The portal's price is a consent dialog on first Start. The spike
 machine: `persist_mode: 2` + a saved `restore_token` turn the one-time consent
 into unattended operation -- the second run reached "session started" with no
 dialog at all. Tokens are persisted under
-$XDG_STATE_HOME/wayland-computer-use/portal-tokens.json, keyed per session
-(the primary desktop and the wcu-headless session have separate portal
+$XDG_STATE_HOME/deskwright/portal-tokens.json, keyed per session
+(the primary desktop and the deskwright-headless session have separate portal
 backends and separate consents).
 
 The spike's one open wire was absolute motion: `NotifyPointerMotionAbsolute`
@@ -86,13 +86,13 @@ START_TIMEOUT_S = 120.0
 
 def _token_file() -> str:
     state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    d = os.path.join(state, "wayland-computer-use")
+    d = os.path.join(state, "deskwright")
     os.makedirs(d, mode=0o700, exist_ok=True)
     return os.path.join(d, "portal-tokens.json")
 
 
 def _token_key() -> str:
-    return "headless" if os.environ.get("WCU_HEADLESS") else "primary"
+    return "headless" if os.environ.get("DESKWRIGHT_HEADLESS") else "primary"
 
 
 def _load_token() -> str | None:
@@ -188,7 +188,7 @@ class PortalInput(Gestures):
         """
         bus = self._connect()
         self._counter += 1
-        token = f"wcu{os.getpid()}n{self._counter}"
+        token = f"deskwright{os.getpid()}n{self._counter}"
         sender = bus.get_unique_name()[1:].replace(".", "_")
         request_path = f"/org/freedesktop/portal/desktop/request/{sender}/{token}"
 
@@ -235,7 +235,7 @@ class PortalInput(Gestures):
                 RD, "CreateSession",
                 lambda t: GLib.Variant("(a{sv})", ({
                     "handle_token": GLib.Variant("s", t),
-                    "session_handle_token": GLib.Variant("s", f"wcu{os.getpid()}"),
+                    "session_handle_token": GLib.Variant("s", f"deskwright{os.getpid()}"),
                 },)))
             session = results.get("session_handle")
             if not session:

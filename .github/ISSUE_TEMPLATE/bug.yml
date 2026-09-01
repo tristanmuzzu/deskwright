@@ -15,7 +15,7 @@ body:
       description: >-
         Ask your agent to call the `desktop_health` tool and paste the whole
         JSON. From a shell instead:
-        `wayland-computer-use --self-test` (or `./mcp_server.py --self-test`
+        `deskwright --self-test` (or `./mcp_server.py --self-test`
         from a checkout) and paste the report.
       render: json
     validations:
@@ -52,7 +52,7 @@ body:
       label: Which desktop was it driving?
       options:
         - the primary session (my screen)
-        - a headless session (WCU_SESSION=headless)
+        - a headless session (DESKWRIGHT_SESSION=headless)
     validations:
       required: true
   - type: textarea

@@ -12,11 +12,11 @@ presses the actual button, so it cannot miss, cannot be defeated by a window
 moving, and needs no pointer at all.
 
 Usage:
-    wcu-atspi apps
-    wcu-atspi tree "Google Chrome" [--depth 4]
-    wcu-atspi find "Reload" [--app "Google Chrome"] [--role push_button]
-    wcu-atspi actions <path>
-    wcu-atspi do <path> [action_index]
+    deskwright-atspi apps
+    deskwright-atspi tree "Google Chrome" [--depth 4]
+    deskwright-atspi find "Reload" [--app "Google Chrome"] [--role push_button]
+    deskwright-atspi actions <path>
+    deskwright-atspi do <path> [action_index]
 
 <path> is the index path printed by `tree`/`find`, e.g. "Google Chrome/0/3/1".
 It is resolved fresh on every call, so it is only valid while the tree is

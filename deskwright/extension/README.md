@@ -1,7 +1,7 @@
 # Computer Use Helpers (GNOME Shell extension)
 
-The compositor-side half of wayland-computer-use: a small D-Bus service
-(`org.wcu.Helpers` at `/org/wcu/Helpers`) exported from inside gnome-shell,
+The compositor-side half of deskwright: a small D-Bus service
+(`com.zeticle.deskwright` at `/com/zeticle/deskwright`) exported from inside gnome-shell,
 providing screenshots, window list/geometry/control, pointer position,
 clipboard read/write, an on-screen "agent is driving" border, and a
 human-only halt keybinding (`<Super><Ctrl>Escape`).
@@ -19,8 +19,8 @@ this code lives. (Full denial table in the main [README](../../README.md).)
 ## Install
 
 ```sh
-cp -r extension/wcu@wayland-computer-use ~/.local/share/gnome-shell/extensions/
-gnome-extensions enable wcu@wayland-computer-use
+cp -r extension/deskwright@zeticle.com ~/.local/share/gnome-shell/extensions/
+gnome-extensions enable deskwright@zeticle.com
 ```
 
 Then **log out and back in**. This is not optional. On Wayland gnome-shell
@@ -33,7 +33,7 @@ returns the loaded build stamp).
 Before logging out, verify the shell will accept the files:
 
 ```sh
-extension/wcu@wayland-computer-use/check-syntax.sh
+extension/deskwright@zeticle.com/check-syntax.sh
 ```
 
 ## Notes

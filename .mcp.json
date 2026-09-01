@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "wayland-computer-use": {
+    "deskwright": {
       "command": "${CLAUDE_PLUGIN_ROOT}/mcp_server.py",
       "args": []
     }

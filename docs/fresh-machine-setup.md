@@ -3,13 +3,13 @@
 Two commands, no checkout:
 
 ```sh
-pipx install --system-site-packages wayland-computer-use
-wcu-setup                  # apply (idempotent, never sudos)
-wcu-setup --check          # read-only report, nonzero exit if something hard is missing
+pipx install --system-site-packages deskwright
+deskwright-setup                  # apply (idempotent, never sudos)
+deskwright-setup --check          # read-only report, nonzero exit if something hard is missing
 ```
 
-The gnome-shell extension travels inside the wheel (`wcu/extension/`), so
-there is nothing to clone: `wcu-setup` copies it out of the installed package.
+The gnome-shell extension travels inside the wheel (`deskwright/extension/`), so
+there is nothing to clone: `deskwright-setup` copies it out of the installed package.
 
 `--system-site-packages` is load-bearing. PyGObject publishes no wheels to
 PyPI (verified 2026-08-30 -- `uv pip install PyGObject --no-build` answers
@@ -20,9 +20,9 @@ equivalent flag, which is why `pipx` is the documented route.
 From a clone, the same thing without installing anything:
 
 ```sh
-git clone https://github.com/tristanmuzzu/wayland-computer-use
-cd wayland-computer-use
-./bin/wcu-setup
+git clone https://github.com/tristanmuzzu/deskwright
+cd deskwright
+./bin/deskwright-setup
 ```
 
 ## What it does, in order
@@ -38,7 +38,7 @@ cd wayland-computer-use
    anything already running keeps a stunted accessibility tree until that app
    restarts.
 3. **The bundled gnome-shell extension**, copies
-   `wcu/extension/wcu@wayland-computer-use` to
+   `deskwright/extension/deskwright@zeticle.com` to
    `~/.local/share/gnome-shell/extensions/` and enables it. A freshly copied
    extension is invisible to `gnome-extensions enable` ("does not exist")
    until the shell rescans at login, so enabling goes through the
@@ -53,10 +53,10 @@ cd wayland-computer-use
 5. **Claude Code registration**, prints the `claude mcp add` line. Details
    and the auto-approval allowlist: [claude-code-setup.md](claude-code-setup.md).
 
-Finally it points at `wayland-computer-use --self-test` (or
+Finally it points at `deskwright --self-test` (or
 `./mcp_server.py --self-test` from a clone), which it does not run for you:
 the self-test injects input, since it probes the key-combo guards. Run it
-while looking at the screen -- or add `WCU_SESSION=headless` and run it on a
+while looking at the screen -- or add `DESKWRIGHT_SESSION=headless` and run it on a
 desktop you cannot see.
 
 Safe to run repeatedly: every state change is printed with its before/after

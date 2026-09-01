@@ -128,7 +128,7 @@ export class ActivityIndicator {
                 Main.layoutManager.removeChrome(actor);
                 actor.destroy();
             } catch (e) {
-                logError(e, 'wcu: removing indicator chrome');
+                logError(e, 'deskwright: removing indicator chrome');
             }
         }
         this._actors = [];
@@ -195,7 +195,7 @@ export class ActivityIndicator {
                     repeatCount: -1,
                 });
             } catch (e) {
-                logError(e, 'wcu: indicator pulse unavailable');
+                logError(e, 'deskwright: indicator pulse unavailable');
             }
 
             this._actors.push(frame);

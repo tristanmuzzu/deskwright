@@ -1,15 +1,15 @@
 {
-  "name": "wayland-computer-use",
+  "name": "deskwright",
   "displayName": "Wayland Computer Use",
   "version": "0.1.0",
-  "description": "Claude uses a real Linux desktop \u2014 GNOME/Wayland apps pressed through the accessibility tree so a click cannot miss, on your screen or on an invisible second desktop that leaves your screen alone.",
+  "description": "Claude uses a real Linux desktop: GNOME/Wayland apps pressed through the accessibility tree so a click cannot miss, on your screen or on an invisible second desktop that leaves your screen alone.",
   "author": {
     "name": "Tristan Rafe Muzzu",
     "email": "tristan@zeticle.com",
     "url": "https://github.com/tristanmuzzu"
   },
-  "homepage": "https://github.com/tristanmuzzu/wayland-computer-use",
-  "repository": "https://github.com/tristanmuzzu/wayland-computer-use",
+  "homepage": "https://github.com/tristanmuzzu/deskwright",
+  "repository": "https://github.com/tristanmuzzu/deskwright",
   "license": "Apache-2.0",
   "keywords": [
     "computer-use",

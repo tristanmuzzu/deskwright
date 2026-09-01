@@ -11,7 +11,7 @@
  * Wayland client is not allowed to know where it is or to raise itself. Inside
  * the compositor all of these are ordinary calls.
  *
- * Interface: org.wcu.Helpers at /org/wcu/Helpers
+ * Interface: com.zeticle.deskwright at /com/zeticle/deskwright
  */
 
 import Clutter from 'gi://Clutter';
@@ -44,7 +44,7 @@ const HALT_DEBOUNCE_US = 2 * 1000 * 1000;
 
 const IFACE = `
 <node>
-  <interface name="org.wcu.Helpers">
+  <interface name="com.zeticle.deskwright">
     <method name="Screenshot">
       <arg type="s" direction="in"  name="path"/>
       <arg type="b" direction="in"  name="includeCursor"/>
@@ -163,10 +163,10 @@ export class DBusService {
         this._haltEngagedAtUs = 0;
         this._haltRefreshId = 0;
         this._impl = Gio.DBusExportedObject.wrapJSObject(IFACE, this);
-        this._impl.export(Gio.DBus.session, '/org/wcu/Helpers');
+        this._impl.export(Gio.DBus.session, '/com/zeticle/deskwright');
         this._nameId = Gio.bus_own_name(
             Gio.BusType.SESSION,
-            'org.wcu.Helpers',
+            'com.zeticle.deskwright',
             Gio.BusNameOwnerFlags.NONE,
             null,
             null,

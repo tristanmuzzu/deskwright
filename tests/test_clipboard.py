@@ -2,7 +2,7 @@
 """Proof that the clipboard tools write what they say and read what is there,
 plus the validation paths of hold_key and pointer_drag.
 
-In-process against wcu.input; the clipboard is exercised through real
+In-process against deskwright.input; the clipboard is exercised through real
 wl-copy/wl-paste subprocesses and the real extension. Everything written here
 is tagged 'wcu-test-...', the prior clipboard TEXT is saved first and restored
 at the end (a non-text offer cannot be saved from here -- the first write
@@ -25,8 +25,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import input as inp
-from wcu.errors import ToolError
+from deskwright import input as inp
+from deskwright.errors import ToolError
 
 PASS, FAIL = "PASS", "FAIL"
 results: list[tuple[str, str, str]] = []

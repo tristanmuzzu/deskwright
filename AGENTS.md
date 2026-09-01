@@ -28,7 +28,7 @@ telling the truth.
 ## 1. Install the package
 
 ```bash
-pipx install --system-site-packages wayland-computer-use
+pipx install --system-site-packages deskwright
 ```
 
 If `pipx` isn't there: `sudo apt install pipx` on Debian and Ubuntu,
@@ -46,7 +46,7 @@ start a new shell.
 ## 2. Find out what the machine is missing
 
 ```bash
-wcu-setup --check
+deskwright-setup --check
 ```
 
 Read-only. It changes nothing, and it exits nonzero if a hard requirement is
@@ -74,7 +74,7 @@ not available", which names no package and sends people in circles.
 ## 3. Apply the setup
 
 ```bash
-wcu-setup
+deskwright-setup
 ```
 
 This never runs `sudo`. It:
@@ -112,16 +112,16 @@ screenshots, pointer position and the halt switch.
 For Claude Code:
 
 ```bash
-claude mcp add wayland-computer-use --scope user -- wayland-computer-use
+claude mcp add deskwright --scope user -- deskwright
 ```
 
 (If the user installed the Claude Code plugin instead of the pip package, skip
 this: the plugin registers the server itself. Steps 2 to 4 still apply, and
-`wcu-setup` lives at
-`~/.claude/plugins/marketplaces/wayland-computer-use/bin/wcu-setup`.)
+`deskwright-setup` lives at
+`~/.claude/plugins/marketplaces/deskwright/bin/deskwright-setup`.)
 
 User scope, so the tools are there in every project rather than one. For any
-other MCP client, the command is `wayland-computer-use` with no arguments and
+other MCP client, the command is `deskwright` with no arguments and
 it speaks MCP on stdio.
 
 If you want unattended runs to work without a permission prompt on every call,
@@ -130,7 +130,7 @@ If you want unattended runs to work without a permission prompt on every call,
 ## 6. Prove it works
 
 ```bash
-WCU_SESSION=headless wayland-computer-use --self-test
+DESKWRIGHT_SESSION=headless deskwright --self-test
 ```
 
 This runs on a private virtual monitor rather than the user's screen, so it's
@@ -140,7 +140,7 @@ because it has to start a second gnome-shell.
 You want `18/18 passed`. Anything less and the report names which capability
 failed.
 
-Drop `WCU_SESSION=headless` to test the real desktop instead, but only when the
+Drop `DESKWRIGHT_SESSION=headless` to test the real desktop instead, but only when the
 user is looking at the screen: the self-test injects real input, because it
 probes the key-combination guards.
 
@@ -150,21 +150,21 @@ probes the key-combination guards.
 they logged out before step 3 finished. Ask.
 
 **Every `ui_*` call says "Namespace Atspi not available".** The typelib from
-step 2 is missing. `wcu-setup --check` will confirm.
+step 2 is missing. `deskwright-setup --check` will confirm.
 
 **Pointer or typing fails with `input_backend_failed`.** Almost always pipx
 without `--system-site-packages`. Check with:
 
 ```bash
-"$(pipx environment --value PIPX_LOCAL_VENVS)/wayland-computer-use/bin/python" -c "import gi; print('ok')"
+"$(pipx environment --value PIPX_LOCAL_VENVS)/deskwright/bin/python" -c "import gi; print('ok')"
 ```
 
 If that fails, reinstall with the flag:
-`pipx install --force --system-site-packages wayland-computer-use`.
+`pipx install --force --system-site-packages deskwright`.
 
-**`wcu-setup` refuses with "this machine is not a target".** It read
+**`deskwright-setup` refuses with "this machine is not a target".** It read
 `XDG_CURRENT_DESKTOP` and didn't find GNOME. That's step 0. If you're
-deliberately preparing a machine you're not logged into yet, `wcu-setup --force`
+deliberately preparing a machine you're not logged into yet, `deskwright-setup --force`
 skips the check.
 
 **Apps show no widgets in `ui_tree`.** They were running before
@@ -180,7 +180,7 @@ Something like this:
 
 > Installed and registered. Log out and back in once, then ask me to open an
 > app and I'll drive it. If you'd rather I work on a desktop you can't see so I
-> don't steal your focus, say so and I'll use `WCU_SESSION=headless`.
+> don't steal your focus, say so and I'll use `DESKWRIGHT_SESSION=headless`.
 
 ## Working on the code instead of installing it
 

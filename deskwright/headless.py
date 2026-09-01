@@ -11,7 +11,7 @@ while the user keeps the physical screen. Proven end to end in the
 extension unmodified, apps launch onto the virtual monitor, screenshots
 show a full desktop the user never sees.
 
-The whole trick is that nothing in wcu/ assumes the primary session.
+The whole trick is that nothing in deskwright/ assumes the primary session.
 Every mechanism -- extension D-Bus (gdbus subprocesses), AT-SPI, mutter
 RemoteDesktop/ScreenCast (`Gio.bus_get_sync`), `gio launch` -- resolves
 the session from `DBUS_SESSION_BUS_ADDRESS` and `WAYLAND_DISPLAY` at call
@@ -21,19 +21,19 @@ first tool call, and no tool code changes at all.
 The one deliberate exception is ydotool: it writes into /dev/uinput BELOW
 the compositor, so its events land on the machine's real seat -- the
 user's screen -- no matter what this process's environment says. input.py
-refuses it when `WCU_HEADLESS` is set (code `wrong_session`).
+refuses it when `DESKWRIGHT_HEADLESS` is set (code `wrong_session`).
 
 MORE THAN ONE (2026-08-27)
 
 Sessions are NAMED. Two agent sessions that both want a desktop of their
 own ask for different names and get genuinely separate compositors; two
-that pass the same name share one, which is what `WCU_SESSION=headless`
+that pass the same name share one, which is what `DESKWRIGHT_SESSION=headless`
 (name "default") did for everybody before names existed. Everything that
 must not collide is derived from the name:
 
-    state file    $XDG_STATE_HOME/wayland-computer-use/headless-<name>.json
-    runtime dir   $XDG_RUNTIME_DIR/wcu-headless[-<name>]
-    display       wayland-wcu[-<name>]
+    state file    $XDG_STATE_HOME/deskwright/headless-<name>.json
+    runtime dir   $XDG_RUNTIME_DIR/deskwright-headless[-<name>]
+    display       wayland-deskwright[-<name>]
 
 The runtime dir is the one that actually bites: two sessions sharing one
 fight over `at-spi/bus`, last bind wins the path, and the OTHER session's
@@ -67,12 +67,12 @@ import time
 from typing import Any
 
 from .errors import ToolError
-from .shell import NEW_BUS, NEW_PATH
+from .shell import BUS_CANDIDATES, NEW_BUS
 
 DEFAULT_SIZE = "1280x720"
 DEFAULT_NAME = "default"
-DISPLAY_PREFIX = "wayland-wcu"
-RUNTIME_PREFIX = "wcu-headless"
+DISPLAY_PREFIX = "wayland-deskwright"
+RUNTIME_PREFIX = "deskwright-headless"
 
 # The spike's shell reached "extension answering" well inside 15 s on this
 # machine; the margin covers a loaded box without making a real failure slow
@@ -83,7 +83,7 @@ STOP_TIMEOUT_S = 10.0
 # Each session is a real compositor: ~293 MB RSS measured, plus whatever it
 # is asked to run. The cap is a backstop against a loop starting sessions in
 # a name space it invents, not a considered maximum -- raise it with
-# WCU_HEADLESS_MAX when the RAM is there.
+# DESKWRIGHT_HEADLESS_MAX when the RAM is there.
 MAX_SESSIONS = 4
 # Refuse a start that would leave the machine with less than this. A swapping
 # desktop is invisible to the agent that caused it.
@@ -125,7 +125,7 @@ def default_display(name: str) -> str:
 
 def _state_dir() -> str:
     state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
-    d = os.path.join(state, "wayland-computer-use")
+    d = os.path.join(state, "deskwright")
     os.makedirs(d, exist_ok=True)
     return d
 
@@ -189,15 +189,26 @@ def _bus_alive(address: str, timeout: float = 5.0) -> bool:
 
 
 def _extension_answering(address: str) -> bool:
+    """Is one of our extensions live on that session's bus?
+
+    Any candidate counts, not just the current name. The headless shell loads
+    whatever is in ~/.local/share/gnome-shell/extensions, and after the 0.1.0
+    rename that is the OLD extension until the user logs out. Waiting only for
+    the new bus name made every headless start fail for 45 seconds on a
+    machine that was working fine a minute earlier.
+    """
     env = dict(os.environ, DBUS_SESSION_BUS_ADDRESS=address)
-    try:
-        xml = subprocess.run(
-            ["gdbus", "introspect", "--session", "--dest", NEW_BUS,
-             "--object-path", NEW_PATH, "--xml"],
-            env=env, capture_output=True, text=True, timeout=10).stdout
-        return "<method" in xml
-    except (subprocess.TimeoutExpired, OSError):
-        return False
+    for bus, path, _uuid in BUS_CANDIDATES:
+        try:
+            xml = subprocess.run(
+                ["gdbus", "introspect", "--session", "--dest", bus,
+                 "--object-path", path, "--xml"],
+                env=env, capture_output=True, text=True, timeout=10).stdout
+        except (subprocess.TimeoutExpired, OSError):
+            continue
+        if "<method" in xml:
+            return True
+    return False
 
 
 def _rss_mb(pid: int) -> int | None:
@@ -252,8 +263,8 @@ def status(name: str | None = None) -> dict[str, Any]:
     else:
         report["detail"] = (
             f"stale state file -- session {name!r} is gone; "
-            f"`wcu-headless stop --name {name}` will clean it up, "
-            f"`wcu-headless start --name {name}` will replace it")
+            f"`deskwright-headless stop --name {name}` will clean it up, "
+            f"`deskwright-headless start --name {name}` will replace it")
     return report
 
 
@@ -275,7 +286,7 @@ def list_sessions() -> dict[str, Any]:
 
 
 def _max_sessions() -> int:
-    raw = os.environ.get("WCU_HEADLESS_MAX", "")
+    raw = os.environ.get("DESKWRIGHT_HEADLESS_MAX", "")
     try:
         return max(1, int(raw))
     except ValueError:
@@ -342,8 +353,8 @@ def _check_capacity(name: str) -> None:
         names = ", ".join(sorted(s["name"] for s in live))
         raise ToolError(
             f"{len(live)} headless sessions already running ({names}) and the "
-            f"cap is {cap}. Stop one (`wcu-headless stop --name <n>`) or raise "
-            "the cap with WCU_HEADLESS_MAX -- each session is a real "
+            f"cap is {cap}. Stop one (`deskwright-headless stop --name <n>`) or raise "
+            "the cap with DESKWRIGHT_HEADLESS_MAX -- each session is a real "
             "compositor at ~300 MB.", code="bad_args")
     available = _available_mb()
     if available is not None and available < MIN_AVAILABLE_MB:
@@ -385,7 +396,7 @@ def start(size: str = DEFAULT_SIZE, display: str | None = None,
                 raise ToolError(
                     f"another process is starting headless session {name!r} and "
                     f"it has not come up within {START_TIMEOUT_S:.0f}s; check "
-                    f"`wcu-headless status --name {name}`", code="timeout")
+                    f"`deskwright-headless status --name {name}`", code="timeout")
         return _start_locked(name, size, display)
 
 
@@ -573,7 +584,7 @@ def _rotate_log(path: str, keep_bytes: int = 2 * 1024 * 1024) -> str:
 def ensure(size: str = DEFAULT_SIZE, display: str | None = None,
            name: str | None = None) -> dict[str, Any]:
     """Running session of this name, starting one if needed. What a pinned
-    server calls at startup so `WCU_SESSION=headless[:name]` is
+    server calls at startup so `DESKWRIGHT_SESSION=headless[:name]` is
     self-sufficient."""
     name = session_name(name)
     current = status(name)
@@ -592,10 +603,10 @@ def pin_env(state: dict[str, Any], env: Any = os.environ) -> None:
         env["XDG_RUNTIME_DIR"] = state["runtime_dir"]
     # The flag input.py checks to refuse ydotool -- uinput injection lands on
     # the real seat regardless of this environment.
-    env["WCU_HEADLESS"] = "1"
+    env["DESKWRIGHT_HEADLESS"] = "1"
     # Which session, for the action journal: with several desktops live, "a
     # click happened" is not a useful record unless it says where.
-    env["WCU_HEADLESS_NAME"] = state.get("name", DEFAULT_NAME)
+    env["DESKWRIGHT_HEADLESS_NAME"] = state.get("name", DEFAULT_NAME)
 
 
 _HEADLESS_BINARIES = {
@@ -610,7 +621,7 @@ def _require_binaries() -> None:
 
     Neither of these is needed on a normal desktop -- gnome-shell is already
     running and the session bus is already up -- so they are easy to be
-    without, and `wcu-setup --check` lists them as optional for that reason.
+    without, and `deskwright-setup --check` lists them as optional for that reason.
     The headless session spawns both, so it has to say which one is absent
     and what installs it.
     """
@@ -624,7 +635,7 @@ def _require_binaries() -> None:
 
 
 USAGE = (
-    "usage: wcu-headless [start|stop|status|list|env] [--name NAME] "
+    "usage: deskwright-headless [start|stop|status|list|env] [--name NAME] "
     f"[--size {DEFAULT_SIZE}] [--display NAME] [--all]\n"
     "  start   bring up a session (idempotent per name)\n"
     "  stop    end one session, or every one with --all\n"
@@ -657,14 +668,14 @@ def main(argv: list[str] | None = None) -> int:
             state = _read_state(name)
             if not state or not status(name)["running"]:
                 print(f"# no running headless session {name!r} -- "
-                      f"`wcu-headless start --name {name}` first", file=sys.stderr)
+                      f"`deskwright-headless start --name {name}` first", file=sys.stderr)
                 return 1
             print(f"export DBUS_SESSION_BUS_ADDRESS='{state['bus_address']}'")
             print(f"export WAYLAND_DISPLAY='{state['wayland_display']}'")
             if state.get("runtime_dir"):
                 print(f"export XDG_RUNTIME_DIR='{state['runtime_dir']}'")
-            print("export WCU_HEADLESS=1")
-            print(f"export WCU_HEADLESS_NAME='{name}'")
+            print("export DESKWRIGHT_HEADLESS=1")
+            print(f"export DESKWRIGHT_HEADLESS_NAME='{name}'")
             return 0
         else:
             print(USAGE, file=sys.stderr)
@@ -675,7 +686,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(report, indent=1))
     if cmd == "start" and report.get("running"):
         pin = "headless" if name == DEFAULT_NAME else f"headless:{name}"
-        print(f"\n# pin a server to it:  WCU_SESSION={pin} python3 mcp_server.py",
+        print(f"\n# pin a server to it:  DESKWRIGHT_SESSION={pin} python3 mcp_server.py",
               file=sys.stderr)
     if cmd in ("status", "list"):
         return 0

@@ -32,15 +32,15 @@ them is documented somewhere as the way to do it.
 Every application exposes its real widgets with roles, names and invokable
 actions. Pressing the actual button beats clicking a pixel: it cannot miss, it
 cannot be defeated by a window moving, and it needs no pointer. The `ui_*`
-tools are built on it; `wcu/atspi_ui.py` is the standalone CLI for poking at it by
+tools are built on it; `deskwright/atspi_ui.py` is the standalone CLI for poking at it by
 hand:
 
 ```bash
-wcu-atspi apps
-wcu-atspi tree "Google Chrome" --depth 6
-wcu-atspi find "Reload" --role "push button"
-wcu-atspi actions "gnome-tweaks/0"
-wcu-atspi do "gnome-tweaks/0" 0
+deskwright-atspi apps
+deskwright-atspi tree "Google Chrome" --depth 6
+deskwright-atspi find "Reload" --role "push button"
+deskwright-atspi actions "gnome-tweaks/0"
+deskwright-atspi do "gnome-tweaks/0" 0
 ```
 
 One hard requirement: **`toolkit-accessibility` must be true before an
@@ -58,20 +58,20 @@ not know where it is. Use the tree for *what* to press, never for *where*.
 **The compositor itself, via the bundled extension.**
 Screenshots, the window list, focus control, window management, pointer
 position and the halt switch come from the **bundled GNOME Shell extension**
-(`wcu/extension/wcu@wayland-computer-use`, D-Bus name `org.wcu.Helpers`). An
+(`deskwright/extension/deskwright@zeticle.com`, D-Bus name `com.zeticle.deskwright`). An
 extension runs inside gnome-shell, so the calls the compositor refuses to a
-client are ordinary calls to it. `wcu/desktop.py` is the standalone CLI over the
+client are ordinary calls to it. `deskwright/desktop.py` is the standalone CLI over the
 same mechanisms:
 
 ```bash
-wcu-desktop windows
-wcu-desktop activate <id>
-wcu-desktop screenshot shot.png
-wcu-desktop type "hello"
-wcu-desktop key ctrl+s
+deskwright-desktop windows
+deskwright-desktop activate <id>
+deskwright-desktop screenshot shot.png
+deskwright-desktop type "hello"
+deskwright-desktop key ctrl+s
 ```
 
-Keystrokes from `wcu/desktop.py` go through `ydotool` and `/dev/uinput`, below the
+Keystrokes from `deskwright/desktop.py` go through `ydotool` and `/dev/uinput`, below the
 compositor. This is **focus-blind**: it types wherever focus happens to be, so
 call `activate` first, and it is also **layout-blind**: ydotool sends
 US-QWERTY keycodes and the compositor maps them through the active layout, so
@@ -83,7 +83,7 @@ problem; it sends keysyms through the compositor instead.
 `Ctrl+Alt+F1` … `F12` is `switch-to-session` in mutter. Injecting one throws the
 desktop onto a different virtual terminal showing a login screen, which is
 indistinguishable from a frozen machine. It cost a session and a hard
-power-off on 2026-08-08. `wcu-desktop key` and the server both refuse it rather
+power-off on 2026-08-08. `deskwright-desktop key` and the server both refuse it rather
 than trusting the caller to remember.
 
 ## The MCP server, the way this is actually meant to be used
@@ -95,7 +95,7 @@ remembering a script path.
 An installed copy proves itself with one command, on a desktop you cannot see:
 
 ```bash
-WCU_SESSION=headless wayland-computer-use --self-test
+DESKWRIGHT_SESSION=headless deskwright --self-test
 ```
 
 The rest are **from a checkout**, the live suites are not in the wheel,
@@ -148,7 +148,7 @@ Two things that are NOT true and were assumed to be:
 ### Pointing, and how to know where to point
 
 The pointer goes through `org.gnome.Mutter.RemoteDesktop` (see
-`wcu/remote_input.py`), which takes absolute coordinates in the same space
+`deskwright/remote_input.py`), which takes absolute coordinates in the same space
 `list_windows` reports geometry in. No acceleration curve, no consent dialog,
 no closed loop. Proven by `tests/test_pointer.py`, which puts a witness window
 on screen and asserts against what it actually received.
@@ -309,7 +309,7 @@ process:
 | `portal` | `org.freedesktop.portal.RemoteDesktop` + `ScreenCast` | one dialog, then a saved `restore_token` | GNOME, KDE, wlroots |
 
 The pick is automatic, mutter's private API when it answers on the session
-bus, the portal otherwise, and `WCU_INPUT_BACKEND=mutter|portal` forces
+bus, the portal otherwise, and `DESKWRIGHT_INPUT_BACKEND=mutter|portal` forces
 either for testing. Everything above input (windows, AT-SPI, capture, guards,
 `do_steps`) is unchanged by the choice.
 

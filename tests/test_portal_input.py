@@ -14,14 +14,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu.errors import ToolError
+from deskwright.errors import ToolError
 
 
 @pytest.fixture
 def portal(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    monkeypatch.delenv("WCU_HEADLESS", raising=False)
-    from wcu import portal_input
+    monkeypatch.delenv("DESKWRIGHT_HEADLESS", raising=False)
+    from deskwright import portal_input
     return portal_input
 
 
@@ -33,21 +33,21 @@ def test_token_round_trip(portal):
 
 def test_token_is_per_session(portal, monkeypatch):
     portal._save_token("primary-token")
-    monkeypatch.setenv("WCU_HEADLESS", "1")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS", "1")
     assert portal._load_token() is None, "headless must not inherit the primary consent"
     portal._save_token("headless-token")
     assert portal._load_token() == "headless-token"
-    monkeypatch.delenv("WCU_HEADLESS")
+    monkeypatch.delenv("DESKWRIGHT_HEADLESS")
     assert portal._load_token() == "primary-token"
 
 
 def test_forget_drops_only_this_session(portal, monkeypatch):
     portal._save_token("primary-token")
-    monkeypatch.setenv("WCU_HEADLESS", "1")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS", "1")
     portal._save_token("headless-token")
     portal._save_token(None, forget=True)
     assert portal._load_token() is None
-    monkeypatch.delenv("WCU_HEADLESS")
+    monkeypatch.delenv("DESKWRIGHT_HEADLESS")
     assert portal._load_token() == "primary-token"
 
 
@@ -84,19 +84,19 @@ def test_desktop_bounds_spans_all_streams(portal):
 
 
 def test_backend_choice_is_explicit(monkeypatch):
-    from wcu import input as wcu_input
-    monkeypatch.setattr(wcu_input, "_INPUT_BACKEND", None)
-    monkeypatch.setenv("WCU_INPUT_BACKEND", "nonsense")
+    from deskwright import input as dw_input
+    monkeypatch.setattr(dw_input, "_INPUT_BACKEND", None)
+    monkeypatch.setenv("DESKWRIGHT_INPUT_BACKEND", "nonsense")
     with pytest.raises(ToolError) as e:
-        wcu_input._input()
+        dw_input._input()
     assert e.value.code == "bad_args"
-    monkeypatch.setattr(wcu_input, "_INPUT_BACKEND", None)
+    monkeypatch.setattr(dw_input, "_INPUT_BACKEND", None)
 
 
 def test_gestures_are_shared_by_both_backends():
     """One drag implementation, not two -- the timings are measured and must
     not drift apart between the mutter and portal paths."""
-    from wcu import portal_input, remote_input
+    from deskwright import portal_input, remote_input
     assert issubclass(remote_input.RemoteInput, remote_input.Gestures)
     assert issubclass(portal_input.PortalInput, remote_input.Gestures)
     assert portal_input.PortalInput.drag is remote_input.Gestures.drag
@@ -105,8 +105,8 @@ def test_gestures_are_shared_by_both_backends():
 
 def test_failed_look_does_not_fail_the_action():
     """A lost picture must never turn a completed click into an error."""
-    from wcu import capture
-    from wcu.capture import _Look
+    from deskwright import capture
+    from deskwright.capture import _Look
 
     def boom(*_a, **_k):
         raise ToolError("the call returned but no image was written, twice",

@@ -63,10 +63,10 @@ jobs:
           python - <<'PY'
           import glob, subprocess, sys, tarfile, zipfile
           tracked = set(subprocess.run(
-              ["git", "ls-files", "wcu/extension"],
+              ["git", "ls-files", "deskwright/extension"],
               capture_output=True, text=True, check=True).stdout.split())
           if not tracked:
-              sys.exit("no tracked files under wcu/extension -- wrong checkout?")
+              sys.exit("no tracked files under deskwright/extension -- wrong checkout?")
           wheel = set(zipfile.ZipFile(glob.glob("dist/*.whl")[0]).namelist())
           with tarfile.open(glob.glob("dist/*.tar.gz")[0]) as tar:
               # sdist members are prefixed with <name>-<version>/

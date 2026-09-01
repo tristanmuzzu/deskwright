@@ -281,7 +281,7 @@ def main() -> int:
     check("mutter answers an ordinary client", test_mutter_answers_an_ordinary_client)
     check("session dies with its connection", test_session_dies_with_its_connection)
 
-    with tempfile.TemporaryDirectory(prefix="wcu-screencast-") as td:
+    with tempfile.TemporaryDirectory(prefix="deskwright-screencast-") as td:
         tmp = Path(td)
         check("full-screen recording has moving content",
               lambda: test_full_screen_recording_has_moving_content(tmp))

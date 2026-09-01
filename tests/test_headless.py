@@ -1,4 +1,4 @@
-"""Unit tests for wcu/headless.py -- the pure logic only.
+"""Unit tests for deskwright/headless.py -- the pure logic only.
 
 The live path (a real gnome-shell --headless on a virtual monitor, clicks
 and typing through it) was proven interactively on 2026-08-24 and costs a
@@ -14,11 +14,11 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import headless
-from wcu.errors import ToolError
+from deskwright import headless
+from deskwright.errors import ToolError
 
 
-def _dead_state(display="wayland-wcu"):
+def _dead_state(display="wayland-deskwright"):
     return {
         "bus_address": "unix:path=/tmp/does-not-exist",
         "wayland_display": display, "size": "1280x720",
@@ -37,7 +37,7 @@ def test_status_without_state(tmp_path, monkeypatch):
 
 def test_status_with_stale_state(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    state_dir = tmp_path / "wayland-computer-use"
+    state_dir = tmp_path / "deskwright"
     state_dir.mkdir()
     (state_dir / "headless.json").write_text(json.dumps(_dead_state()))
     report = headless.status()
@@ -55,11 +55,11 @@ def test_stop_without_state(tmp_path, monkeypatch):
 def test_pin_env_sets_all_three():
     env: dict[str, str] = {}
     headless.pin_env({"bus_address": "unix:path=/tmp/x",
-                      "wayland_display": "wayland-wcu"}, env=env)
+                      "wayland_display": "wayland-deskwright"}, env=env)
     assert env == {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/x",
-                   "WAYLAND_DISPLAY": "wayland-wcu",
-                   "WCU_HEADLESS": "1",
-                   "WCU_HEADLESS_NAME": "default"}
+                   "WAYLAND_DISPLAY": "wayland-deskwright",
+                   "DESKWRIGHT_HEADLESS": "1",
+                   "DESKWRIGHT_HEADLESS_NAME": "default"}
 
 
 # ---- named sessions (2026-08-27) ----------------------------------------
@@ -67,7 +67,7 @@ def test_pin_env_sets_all_three():
 def test_names_are_validated():
     assert headless.session_name(None) == "default"
     assert headless.session_name("Work") == "work"      # normalised
-    # `WCU_SESSION=headless:` names nothing, which means the default one.
+    # `DESKWRIGHT_SESSION=headless:` names nothing, which means the default one.
     assert headless.session_name("") == "default"
     for bad in ("-lead", "has space", "a" * 33, "slash/es", ".."):
         with pytest.raises(ToolError) as e:
@@ -78,8 +78,8 @@ def test_names_are_validated():
 def test_paths_are_per_name_and_default_keeps_the_old_ones(tmp_path, monkeypatch):
     """A session started before names existed must still be addressable."""
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    assert headless.default_display("default") == "wayland-wcu"
-    assert headless.default_display("work") == "wayland-wcu-work"
+    assert headless.default_display("default") == "wayland-deskwright"
+    assert headless.default_display("work") == "wayland-deskwright-work"
     assert headless._state_file("work").endswith("headless-work.json")
     # Two names never share the paths that made two sessions fight.
     assert headless._suffix("default") == ""
@@ -88,10 +88,10 @@ def test_paths_are_per_name_and_default_keeps_the_old_ones(tmp_path, monkeypatch
 
 def test_legacy_state_file_is_still_read_as_default(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    state_dir = tmp_path / "wayland-computer-use"
+    state_dir = tmp_path / "deskwright"
     state_dir.mkdir()
     (state_dir / "headless.json").write_text(json.dumps(_dead_state()))
-    assert headless._read_state("default")["wayland_display"] == "wayland-wcu"
+    assert headless._read_state("default")["wayland_display"] == "wayland-deskwright"
     assert headless.known_names() == ["default"]
     # ...and stopping the default clears BOTH records, so a stale legacy file
     # cannot resurrect a session that was ended.
@@ -101,12 +101,12 @@ def test_legacy_state_file_is_still_read_as_default(tmp_path, monkeypatch):
 
 def test_named_sessions_are_listed_independently(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    state_dir = tmp_path / "wayland-computer-use"
+    state_dir = tmp_path / "deskwright"
     state_dir.mkdir()
     (state_dir / "headless-work.json").write_text(
-        json.dumps(_dead_state("wayland-wcu-work")))
+        json.dumps(_dead_state("wayland-deskwright-work")))
     (state_dir / "headless-play.json").write_text(
-        json.dumps(_dead_state("wayland-wcu-play")))
+        json.dumps(_dead_state("wayland-deskwright-play")))
     assert headless.known_names() == ["play", "work"]
     report = headless.list_sessions()
     assert report["running"] == 0
@@ -119,14 +119,14 @@ def test_named_sessions_are_listed_independently(tmp_path, monkeypatch):
 def test_pin_env_carries_the_session_name():
     env: dict[str, str] = {}
     headless.pin_env({"bus_address": "unix:path=/tmp/x",
-                      "wayland_display": "wayland-wcu-work",
+                      "wayland_display": "wayland-deskwright-work",
                       "name": "work"}, env=env)
-    assert env["WCU_HEADLESS_NAME"] == "work"
+    assert env["DESKWRIGHT_HEADLESS_NAME"] == "work"
 
 
 def test_capacity_refuses_past_the_cap(tmp_path, monkeypatch):
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
-    monkeypatch.setenv("WCU_HEADLESS_MAX", "1")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS_MAX", "1")
     # Hermetic: this test is about the COUNT cap, so the memory floor must not
     # decide it. (It did, on a machine that was genuinely down to 212 MB.)
     monkeypatch.setattr(headless, "_available_mb", lambda: 8000)
@@ -181,7 +181,7 @@ def test_log_rotation_keeps_one_generation(tmp_path):
 
 
 def test_exec_argv_strips_field_codes(tmp_path):
-    from wcu.atspi import _exec_argv
+    from deskwright.atspi import _exec_argv
     f = tmp_path / "app.desktop"
     f.write_text("[Desktop Entry]\nName=App\n"
                  "Exec=some-editor --flag %U\n")
@@ -189,7 +189,7 @@ def test_exec_argv_strips_field_codes(tmp_path):
 
 
 def test_exec_argv_ignores_action_sections(tmp_path):
-    from wcu.atspi import _exec_argv
+    from deskwright.atspi import _exec_argv
     f = tmp_path / "app.desktop"
     f.write_text("[Desktop Action new]\nExec=wrong --one\n"
                  "[Desktop Entry]\nExec=right %f\n")
@@ -197,7 +197,7 @@ def test_exec_argv_ignores_action_sections(tmp_path):
 
 
 def test_exec_argv_refuses_missing_exec(tmp_path):
-    from wcu.atspi import _exec_argv
+    from deskwright.atspi import _exec_argv
     f = tmp_path / "app.desktop"
     f.write_text("[Desktop Entry]\nName=NoExec\n")
     with pytest.raises(ToolError) as e:
@@ -206,8 +206,8 @@ def test_exec_argv_refuses_missing_exec(tmp_path):
 
 
 def test_ydotool_refused_when_headless(monkeypatch):
-    from wcu.input import _ydotool
-    monkeypatch.setenv("WCU_HEADLESS", "1")
+    from deskwright.input import _ydotool
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS", "1")
     with pytest.raises(ToolError) as e:
         _ydotool("type", "x")
     assert e.value.code == "wrong_session"
@@ -217,11 +217,11 @@ def test_ydotool_refused_when_headless(monkeypatch):
 def test_launch_app_headless_uses_exec_spawn(monkeypatch, tmp_path):
     """In headless mode a desktop_id must NOT go through `gio launch` --
     D-Bus activation on the private session loses the window (2026-08-24)."""
-    from wcu import atspi
+    from deskwright import atspi
 
     f = tmp_path / "org.example.App.desktop"
     f.write_text("[Desktop Entry]\nExec=example-app %U\n")
-    monkeypatch.setenv("WCU_HEADLESS", "1")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS", "1")
     monkeypatch.setattr(atspi, "_resolve_desktop_file", lambda _id: f)
 
     seen: dict = {}

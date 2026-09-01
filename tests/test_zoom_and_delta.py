@@ -22,12 +22,12 @@ sys.path.insert(0, str(HERE.parent))
 
 from PIL import Image, ImageDraw, ImageFont
 
-from wcu import capture
-from wcu.errors import ToolError
-from wcu.ocr import ocr_snippet
+from deskwright import capture
+from deskwright.errors import ToolError
+from deskwright.ocr import ocr_snippet
 
 CHECKS: list[tuple[str, bool, str]] = []
-TMP = Path(tempfile.mkdtemp(prefix="wcu-zoom-test-", dir="/tmp"))
+TMP = Path(tempfile.mkdtemp(prefix="deskwright-zoom-test-", dir="/tmp"))
 
 # The synthetic "screen": 2000x1200, with every pixel's colour encoding its own
 # coordinates, so crop arithmetic is verifiable from the pixels themselves even
@@ -379,7 +379,7 @@ if __name__ == "__main__":
 def test_jerk_ratio_separates_stutter_from_smooth():
     """Measured on real clips: smooth 0.29, jitter 0.61, stutter 2.01.
     These synthetic series stand in for that shape."""
-    from wcu.frames import summarise_motion
+    from deskwright.frames import summarise_motion
 
     smooth = [3.0, 3.1, 2.9, 3.0, 3.1, 2.9, 3.0, 3.1] * 4
     # five duplicate frames then one big jump: a 10fps source held to 60fps
@@ -395,7 +395,7 @@ def test_jerk_is_computed_over_every_delta_including_duplicates():
     """The first version filtered duplicates out and scored the stuttery
     clip as the STEADIEST of three, because that filter deletes the
     evidence. Guard the fix."""
-    from wcu.frames import summarise_motion
+    from deskwright.frames import summarise_motion
 
     stutter = ([0.0] * 5 + [18.0]) * 6
     assert summarise_motion(stutter, 60)["jerk_ratio"] > 1.0
@@ -404,7 +404,7 @@ def test_jerk_is_computed_over_every_delta_including_duplicates():
 def test_motion_summary_carries_a_readable_series():
     """The ask was a per-frame series, not two aggregates: 'is it smooth' is
     a question about the shape (2026-08-18)."""
-    from wcu.frames import SERIES_MAX, summarise_motion
+    from deskwright.frames import SERIES_MAX, summarise_motion
 
     out = summarise_motion([float(i % 7) for i in range(500)], 60)
     assert len(out["series"]) <= SERIES_MAX
@@ -413,6 +413,6 @@ def test_motion_summary_carries_a_readable_series():
 
 
 def test_motion_summary_is_empty_for_a_still_clip():
-    from wcu.frames import summarise_motion
+    from deskwright.frames import summarise_motion
     assert summarise_motion([], 60) == {}
     assert "jerk_ratio" not in summarise_motion([0.0, 0.0], 60)

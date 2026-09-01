@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """In-process tests for launch_app and document addressing -- no desktop.
 
-Everything here runs against wcu.atspi directly, with the AT-SPI bus, the
+Everything here runs against deskwright.atspi directly, with the AT-SPI bus, the
 shell extension and subprocess all faked where a call would otherwise leave
 the process. What is being proven is the VALIDATION and ADDRESSING logic:
 which argument shapes are refused and with which error code, how a desktop id
@@ -24,8 +24,8 @@ import pytest
 REPO = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(REPO))
 
-from wcu import atspi
-from wcu.errors import ToolError
+from deskwright import atspi
+from deskwright.errors import ToolError
 
 
 def err(fn, args) -> ToolError:
@@ -69,9 +69,9 @@ def test_desktop_id_rejects_paths_and_empties() -> None:
 
 def test_unknown_desktop_id_names_the_file_and_search() -> None:
     e = err(atspi.tool_launch_app,
-            {"desktop_id": "no.such.app.wcu-test-9x7"})
+            {"desktop_id": "no.such.app.deskwright-test-9x7"})
     assert e.code == "bad_args"
-    assert "no.such.app.wcu-test-9x7.desktop" in str(e)
+    assert "no.such.app.deskwright-test-9x7.desktop" in str(e)
     assert "applications" in str(e)
 
 
@@ -81,11 +81,11 @@ def test_unknown_desktop_id_names_the_file_and_search() -> None:
 def test_desktop_suffix_is_optional(tmp_path, monkeypatch) -> None:
     apps = tmp_path / "applications"
     apps.mkdir()
-    target = apps / "wcu-test-app.desktop"
+    target = apps / "deskwright-test-app.desktop"
     target.write_text("[Desktop Entry]\nType=Application\nName=x\nExec=true\n")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
-    assert atspi._resolve_desktop_file("wcu-test-app") == target
-    assert atspi._resolve_desktop_file("wcu-test-app.desktop") == target
+    assert atspi._resolve_desktop_file("deskwright-test-app") == target
+    assert atspi._resolve_desktop_file("deskwright-test-app.desktop") == target
 
 
 # =========================================================================
@@ -130,12 +130,12 @@ def test_command_launch_without_wait(monkeypatch) -> None:
 def test_gio_launch_argv(tmp_path, monkeypatch) -> None:
     apps = tmp_path / "applications"
     apps.mkdir()
-    target = apps / "wcu-test-app.desktop"
+    target = apps / "deskwright-test-app.desktop"
     target.write_text("[Desktop Entry]\nType=Application\nName=x\nExec=true\n")
     monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
     sub = fake_subprocess()
     monkeypatch.setattr(atspi, "subprocess", sub)
-    out = atspi.tool_launch_app({"desktop_id": "wcu-test-app",
+    out = atspi.tool_launch_app({"desktop_id": "deskwright-test-app",
                                  "file": "/tmp/x.txt", "wait_window": False})
     assert sub.run_calls == [["gio", "launch", str(target), "/tmp/x.txt"]]
     assert out["via"] == "gio launch"

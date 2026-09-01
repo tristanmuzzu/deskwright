@@ -26,11 +26,11 @@ USAGE  (~/.claude/bin is not on PATH; call this by absolute path, as with
         screenshot / windows / safe-rm)
 
 From a checkout (the MCP tools are the supported interface; this is the debug CLI):
-    python3 -m wcu.screencast out.mp4                       # whole screen, 10s, 30fps
-    python3 -m wcu.screencast --seconds 5 out.mp4
-    python3 -m wcu.screencast --window 72777864 out.mp4     # one window, by id from `windows`
-    python3 -m wcu.screencast --window chrome out.mp4       # ...or by wm_class / title fragment
-    python3 -m wcu.screencast --fps 60 --cursor out.mp4
+    python3 -m deskwright.screencast out.mp4                       # whole screen, 10s, 30fps
+    python3 -m deskwright.screencast --seconds 5 out.mp4
+    python3 -m deskwright.screencast --window 72777864 out.mp4     # one window, by id from `windows`
+    python3 -m deskwright.screencast --window chrome out.mp4       # ...or by wm_class / title fragment
+    python3 -m deskwright.screencast --fps 60 --cursor out.mp4
 
 Prints one JSON object on stdout: path, seconds, fps, size, and what was captured.
 """

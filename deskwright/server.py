@@ -80,12 +80,12 @@ def _version() -> str:
     `initialize` cannot drift from the one on PyPI."""
     try:
         from importlib.metadata import version
-        return version("wayland-computer-use")
+        return version("deskwright")
     except Exception:  # not installed: running straight from a checkout
         return "0+unknown"
 
 
-SERVER_INFO = {"name": "wayland-computer-use", "version": _version()}
+SERVER_INFO = {"name": "deskwright", "version": _version()}
 
 
 def tool_health(_: dict) -> dict:
@@ -158,8 +158,8 @@ def tool_health(_: dict) -> dict:
         report["toolkit_accessibility"] = "unknown"
     report["session_type"] = os.environ.get("XDG_SESSION_TYPE", "unset")
     report["dbus_session"] = "set" if os.environ.get("DBUS_SESSION_BUS_ADDRESS") else "MISSING"
-    report["desktop"] = (os.environ.get("WCU_HEADLESS_NAME")
-                         or ("headless" if os.environ.get("WCU_HEADLESS")
+    report["desktop"] = (os.environ.get("DESKWRIGHT_HEADLESS_NAME")
+                         or ("headless" if os.environ.get("DESKWRIGHT_HEADLESS")
                              else "primary (the user's own screen)"))
     # The verdict goes FIRST, because the very first journal entry
     # (2026-08-16) was that this tool answers a yes/no question with a wall
@@ -1218,7 +1218,7 @@ def handle(msg: dict) -> None:
         except ToolError as e:
             # A tool-level failure is a result the model must see and reason
             # about, not a protocol error that hides the reason. The [code]
-            # prefix is the machine-readable half (see wcu/errors.py).
+            # prefix is the machine-readable half (see deskwright/errors.py).
             if acted:
                 journal_record(name, args, {"error": str(e), "code": e.code})
             _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()}],
@@ -1269,7 +1269,7 @@ def self_test() -> int:
     run("ui_tree(gnome-shell)",
         lambda: f'{tool_ui_tree({"app": "gnome-shell", "depth": 5})["nodes"]} nodes')
     run("screenshot", lambda: json.dumps(
-        {k: v for k, v in tool_screenshot({"path": "/tmp/wcu-selftest.png"}).items()
+        {k: v for k, v in tool_screenshot({"path": "/tmp/deskwright-selftest.png"}).items()
          if k != _INLINE_KEY}))          # 200KB of base64 is not a test report
     run("ui_find(actionable)", lambda: (
         f'{tool_ui_find({"text": "/", "app": "gnome-shell", "actionable_only": True})["matches"]}'

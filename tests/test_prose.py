@@ -25,7 +25,7 @@ DOCS = sorted(
         list(ROOT.glob("*.md"))
         + list((ROOT / "docs").glob("*.md"))
         + list((ROOT / "skills").rglob("*.md"))
-        + list((ROOT / "wcu" / "extension").glob("*.md"))
+        + list((ROOT / "deskwright" / "extension").glob("*.md"))
     )
 )
 
@@ -70,9 +70,9 @@ def test_the_agent_runbook_exists_and_is_linked():
     agents = ROOT / "AGENTS.md"
     assert agents.is_file()
     body = agents.read_text()
-    for command in ("pipx install --system-site-packages wayland-computer-use",
-                    "wcu-setup --check",
-                    "claude mcp add wayland-computer-use",
-                    "WCU_SESSION=headless wayland-computer-use --self-test"):
+    for command in ("pipx install --system-site-packages deskwright",
+                    "deskwright-setup --check",
+                    "claude mcp add deskwright",
+                    "DESKWRIGHT_SESSION=headless deskwright --self-test"):
         assert command in body, f"AGENTS.md never tells the agent to run: {command}"
     assert "AGENTS.md" in (ROOT / "README.md").read_text()

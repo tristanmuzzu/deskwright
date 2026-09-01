@@ -1,8 +1,8 @@
 """Pin this process to a headless session when asked.
 
-`WCU_SESSION=headless` (or `--session headless`) makes the server drive a
+`DESKWRIGHT_SESSION=headless` (or `--session headless`) makes the server drive a
 private virtual-monitor session instead of the user's desktop -- starting it
-first if needed (wcu/headless.py). Every backend resolves the session lazily
+first if needed (deskwright/headless.py). Every backend resolves the session lazily
 from `DBUS_SESSION_BUS_ADDRESS`/`WAYLAND_DISPLAY`, so pinning is purely an
 environment operation and no tool code knows the difference.
 
@@ -20,15 +20,15 @@ _RESOLVED = False
 
 
 def pinned_name() -> str | None:
-    """The headless session name `WCU_SESSION` currently asks for, or None.
+    """The headless session name `DESKWRIGHT_SESSION` currently asks for, or None.
 
     Three callers need this answer -- the entry point, the deferred start in
-    `wcu/server.py`, and the self-test -- and each deriving it separately is
+    `deskwright/server.py`, and the self-test -- and each deriving it separately is
     how `--self-test` on a cold `headless:alpha` ended up starting `default`
     instead. `session_name()` still owns validation.
     """
     from .headless import session_name
-    kind, _, raw = os.environ.get("WCU_SESSION", "").partition(":")
+    kind, _, raw = os.environ.get("DESKWRIGHT_SESSION", "").partition(":")
     if kind != "headless":
         return None
     return session_name(raw or None)
@@ -39,7 +39,7 @@ def start_deferred() -> bool:
 
     True when a start was owed and made; False when there was nothing to do.
     """
-    if not os.environ.pop("WCU_HEADLESS_LAZY", None):
+    if not os.environ.pop("DESKWRIGHT_HEADLESS_LAZY", None):
         return False
     from .headless import ensure, pin_env
     pin_env(ensure(name=pinned_name()))
@@ -54,22 +54,22 @@ def resolve_session(as_server: bool, argv: list[str] | None = None) -> None:
     MCP client's initialize window -- measured 2026-08-25 killing the
     connection before the first call. So initialize stays instant: pin now if
     the session is already up, otherwise leave a marker and let the FIRST TOOL
-    CALL start it (same total wait, no timeout window; wcu/server.py owns the
+    CALL start it (same total wait, no timeout window; deskwright/server.py owns the
     marker). A test or script that will call tool functions directly, bypassing
     serve(), passes False and gets the session ready before it returns.
 
-    With `WCU_SESSION` unset this is a no-op.
+    With `DESKWRIGHT_SESSION` unset this is a no-op.
     """
     global _RESOLVED
     if _RESOLVED:
         # `./mcp_server.py` resolves at import and then hands off to
-        # `wcu.cli.main`, which would otherwise re-probe the session -- two
+        # `deskwright.cli.main`, which would otherwise re-probe the session -- two
         # `gdbus` round trips inside the MCP initialize window the deferred
         # start exists to protect.
         return
     _RESOLVED = True
     argv = sys.argv if argv is None else argv
-    session = os.environ.get("WCU_SESSION", "")
+    session = os.environ.get("DESKWRIGHT_SESSION", "")
     if "--session" in argv:
         session = argv[argv.index("--session") + 1]
     if not session or session == "primary":
@@ -88,12 +88,12 @@ def resolve_session(as_server: bool, argv: list[str] | None = None) -> None:
         sys.exit(2)
     # The lazy path below re-reads this instead of closing over `name`, so the
     # first tool call starts the session the flag asked for.
-    os.environ["WCU_SESSION"] = f"headless:{name}"
+    os.environ["DESKWRIGHT_SESSION"] = f"headless:{name}"
     if as_server:
         st = status(name)
         if st.get("running"):
             pin_env(st)
         else:
-            os.environ["WCU_HEADLESS_LAZY"] = "1"
+            os.environ["DESKWRIGHT_HEADLESS_LAZY"] = "1"
         return
     pin_env(ensure(name=name))

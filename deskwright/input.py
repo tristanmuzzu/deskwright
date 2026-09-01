@@ -79,7 +79,7 @@ def layout_hazard() -> str:
 
 
 def _ydotool(*args: str, timeout: float = 30.0) -> None:
-    if os.environ.get("WCU_HEADLESS"):
+    if os.environ.get("DESKWRIGHT_HEADLESS"):
         # uinput events enter BELOW the compositor, on the machine's real
         # seat -- they would land on the user's screen no matter what this
         # process's bus/display environment says.
@@ -213,7 +213,7 @@ def _input():
     `org.freedesktop.portal.RemoteDesktop` (one consent dialog, persisted via
     restore_token -- the path that exists on KDE and wlroots too). The pick:
     mutter when its API answers on this session bus, portal otherwise;
-    `WCU_INPUT_BACKEND=mutter|portal` overrides for testing.
+    `DESKWRIGHT_INPUT_BACKEND=mutter|portal` overrides for testing.
 
     Late because it needs PyGObject and a session bus, and a machine missing
     either should still get windows, screenshots and AT-SPI rather than a
@@ -222,10 +222,10 @@ def _input():
     global _INPUT_BACKEND
     if _INPUT_BACKEND is not None:
         return _INPUT_BACKEND
-    choice = os.environ.get("WCU_INPUT_BACKEND", "auto").lower()
+    choice = os.environ.get("DESKWRIGHT_INPUT_BACKEND", "auto").lower()
     if choice not in ("auto", "mutter", "portal"):
         raise ToolError(
-            f"WCU_INPUT_BACKEND={choice!r} is not a backend; use "
+            f"DESKWRIGHT_INPUT_BACKEND={choice!r} is not a backend; use "
             "'mutter', 'portal' or unset for auto", code="bad_args")
     if choice == "auto":
         choice = "mutter" if _mutter_api_present() else "portal"

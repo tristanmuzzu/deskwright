@@ -28,8 +28,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from wcu import shell
-from wcu.errors import ToolError
+from deskwright import shell
+from deskwright.errors import ToolError
 
 
 def _win(wid, cls="acrord32.exe", title="Acrobat", *, focused=False,

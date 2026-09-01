@@ -68,16 +68,16 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
 
-# The implementation lives in the wcu/ package; this file is the executable
+# The implementation lives in the deskwright/ package; this file is the executable
 # entry point, kept because existing MCP registrations point at this exact
 # path. An installed copy of the package puts the same thing on PATH as
-# `wayland-computer-use` (wcu/cli.py).
-from wcu.session import resolve_session
+# `deskwright` (deskwright/cli.py).
+from deskwright.session import resolve_session
 
 resolve_session(as_server=(__name__ == "__main__"))
 
 # Re-exported for existing importers (the tests do `import mcp_server as srv`).
-from wcu.atspi import (  # noqa: F401
+from deskwright.atspi import (  # noqa: F401
     DEFAULT_FIND_DEPTH,
     DEFAULT_TREE_DEPTH,
     MAX_FIND_NODES,
@@ -91,7 +91,7 @@ from wcu.atspi import (  # noqa: F401
     tool_ui_set_text,
     tool_ui_tree,
 )
-from wcu.capture import (  # noqa: F401
+from deskwright.capture import (  # noqa: F401
     CELL_NOISE,
     CHANGE_FLOOR_PCT,
     FINGERPRINT,
@@ -112,9 +112,9 @@ from wcu.capture import (  # noqa: F401
     tool_screencast,
     tool_screenshot,
 )
-from wcu.config import KEYS, MODIFIERS  # noqa: F401
-from wcu.errors import ToolError  # noqa: F401
-from wcu.input import (  # noqa: F401
+from deskwright.config import KEYS, MODIFIERS  # noqa: F401
+from deskwright.errors import ToolError  # noqa: F401
+from deskwright.input import (  # noqa: F401
     YDOTOOL_SOCKET,
     combo_keysyms,
     keyboard_layouts,
@@ -130,14 +130,14 @@ from wcu.input import (  # noqa: F401
     tool_screen_map,
     tool_type_text,
 )
-from wcu.ocr import (  # noqa: F401
+from deskwright.ocr import (  # noqa: F401
     OCR_MIN_CONFIDENCE,
     OCR_PSM_REGION,
     OCR_PSM_SCREEN,
     OCR_UPSCALE_UNDER,
     tool_find_text,
 )
-from wcu.server import (  # noqa: F401
+from deskwright.server import (  # noqa: F401
     HANDLERS,
     PROTOCOL_VERSION,
     SERVER_INFO,
@@ -149,7 +149,7 @@ from wcu.server import (  # noqa: F401
     serve,
     tool_health,
 )
-from wcu.shell import (  # noqa: F401
+from deskwright.shell import (  # noqa: F401
     BUS_NAME,
     EXTENSION_UUID,
     FOCUS_POLL_S,
@@ -164,9 +164,9 @@ from wcu.shell import (  # noqa: F401
     tool_window_at,
     window_at,
 )
-from wcu.steps import DO_STEPS_MAX, tool_do_steps  # noqa: F401
+from deskwright.steps import DO_STEPS_MAX, tool_do_steps  # noqa: F401
 
 if __name__ == "__main__":
-    from wcu.cli import main
+    from deskwright.cli import main
 
     sys.exit(main())

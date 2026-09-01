@@ -1,14 +1,14 @@
 # Moat spikes, findings (2026-08-23)
 
-> **Update 2026-08-24:** Spike 1 is productized, `wcu-headless` +
-> `WCU_SESSION=headless` (wcu/headless.py, README § "The headless second
+> **Update 2026-08-24:** Spike 1 is productized, `deskwright-headless` +
+> `DESKWRIGHT_SESSION=headless` (deskwright/headless.py, README § "The headless second
 > session"). The open input question resolved as predicted: RemoteDesktop
 > follows the bus. Two things the spike missed, found in productizing:
 > the session needs a private `XDG_RUNTIME_DIR` (shared at-spi socket path
 > broke the PRIMARY session's a11y), and `gio launch`'s D-Bus activation
 > loses the window on the private session (direct Exec spawn instead).
 > **Update 2026-08-24 (later):** Spike 2 is productized too,
-> `wcu/portal_input.py`, selected automatically or via `WCU_INPUT_BACKEND`
+> `deskwright/portal_input.py`, selected automatically or via `DESKWRIGHT_INPUT_BACKEND`
 > (README § "Two input backends"). The `Invalid position` wire is closed the
 > way the spec intends: the RemoteDesktop session doubles as a ScreenCast
 > session and every coordinate is mapped into the stream containing it.
@@ -29,14 +29,14 @@ feature, which nothing on Linux has?
 
 **Result: yes, end to end, on this machine today.**
 
-`gnome-shell --headless --wayland-display=wayland-wcu --virtual-monitor
+`gnome-shell --headless --wayland-display=wayland-deskwright --virtual-monitor
 1280x720`, started inside its own `dbus-run-session`, brings up a
 complete second GNOME session on a virtual monitor. Proven in one run:
 
-- The headless shell **loaded our own extension** (`org.wcu.Helpers` on
+- The headless shell **loaded our own extension** (`com.zeticle.deskwright` on
   the private bus) with no extra work, the extension is user-scoped, so
   the second shell scans and enables it exactly like the primary.
-- `WAYLAND_DISPLAY=wayland-wcu gnome-text-editor` launched onto the
+- `WAYLAND_DISPLAY=wayland-deskwright gnome-text-editor` launched onto the
   virtual monitor; `ListWindows` over the private bus returned it.
 - `Screenshot` over the private bus produced a real 1280x720 PNG of the
   virtual monitor, a full desktop (dock, top bar, the editor) that the
@@ -50,7 +50,7 @@ it is not something to leave running idle.
 bus and *an* extension by name. Point `DBUS_SESSION_BUS_ADDRESS` and
 `WAYLAND_DISPLAY` at the headless session and the identical code drives
 it, AT-SPI, extension D-Bus, and (next) portal input all follow the
-bus. No code in `wcu/` assumes the primary session.
+bus. No code in `deskwright/` assumes the primary session.
 
 **The one open question for productizing:** input. Screenshots and
 window control go through the extension on the private bus and are
@@ -62,7 +62,7 @@ for headless. **Verdict: the hard part, a second real session that our
 stack can see into, is done. Input wiring is a follow-up, not a
 risk.**
 
-**Shipping shape (proposed):** a `wcu-headless` helper that starts the
+**Shipping shape (proposed):** a `deskwright-headless` helper that starts the
 private session, a `session=headless` field on the server (or a second
 server instance pinned to the private bus), and a documented "watch it"
 path via `grdctl`/RDP for the user who wants to peek. Not built here.
@@ -105,9 +105,9 @@ absolute motion to a ScreenCast node is the remaining task, not a
 blocker.**
 
 **Shipping shape (proposed):** a `portal` backend beside the extension
-backend, selected when `org.wcu.Helpers` is absent (KDE, wlroots) or by
+backend, selected when `com.zeticle.deskwright` is absent (KDE, wlroots) or by
 config. It opens a RemoteDesktop+ScreenCast pair, persists the
-`restore_token` under `~/.local/state/wayland-computer-use/`, and maps
+`restore_token` under `~/.local/state/deskwright/`, and maps
 our absolute-coordinate API onto the stream. The extension stays the
 zero-dialog fast path on GNOME. Not built here.
 

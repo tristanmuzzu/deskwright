@@ -1,7 +1,7 @@
 # The whole runtime ships in the wheel: the MCP server, the four compositor
 # backends, and the gnome-shell extension as package data. That is what makes
 #
-#     pipx install --system-site-packages wayland-computer-use && wcu-setup
+#     pipx install --system-site-packages deskwright && deskwright-setup
 #
 # a complete install with no checkout anywhere.
 #
@@ -11,14 +11,14 @@
 # python-gobject -- and building it from source needs girepository and cairo
 # headers most machines do not have. So it is deliberately absent from
 # `dependencies`, and the venv is told to see the distro's copy instead.
-# `wcu-setup --check` reports it by name with the exact install line.
+# `deskwright-setup --check` reports it by name with the exact install line.
 
 [build-system]
 requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "wayland-computer-use"
+name = "deskwright"
 version = "0.1.0"
 description = "An AI agent uses a real GNOME/Wayland desktop: pressing actual widgets rather than guessing at pixels, optionally on an invisible second GNOME session so your own screen stays yours."
 readme = "README.md"
@@ -49,40 +49,40 @@ dependencies = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/tristanmuzzu/wayland-computer-use"
-Source = "https://github.com/tristanmuzzu/wayland-computer-use"
-Issues = "https://github.com/tristanmuzzu/wayland-computer-use/issues"
-Changelog = "https://github.com/tristanmuzzu/wayland-computer-use/blob/main/CHANGELOG.md"
-Security = "https://github.com/tristanmuzzu/wayland-computer-use/blob/main/SECURITY.md"
+Homepage = "https://github.com/tristanmuzzu/deskwright"
+Source = "https://github.com/tristanmuzzu/deskwright"
+Issues = "https://github.com/tristanmuzzu/deskwright/issues"
+Changelog = "https://github.com/tristanmuzzu/deskwright/blob/main/CHANGELOG.md"
+Security = "https://github.com/tristanmuzzu/deskwright/blob/main/SECURITY.md"
 
 [project.scripts]
 # The MCP server. Register a client against this name, not against a path
-# inside a checkout: `claude mcp add wayland-computer-use --scope user --
-# wayland-computer-use`. `mcp_server.py` in a clone is the same entry point.
-wayland-computer-use = "wcu.cli:main"
+# inside a checkout: `claude mcp add deskwright --scope user --
+# deskwright`. `mcp_server.py` in a clone is the same entry point.
+deskwright = "deskwright.cli:main"
 # Fresh-machine setup and checker: dependencies, the accessibility flag, the
 # bundled gnome-shell extension, and the client registration line.
-wcu-setup = "wcu.setup_cli:main"
+deskwright-setup = "deskwright.setup_cli:main"
 # Lifecycle of the invisible second (virtual-monitor) session.
-wcu-headless = "wcu.headless:main"
+deskwright-headless = "deskwright.headless:main"
 # The two hands-on CLIs the README walks through. They exist as console
-# scripts because after `pipx install` there is no checkout and no `wcu` on
-# the system python's path, so `python3 -m wcu.atspi_ui` -- which is what the
-# docs used to say -- answered "No module named 'wcu'".
-wcu-atspi = "wcu.atspi_ui:main"
-wcu-desktop = "wcu.desktop:main"
+# scripts because after `pipx install` there is no checkout and no `deskwright` on
+# the system python's path, so `python3 -m deskwright.atspi_ui` -- which is what the
+# docs used to say -- answered "No module named 'deskwright'".
+deskwright-atspi = "deskwright.atspi_ui:main"
+deskwright-desktop = "deskwright.desktop:main"
 
 [tool.setuptools]
-packages = ["wcu"]
+packages = ["deskwright"]
 
 [tool.setuptools.package-data]
-# The gnome-shell extension travels with the wheel -- `wcu-setup` copies it
+# The gnome-shell extension travels with the wheel -- `deskwright-setup` copies it
 # out of the package into ~/.local/share/gnome-shell/extensions.
 # Everything, recursively. A per-suffix allowlist silently drops whatever it
 # was not told about -- a stylesheet.css, an icons/ directory, a po/ -- and
 # the failure surfaces only as gnome-shell refusing to load the extension
-# after a logout. CI diffs `git ls-files wcu/extension` against the wheel.
-wcu = ["extension/**/*"]
+# after a logout. CI diffs `git ls-files deskwright/extension` against the wheel.
+deskwright = ["extension/**/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -108,7 +108,7 @@ ignore = [
 "mcp_server.py" = ["E402"]  # session pinning must run before the re-exports
 # gi.require_version() has to run before `from gi.repository import ...`;
 # that is PyGObject's documented idiom, not a stray import.
-"wcu/screencast.py" = ["E402"]
-"wcu/remote_input.py" = ["E402"]
-"wcu/portal_input.py" = ["E402"]
-"wcu/atspi_ui.py" = ["E402"]
+"deskwright/screencast.py" = ["E402"]
+"deskwright/remote_input.py" = ["E402"]
+"deskwright/portal_input.py" = ["E402"]
+"deskwright/atspi_ui.py" = ["E402"]

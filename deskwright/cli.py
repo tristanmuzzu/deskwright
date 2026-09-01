@@ -1,16 +1,16 @@
-"""`wayland-computer-use` -- the console-script entry point for the MCP server.
+"""`deskwright` -- the console-script entry point for the MCP server.
 
 Installing this package puts this on PATH, so an MCP client is registered
 against a command rather than a path inside a checkout:
 
-    claude mcp add wayland-computer-use --scope user -- wayland-computer-use
+    claude mcp add deskwright --scope user -- deskwright
 
 `mcp_server.py` in a checkout is the same entry point by another name, kept
 because existing registrations point at that exact path.
 
-    wayland-computer-use                    # speak MCP on stdio
-    wayland-computer-use --self-test        # prove every capability, exit
-    wayland-computer-use --session headless # drive the private virtual desktop
+    deskwright                    # speak MCP on stdio
+    deskwright --self-test        # prove every capability, exit
+    deskwright --session headless # drive the private virtual desktop
 """
 from __future__ import annotations
 

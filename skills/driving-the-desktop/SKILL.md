@@ -1,6 +1,6 @@
 ---
 name: driving-the-desktop
-description: How to drive a GNOME/Wayland desktop well with the wayland-computer-use tools, which tool to reach for first, how to prove an action landed, and how to work on the invisible second desktop instead of the user's screen. Use whenever a task means operating a native Linux application: launching an app, clicking or typing in a GUI, filling a dialog, testing a desktop flow, reading what is on screen, or recording something that moves.
+description: How to drive a GNOME/Wayland desktop well with the deskwright tools, which tool to reach for first, how to prove an action landed, and how to work on the invisible second desktop instead of the user's screen. Use whenever a task means operating a native Linux application: launching an app, clicking or typing in a GUI, filling a dialog, testing a desktop flow, reading what is on screen, or recording something that moves.
 ---
 
 # Driving the desktop
@@ -64,7 +64,7 @@ try to read the mp4.
 
 ## Work where the user is not looking
 
-`WCU_SESSION=headless` (or `headless:<name>`) drives a private virtual-monitor
+`DESKWRIGHT_SESSION=headless` (or `headless:<name>`) drives a private virtual-monitor
 session the user never sees, so windows do not steal focus and a long
 unattended run does not fight for the screen. Prefer it for anything the user
 did not ask to watch. `headless:<name>` picks which desktop, so two agents can
