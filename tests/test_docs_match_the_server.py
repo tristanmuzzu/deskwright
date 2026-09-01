@@ -56,6 +56,12 @@ def test_the_cautious_split_names_every_acting_tool():
     assert f"the same {len(acting)} it" in cautious
 
 
-def test_the_readme_tool_count_is_right():
+def test_the_readme_names_every_tool_and_counts_them_right():
+    """The README's table is what people read before installing. A tool that
+    is not in it is a tool nobody knows about; a count that is wrong is the
+    first thing a reader notices."""
+    readme = (ROOT / "README.md").read_text()
     served = _tool_names()
-    assert f"**{len(served)} tools**" in (ROOT / "README.md").read_text()
+    missing = sorted(n for n in served if f"`{n}`" not in readme)
+    assert not missing, f"not in the README table: {missing}"
+    assert f"{len(served)} tools" in readme

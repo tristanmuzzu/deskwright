@@ -27,30 +27,30 @@ cd wayland-computer-use
 
 ## What it does, in order
 
-1. **Dependencies** — detects each and prints the exact install line for your
+1. **Dependencies**, detects each and prints the exact install line for your
    distro family (apt/dnf/pacman, from `/etc/os-release`; apt phrasing when
    unrecognized). It never runs the install itself. Hard requirements:
-   `python3-gi` (system package — PyGObject is not sanely pip-installable),
+   `python3-gi` (system package, PyGObject is not sanely pip-installable),
    Pillow, GLib's `gdbus`, `wl-clipboard`, `tesseract`. Optional: `ydotool`
    (fallback input path only).
-2. **`gsettings set org.gnome.desktop.interface toolkit-accessibility true`** —
+2. **`gsettings set org.gnome.desktop.interface toolkit-accessibility true`**,
    idempotent, before/after printed. Applications read this at startup:
    anything already running keeps a stunted accessibility tree until that app
    restarts.
-3. **The bundled gnome-shell extension** — copies
+3. **The bundled gnome-shell extension**, copies
    `wcu/extension/wcu@wayland-computer-use` to
    `~/.local/share/gnome-shell/extensions/` and enables it. A freshly copied
    extension is invisible to `gnome-extensions enable` ("does not exist")
    until the shell rescans at login, so enabling goes through the
    `org.gnome.shell enabled-extensions` gsettings list, which works
-   immediately. Then a **log out / log in is required** — on Wayland
+   immediately. Then a **log out / log in is required**, on Wayland
    gnome-shell cannot reload an extension in place. Until then the server
    already works through its fallbacks (AT-SPI, RemoteDesktop input,
    wl-clipboard); after login you additionally get the window verbs,
    extension screenshots, pointer position, and the human halt key.
-4. **ydotoold** (optional) — prints the systemd unit and commands. They need
+4. **ydotoold** (optional), prints the systemd unit and commands. They need
    root, so they are printed, never run.
-5. **Claude Code registration** — prints the `claude mcp add` line. Details
+5. **Claude Code registration**, prints the `claude mcp add` line. Details
    and the auto-approval allowlist: [claude-code-setup.md](claude-code-setup.md).
 
 Finally it points at `wayland-computer-use --self-test` (or

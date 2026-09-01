@@ -8,7 +8,7 @@ human-only halt keybinding (`<Super><Ctrl>Escape`).
 
 ## Why an extension
 
-GNOME on Wayland refuses these to ordinary clients — the documented routes were
+GNOME on Wayland refuses these to ordinary clients; the documented routes were
 tried first and denied: `org.gnome.Shell.Screenshot` answers
 `AccessDenied: Screenshot is not allowed`, `GrabAccelerator` answers
 `AccessDenied: GrabAccelerator is not allowed`, and there is no protocol at all
@@ -23,7 +23,7 @@ cp -r extension/wcu@wayland-computer-use ~/.local/share/gnome-shell/extensions/
 gnome-extensions enable wcu@wayland-computer-use
 ```
 
-Then **log out and back in** — this is not optional. On Wayland gnome-shell
+Then **log out and back in**. This is not optional. On Wayland gnome-shell
 cannot be restarted in place, `ReloadExtension` is deprecated and does not
 work, and `gnome-extensions enable` alone will not import the code into the
 running shell. The same applies after every edit to the extension: a changed
@@ -44,9 +44,9 @@ extension/wcu@wayland-computer-use/check-syntax.sh
 - **Halt:** `<Super><Ctrl>Escape` sets a session-scoped flag (poll
   `HaltActive`) and paints a HALTED border; pressing it again clears it,
   except within 2 seconds of engaging (debounce against an injected
-  double-press — see the limitation note in `dbus.js`).
+  double-press; see the limitation note in `dbus.js`).
 - **Coexistence:** fully independent of `migration-helpers@tristan.local` if
-  that is installed — different UUID, bus name, settings schema, indicator
+  that is installed, different UUID, bus name, settings schema, indicator
   color, and no shared state. Neither needs, touches, or conflicts with the
   other.
 - `schemas/gschemas.compiled` ships in the repo; if you edit the schema XML,

@@ -1,9 +1,9 @@
 # Security
 
 This document is the threat model, stated plainly. The project's design
-philosophy is autonomy-first — the agent is trusted and capabilities are not
-fenced — so it matters that everyone deploying it understands exactly what
-they are switching on.
+philosophy is autonomy-first: the agent is trusted and capabilities are not
+fenced. So it matters that everyone deploying it understands exactly what they
+are switching on.
 
 ## What the server can do
 
@@ -11,9 +11,9 @@ Everything the logged-in user can. A connected client can read the screen,
 record it, read the accessibility tree of every running application (including
 text in password-manager-adjacent UIs that render as plain widgets), inject
 pointer and keyboard input below the application layer, read and write the
-clipboard, move/close/resize windows, and launch applications. Some of this —
-screenshots, window queries, AT-SPI reads and writes — keeps working while the
-screen is locked (see below).
+clipboard, move/close/resize windows, and launch applications. Some of it
+(screenshots, window queries, AT-SPI reads and writes) keeps working while the
+screen is locked. See below.
 
 There is no capability tiering, no per-app allowlist, no redaction, by
 default. An opt-in policy configuration for cautious deployments is planned
@@ -30,14 +30,14 @@ process can spawn it or write to its stdin.
 
 The guards that do exist (`expect_window` on clicks, `expect_name`/
 `expect_role` on widget presses, focus proven before typing, the
-`Ctrl+Alt+F1`…`F12` session-switch refusal) are **correctness** guards — they
+`Ctrl+Alt+F1`…`F12` session-switch refusal) are **correctness** guards: they
 stop the agent damaging things by accident. They are not a defense against a
 malicious caller, and are not presented as one.
 
 ## The halt switch, and its stated limitation
 
 `Super+Ctrl+Escape` is a keybinding owned by the bundled GNOME Shell extension
-— grabbed inside the compositor, where client grabs are refused, so no
+grabbed inside the compositor, where client grabs are refused, so no
 application and no injected input can take it first. Engaging it sets a flag
 the server checks before **every state-changing tool**; reading tools keep
 working, so a human who has halted the agent can still see what it sees.
@@ -58,7 +58,7 @@ Stated limitations, honestly:
   D-Bus hiccup stop it. That does mean the switch can be removed: `launch_app`
   is an arbitrary-exec primitive, so an agent could run
   `gnome-extensions disable wcu@wayland-computer-use` and unown the bus name.
-  Under this project's posture that is not a hole to plug — the agent is
+  Under this project's posture that is not a hole to plug, the agent is
   trusted, and a fence that fires on its own costs more than it buys. If your
   deployment disagrees, `WCU_HALT_FAIL_CLOSED=1` makes silence *after* the
   switch has once answered count as halted. Off by default.
@@ -69,7 +69,7 @@ Stated limitations, honestly:
   hostile one; nothing at this layer is.
 - **Injected input can, in principle, press the combination.** The compositor
   cannot tell uinput events from a keyboard. This server refuses to inject
-  that combination, and the extension debounces a repeat within two seconds —
+  that combination, and the extension debounces a repeat within two seconds,
   but an agent with another injection path, or one that waits, is not stopped
   by the switch itself.
 - **On a headless session, the physical key does nothing.** `WCU_SESSION=headless`
@@ -85,7 +85,7 @@ Stated limitations, honestly:
 ## The injection tripwire, and its honest scope
 
 Captured screen text can contain instructions aimed at the agent ("ignore
-previous instructions", "run this command") — a hijacked agent is the fastest
+previous instructions", "run this command"). A hijacked agent is the fastest
 way to lose the trust autonomy runs on. The project's answer (ROADMAP #42) is
 a **tripwire, not a filter**: OCR-captured and tree-read text is scanned for
 imperative-to-agent patterns and a warning block is attached to the result.
@@ -95,7 +95,7 @@ Its scope is honestly narrow: it sees only what OCR reads or the tree
 exposes, it matches patterns and will miss a novel or obfuscated injection,
 and a warning only helps if the model heeds it. It is a seatbelt reminder,
 not a seatbelt. The real defense is the reviewing model and the evidence
-trail — treat all captured screen content as untrusted data.
+trail. Treat all captured screen content as untrusted data.
 
 ## The extension's D-Bus service is open to your session bus, by design
 
@@ -103,7 +103,7 @@ The bundled extension owns `org.wcu.Helpers` on the **session bus** and does
 not check the caller. No D-Bus policy file constrains that name, and the
 session bus default-allows any process running as the same user, so once the
 extension is enabled **every process running as you** can call every method on
-it — `Screenshot` / `ScreenshotArea` / `ScreenshotWindow`, `ListWindows`,
+it: `Screenshot` / `ScreenshotArea` / `ScreenshotWindow`, `ListWindows`,
 `WindowAt`, `ActivateWindow`, `MoveResize`, `Close`, `SetAbove`,
 `GetClipboardText`, `SetClipboardText`, and `ClearHalt`. That is true whether
 or not the MCP server is running.
@@ -140,9 +140,9 @@ your session bus:
 
 | Method group | Available to any same-user process already? |
 |---|---|
-| Screenshots | **Yes** — one frame through `Mutter.ScreenCast` |
-| Pointer and keyboard | **Yes** — `Mutter.RemoteDesktop` |
-| Clipboard | **Yes** — `wl-clipboard` |
+| Screenshots | **Yes**, one frame through `Mutter.ScreenCast` |
+| Pointer and keyboard | **Yes**, `Mutter.RemoteDesktop` |
+| Clipboard | **Yes**, `wl-clipboard` |
 | `ListWindows`, `WindowAt`, `ActivateWindow`, `MoveResize`, `Close`, `SetAbove` | **No.** Window enumeration and management have no ordinary-client route; `org.gnome.Shell.Screenshot` answers `AccessDenied: not allowed`, and there is no equivalent window API at all |
 | `ClearHalt` | **No.** Anything on the bus can clear a halt a human set |
 
@@ -153,8 +153,8 @@ the scary part is GNOME's, and it is there whether or not you install this.
 
 That is still a real surface, and it is a deliberate one. A malicious package
 postinstall, a `curl | bash` script, or a Flatpak granted
-`--socket=session-bus` inherits it. An authenticated variant — a shared secret
-written 0600 at enable time, checked against `invocation.get_sender()` — is
+`--socket=session-bus` inherits it. An authenticated variant (a shared secret
+written 0600 at enable time, checked against `invocation.get_sender()`) is
 tractable and would be the right default for a multi-tenant or
 hostile-local-software machine. It is not the default here, because the
 project's posture is that the agent is trusted and capability is not fenced.
@@ -167,7 +167,7 @@ on their own.
 
 ## What is written to disk, and where
 
-- **The action journal** — `$XDG_STATE_HOME/wayland-computer-use/journal/`,
+- **The action journal**: `$XDG_STATE_HOME/wayland-computer-use/journal/`,
   files 0600, kept 14 days. One line per *acted* tool call: arguments,
   outcome, hit/miss verdict, and the sha256 of any screenshot. Text that a
   password could be is **not** stored: `type_text`, `ui_set_text`,
@@ -177,12 +177,12 @@ on their own.
   `WCU_JOURNAL_TEXT=1` stores the characters verbatim if you want that for
   your own debugging.
   Two honest limits: **reading** tools are not journaled, so a run that only
-  looks — screenshots, `clipboard_read`, `ui_read_text` — leaves no trail;
+  looks, screenshots, `clipboard_read`, `ui_read_text`, leaves no trail;
   and the journal is plain files the agent can rewrite or delete, so it is
   evidence, not an audit log. A signed append-only mode is on the ROADMAP.
-- **The screenshot cache** — `~/.cache/wayland-computer-use/shots/`, directory
+- **The screenshot cache**: `~/.cache/wayland-computer-use/shots/`, directory
   0700, the last 40 captures. These are unredacted pictures of your desktop.
-- **The portal restore token** —
+- **The portal restore token**:
   `$XDG_STATE_HOME/wayland-computer-use/portal-tokens.json`, 0600 in a 0700
   directory. With `persist_mode: 2` this token replays pointer injection,
   keyboard injection and monitor capture **with no consent dialog**, and it
@@ -192,7 +192,7 @@ on their own.
 
 ## `launch_app` runs arbitrary programs, by design
 
-`launch_app` takes an argv, so it is an arbitrary-code-execution primitive —
+`launch_app` takes an argv, so it is an arbitrary-code-execution primitive in
 the same way a terminal is. It is what makes the tool useful, it is refused
 while a halt is engaged like every other acting tool, and it is journaled.
 There is no sandbox here and none is claimed. If you need one, run the whole
@@ -202,8 +202,8 @@ thing on a headless session in a VM.
 
 The extension's `metadata.json` lists `"session-modes": ["user",
 "unlock-dialog"]`, so it stays loaded while the screen is locked. That is a
-deliberate unattended-operation feature — a long run does not die because the
-lock timer fired — and it has a plainly stated cost: **a connected client can
+deliberate unattended-operation feature: a long run does not die because the
+lock timer fired, and it has a plainly stated cost: **a connected client can
 screenshot the desktop, query windows, and write into application widgets via
 AT-SPI while the screen is locked.** The lock screen protects against a
 person at the keyboard, not against this server.
@@ -217,7 +217,7 @@ either way; disabling those means not running the server.
 ## Visibility
 
 GNOME's orange screen-share indicator is shown whenever the pointer session
-is open — that is the platform's price for the input API and this project
+is open, that is the platform's price for the input API and this project
 documents it as a feature, not a bug to hide. The extension additionally
 draws an "agent is driving" border. There are no features for suppressing
 either; detection evasion is explicitly out of scope (see README, Scope).

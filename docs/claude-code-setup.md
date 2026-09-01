@@ -5,8 +5,8 @@ tool pre-approved. What follows is the intended setup, not the permissive end of
 a spectrum.
 
 The reasoning is the same table the README opens with. A tool call that has to
-stop and wait for a human is not a slower tool call, it is a different mode of
-operation — the run ends there until someone comes back to it, and "drive my
+stop and wait for a human is not a slower tool call. It is a different mode of
+operation: the run ends there until someone comes back to it, and "drive my
 desktop while I am not at it" is the entire point. A prompt in front of
 `pointer_click` also buys very little that is not already bought: the click is
 refused if `expect_window` says the compositor would deliver it elsewhere,
@@ -36,12 +36,12 @@ claude mcp add wayland-computer-use --scope user -- "$PWD/mcp_server.py"
 
 The `--` matters: everything after it is the command that runs the server, and
 without it `claude mcp add` reads the server's own flags as its own. The path
-must be absolute — user scope means the entry is used from every directory, and
+must be absolute, user scope means the entry is used from every directory, and
 a relative `./mcp_server.py` would resolve against whatever project the session
 happened to start in. `mcp_server.py` has a shebang and the executable bit; if
 that has been lost, use `-- python3 "$PWD/mcp_server.py"` instead.
 
-As a Claude Code plugin, neither step is needed — the plugin registers the
+As a Claude Code plugin, neither step is needed. The plugin registers the
 server itself:
 
 ```bash
@@ -80,8 +80,8 @@ claude mcp get wayland-computer-use    # the entry as Claude Code resolved it
 ## The allowlist
 
 Claude Code names an MCP tool `mcp__<server-name>__<tool-name>`. The server-name
-segment is **the name you registered the server under** — the first argument to
-`claude mcp add`, or the key under `mcpServers` — not the name the server
+segment is **the name you registered the server under**, the first argument to
+`claude mcp add`, or the key under `mcpServers`, not the name the server
 advertises about itself in its handshake. Those happen to agree here
 (`SERVER_INFO` in `mcp_server.py` says `wayland-computer-use`), which makes the
 distinction easy to miss until someone registers it as `desktop` and every rule
@@ -136,7 +136,7 @@ Allow rules accept a wildcard in the tool position after a literal
 
 A bare `mcp__wayland-computer-use`, with no tool segment, matches every tool of
 the server too. Two limits on the syntax are worth knowing: the server segment
-itself must be glob-free, and an unanchored allow glob — `"*"`, `"mcp__*"` — is
+itself must be glob-free, and an unanchored allow glob, `"*"`, `"mcp__*"`, is
 skipped with a warning and approves nothing, because those forms are only
 meaningful in `deny` and `ask`. There is no way to write "allow every MCP
 server" as an allow rule, only "allow this one".
@@ -246,7 +246,7 @@ gives that back.
 Claude Code reloads settings files while it runs, so an edit to `permissions`
 applies to the session in progress. The server is not like that: the process
 Claude Code is holding open is whatever `mcp_server.py` was on disk when the
-session started, so a change to the server is invisible until a restart — or
+session started, so a change to the server is invisible until a restart, or
 until you speak MCP to a fresh copy with `tests/mcpdrv.py`.
 
 And the requirements in the README are not optional for a working setup. In

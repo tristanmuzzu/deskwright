@@ -8,7 +8,7 @@ disruption count too.
 
 **Reporting.** Email tristan@zeticle.com. Reports are handled privately.
 Maintainers may edit, hide or delete contributions, and may ban accounts, for
-behaviour they judge inappropriate — with a reason given.
+behaviour they judge inappropriate, and will say why.
 
 This applies in the issue tracker, pull requests, discussions, and anywhere
 someone is representing the project.

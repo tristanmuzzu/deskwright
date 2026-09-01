@@ -1,4 +1,4 @@
-# Roadmap — autonomy-first, categorized and ordered
+# Roadmap, autonomy-first, categorized and ordered
 
 ## Status (2026-08-23, end of the two-session build)
 
@@ -17,7 +17,7 @@ CONTRIBUTING / SECURITY; and the Claude Code auto-approval doc.
 
 **Shipped 2026-08-24: the headless second session (#19).** `wcu-headless`
 start/stop/status/env + `WCU_SESSION=headless` server pinning; input over
-the private session's own mutter RemoteDesktop (the spike's open question —
+the private session's own mutter RemoteDesktop (the spike's open question,
 it follows the bus like everything else); private `XDG_RUNTIME_DIR` after
 a shared one broke the primary session's a11y bus; `gio launch` replaced by
 direct Exec spawn on headless (D-Bus activation loses the window there);
@@ -36,13 +36,13 @@ auto-selected (mutter when its API answers, portal otherwise) or forced with
 both backends cannot drift. Proven live: consent once, then motion + clicks +
 typing through the portal with compositor-confirmed positions, and a
 dialog-free 1.0 s session on reuse. **This is the door to #33 KDE and #34
-wlroots** — both now need window enumeration, not input.
+wlroots**, both now need window enumeration, not input.
 
 **Shipped 2026-08-25: the e2e suite runs on the headless session (#53
 groundwork).** `WCU_SESSION=headless ./tests/test_e2e_real_task.py` = 22/22;
 `mcp_server` pins the session at import so every live script suite follows
 the same variable, and constraint C1 ("the desktop is a serialized test
-resource") is retired — live verification no longer needs the user's screen.
+resource") is retired, live verification no longer needs the user's screen.
 Three fixes fell out: `_locate_text_widget`'s no-focus fallback now prefers
 the ACTIVE frame (it used to pick the biggest document in a background
 window, making perfectly delivered keystrokes read as lost); the e2e editor
@@ -53,7 +53,7 @@ README: headless `screencast` is damage-driven (still desktop = 0 frames),
 no XWayland there. Remaining for real CI (#53): a runnable GNOME inside a
 container.
 
-**Also 2026-08-24 — two defects fixed, and one report withdrawn:**
+**Also 2026-08-24, two defects fixed, and one report withdrawn:**
 - A failed *look* could fail a completed action (a transient empty screenshot
   turned a landed `type_text` into a failed step). Capture now retries once,
   and `_look` degrades to "the action completed; only the picture of it did
@@ -92,20 +92,20 @@ self-sufficient, not to fence it in.** Concretely:
   keeps it off).
 - Safety budget goes to exactly three things: (1) a kill switch a human
   can always reach, (2) irreversibility backstops so one bad action
-  cannot destroy a machine or an account, (3) honest evidence — the agent
+  cannot destroy a machine or an account, (3) honest evidence: the agent
   and the user can always see what actually happened. Everything else is
   the agent's judgment.
-- Every round trip the agent does NOT need — every question it does not
+- Every round trip the agent does NOT need, every question it does not
   have to ask, every screenshot it does not have to request, every retry
-  it can decide alone — is the product. Autonomy is a latency and
+  it can decide alone, is the product. Autonomy is a latency and
   evidence problem, not a permission problem.
 
-Goal, stated once: the Linux computer-use server for AI agents — Claude
-Code first — capable of long unattended runs.
+Goal, stated once: the Linux computer-use server for AI agents, Claude
+Code first, capable of long unattended runs.
 
 ---
 
-## Tier 1 — Autonomy core: the agent finishes tasks without help
+## Tier 1, Autonomy core: the agent finishes tasks without help
 
 The highest-value work in the file. Each item removes a class of
 "agent got stuck / guessed / asked a human".
@@ -124,22 +124,22 @@ The highest-value work in the file. Each item removes a class of
    `clipboard_changed`. Every added condition kills N guessed sleeps and
    N "let me take another screenshot to check" round trips.
 4. **`do_steps` validates the whole sequence up front.** [S]
-   Today a malformed step 4 fires steps 1–3 first — an autonomous run
+   Today a malformed step 4 fires steps 1–3 first, an autonomous run
    that half-executes is the worst outcome. Never start what cannot
    finish. (Known bug, same family: `look: "region"` rejects `look_at`
-   in both documented forms — fix together.)
+   in both documented forms, fix together.)
 5. **Replace the 10 s `sleep` cap with an inline `wait_for` step type.** [S]
    Waiting on a condition beats a guessed duration; the codebase already
    believes this everywhere else.
 6. **"What changed" as text after every action.** [M]
    The before/after diff is already computed for hit/miss. Upgrade the
    report to name *where* change happened (which window, which region,
-   OCR of changed cells). Often eliminates the follow-up screenshot —
+   OCR of changed cells). Often eliminates the follow-up screenshot,
    the single biggest per-step latency saving available.
 7. **`assert_state` tool.** [S]
    `assert_state(window_focused=…, text_present=…, widget_exists=…)`
    returning pass/fail with evidence. Lets the agent *prove* completion
-   to itself and end the run — self-verification is what separates
+   to itself and end the run, self-verification is what separates
    autonomous from babysat.
 8. **Scroll-into-view before acting.** [M]
    `ui_press` on a clipped/off-screen widget: scroll its container until
@@ -150,7 +150,7 @@ The highest-value work in the file. Each item removes a class of
    grounding. Document journal + `screen_map` snapshot as a resumable
    checkpoint for harness authors; long unattended runs depend on it.
 
-## Tier 2 — Capability gaps: things it simply cannot do today
+## Tier 2, Capability gaps: things it simply cannot do today
 
 Every gap here is a task the agent must currently hand back to a human.
 
@@ -166,7 +166,7 @@ Every gap here is a task the agent must currently hand back to a human.
     D-Bus (extension) already can. Needed for "arrange my screen" and
     for the agent keeping its work out of the user's way.
 13. **`zoom` tool.** [S]
-    Full-res crop by widget path / region / window — "look closer at X"
+    Full-res crop by widget path / region / window, "look closer at X"
     as a first-class verb, never scaled. Anthropic added one for a
     reason.
 14. **Set-of-Mark refs.** [M]
@@ -182,12 +182,12 @@ Every gap here is a task the agent must currently hand back to a human.
     Clicks verify, drags don't. Same before/after landed-or-not report.
 17. **Text-selection primitives.** [M]
     Select range via AT-SPI `Text` interface, keyboard fallback.
-    Windows-MCP lists this as a known gap — doing it is a differentiator.
+    Windows-MCP lists this as a known gap, doing it is a differentiator.
 18. **File-dialog helper.** [M]
     GTK file choosers are an agent tarpit. Composite "in the dialog, go
     to PATH and confirm" (Ctrl+L + type + Enter) as a macro or tool.
 
-## Tier 3 — Unattended operation: runs while nobody watches
+## Tier 3, Unattended operation: runs while nobody watches
 
 The dream tier. An autonomous agent that needs the user's screen is only
 half autonomous.
@@ -199,7 +199,7 @@ half autonomous.
     can peek via the stream. Codex's killer feature (macOS
     background-parallel); nobody on Linux has it. Spike: can a headless
     session + AT-SPI + input run one full `do_steps` flow? Machine risk:
-    contained (separate session) but measure RAM — 8 GB budget.
+    contained (separate session) but measure RAM, 8 GB budget.
 20. **Auto-approval story for Claude Code.** [S–M]
     An autonomous server whose every call throws a permission prompt is
     not autonomous. Ship a recommended `settings.json` allowlist
@@ -231,18 +231,18 @@ half autonomous.
     during; the agent can re-read its own trail after a compaction;
     bug reports become replayable. Impossible to retrofit later.
 
-## Tier 4 — Publish blockers — SHIPPED 2026-08-30
+## Tier 4, Publish blockers, SHIPPED 2026-08-30
 
 Packaging, metadata, CI, `server.json`, the Claude Code plugin, the
 de-personalised strings and the file-permission fixes all landed. See
 the git log for what each one was; nothing here is outstanding.
 
-## Tier 5 — Portability (one machine → every Linux desktop)
+## Tier 5, Portability (one machine → every Linux desktop)
 
 32. **xdg-desktop-portal backend.** [L]
     Portal `RemoteDesktop` (libei input) + `ScreenCast`/`Screenshot`
     (PipeWire) beside the extension backend. The cross-compositor correct
-    path — what makes KDE and wlroots possible. One consent dialog per
+    path, what makes KDE and wlroots possible. One consent dialog per
     session, persisted via `restore_token` (#23). Extension stays the
     zero-dialog fast path on GNOME; runtime capability probing picks.
 33. **KDE Plasma support.** [M, after 32] KWin scripting D-Bus for
@@ -264,7 +264,7 @@ the git log for what each one was; nothing here is outstanding.
 39. **GNOME version matrix.** [S] Documented support window; CI check on
     `metadata.json`.
 
-## Tier 6 — Minimal safety backstop
+## Tier 6, Minimal safety backstop
 
 Small by design (see philosophy). Three jobs: human can always stop it,
 one action can't destroy the machine, everything leaves evidence.
@@ -275,7 +275,7 @@ one action can't destroy the machine, everything leaves evidence.
     action; injected input cannot dismiss it. `halt` file as the no-GUI
     fallback. Costs the agent nothing until pressed.
 41. **Irreversibility backstop.** [S–M]
-    Not app tiers, not confirmations — a narrow tripwire for the tiny set
+    Not app tiers, not confirmations, a narrow tripwire for the tiny set
     of genuinely unrecoverable patterns (the machine-deletion class).
     Config-listed, default list short. Warn-and-proceed or require a
     second identical call ("press again to confirm") rather than asking
@@ -287,7 +287,7 @@ one action can't destroy the machine, everything leaves evidence.
     trust that autonomy runs on. Warn, never block.
 43. **Evidence = #25 journal.** Optional signed/append-only mode.
 44. **Session indicator honesty.** [S]
-    Orange screen-share dot already appears during pointer sessions —
+    Orange screen-share dot already appears during pointer sessions,
     document as a feature; optional extension-drawn "agent active" badge.
     Visibility instead of restriction.
 45. **Opt-in policy config for cautious deployments.** [M, low priority]
@@ -296,7 +296,7 @@ one action can't destroy the machine, everything leaves evidence.
     users who want fences get them; this machine and the default install
     run open. Ship late; it must never complicate the open path.
 
-## Tier 7 — Ecosystem and distribution (Claude Code first)
+## Tier 7, Ecosystem and distribution (Claude Code first)
 
 46. **Ship as a Claude Code plugin.** [M]
     MCP server + a skill teaching the tool-preference ladder (the
@@ -304,14 +304,14 @@ one action can't destroy the machine, everything leaves evidence.
     in the plugin's recommended settings. One `claude plugin install`.
 47. **MCP registry + `.mcpb` bundle.** [S–M]
     Registry listing; double-click install for Claude Desktop. The Linux
-    Desktop beta ships with computer use disabled — that gap is the
+    Desktop beta ships with computer use disabled. That gap is the
     market; be installable the day someone hits it.
 48. **Works-with-any-client examples.** [S]
     OpenAI Responses harness, plain Python MCP client. Market
-    "works with text-only LLMs" — the `ui_*`/`find_text` path genuinely
+    "works with text-only LLMs", the `ui_*`/`find_text` path genuinely
     does.
 49. **README rewrite for the public.** [M]
-    30-second pitch, GIF demo, install, support matrix — then the full
+    30-second pitch, GIF demo, install, support matrix, then the full
     lab notebook (keep all of it; the measurements are the moat).
 50. **Publish the research.** [M]
     Latency table, scale-kills-OCR, contrast-cell hit/miss thresholds,
@@ -321,7 +321,7 @@ one action can't destroy the machine, everything leaves evidence.
     `screencast` + `frames` record the agent driving a real task; the
     tool makes its own demo GIF.
 
-## Tier 8 — Testing, benchmarks, performance
+## Tier 8, Testing, benchmarks, performance
 
 52. **Portable test suite** via a shipped witness app (the
     `test_pointer.py` pattern, generalized). [M]
@@ -346,7 +346,7 @@ one action can't destroy the machine, everything leaves evidence.
 59. **Schema polish.** [S] Enums over magic strings, defaults stated,
     examples in descriptions; pagination for `ui_tree`.
 
-## Tier 9 — Positioning decisions (not code)
+## Tier 9, Positioning decisions (not code)
 
 60. **Name.** `wayland-computer-use` is descriptive but unownable. Deferred:
     the name is now the PyPI package, the registry id, the plugin name, the
