@@ -228,12 +228,23 @@ input or window control. (You can still install a different X11 desktop — but
 then you are not on GNOME, and mature X11 automation already serves you
 there.) So this is built on what Wayland actually permits.
 
-Wayland deliberately denies all of this to ordinary clients, and the classic
-X11 tools (`xdotool`, `wmctrl`, `grim`) either do not work on GNOME or fail in
-ways that look like your own mistake. This project uses the four mechanisms
-that do exist: a shell extension over D-Bus, AT-SPI,
-`org.gnome.Mutter.RemoteDesktop`, and `xdg-desktop-portal` as the
-cross-compositor route.
+Wayland deliberately denies all of this **to Wayland clients** — the protocol
+gives a window no way to see or touch any other — and the classic X11 tools
+(`xdotool`, `wmctrl`, `grim`) either do not work on GNOME or fail in ways that
+look like your own mistake. Every route that does work is therefore a D-Bus
+side-channel, and this project uses the four that exist: a gnome-shell
+extension, AT-SPI, `org.gnome.Mutter.RemoteDesktop`, and
+`xdg-desktop-portal` for compositors that are not GNOME.
+
+Worth knowing which of those are already open on a stock GNOME session:
+`org.gnome.Mutter.ScreenCast` and `org.gnome.Mutter.RemoteDesktop` answer any
+client on your session bus with no consent dialog — they are the APIs
+`gnome-remote-desktop` uses, and the portal is a *caller* of them rather than
+a gate in front of them. That is why recording here needs no dialog. What
+GNOME really does withhold is window enumeration and control, and its own
+`org.gnome.Shell.Screenshot`, which answers an ordinary client
+`AccessDenied`. Those are what the extension supplies, and
+[SECURITY.md](SECURITY.md) is precise about what that adds to your machine.
 
 ## What does not work, and why
 

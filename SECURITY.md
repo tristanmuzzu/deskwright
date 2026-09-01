@@ -100,33 +100,70 @@ trail — treat all captured screen content as untrusted data.
 ## The extension's D-Bus service is open to your session bus, by design
 
 The bundled extension owns `org.wcu.Helpers` on the **session bus** and does
-not check the caller. The session bus default-allows any process running as
-the same user, so once the extension is enabled, **every process running as
-you** can call it — `Screenshot` (full desktop, to any path, with no portal
-dialog and no screen-share indicator), `ScreenshotArea`, `ScreenshotWindow`,
-`GetClipboardText`, `SetClipboardText`, `ClearHalt`, and the window verbs.
-That is true whether or not the MCP server is running.
+not check the caller. No D-Bus policy file constrains that name, and the
+session bus default-allows any process running as the same user, so once the
+extension is enabled **every process running as you** can call every method on
+it — `Screenshot` / `ScreenshotArea` / `ScreenshotWindow`, `ListWindows`,
+`WindowAt`, `ActivateWindow`, `MoveResize`, `Close`, `SetAbove`,
+`GetClipboardText`, `SetClipboardText`, and `ClearHalt`. That is true whether
+or not the MCP server is running.
 
-This is a deliberate trade, not an oversight, and it is worth being precise
-about what you are trading. On Wayland an ordinary client *cannot* screenshot;
-`xdg-desktop-portal` gates capture behind per-app consent, with a dialog and a
-visible indicator. Enabling this extension removes that guarantee for
-everything on your session bus. A malicious package postinstall, a
-`curl | bash` script, or a Flatpak granted `--socket=session-bus` inherits the
-capability.
+**What that does and does not cost you, measured rather than assumed.** It is
+tempting to say this removes Wayland's capture guarantee. On GNOME it does
+not, because that guarantee is already not there for a D-Bus client. Wayland's
+protocol-level rule stops a *Wayland client* from reading other windows; it
+says nothing about the session bus. And GNOME's own private APIs answer an
+ordinary session-bus client with no dialog and no indicator. Verified on
+GNOME 50.1, from a plain shell, with this extension out of the picture:
 
-What you get for it is the thing the project exists to provide: an agent that
-can see and act without a consent dialog in front of every call, on a
-compositor that otherwise refuses all of it. An authenticated variant — a
-shared secret written 0600 at enable time, checked against
-`invocation.get_sender()` — is tractable and would be the right default for a
-multi-tenant or hostile-local-software environment. It is not the default
-here.
+```
+gdbus call --session --dest org.gnome.Mutter.ScreenCast \
+  --object-path /org/gnome/Mutter/ScreenCast \
+  --method org.gnome.Mutter.ScreenCast.CreateSession "{}"
+→ (objectpath '/org/gnome/Mutter/ScreenCast/Session/u1',)
 
-**So treat enabling the extension as a machine-level decision.** If you would
-not run an agent with a shell on this machine, do not enable it.
+gdbus call --session --dest org.gnome.Mutter.RemoteDesktop \
+  --object-path /org/gnome/Mutter/RemoteDesktop \
+  --method org.gnome.Mutter.RemoteDesktop.CreateSession
+→ (objectpath '/org/gnome/Mutter/RemoteDesktop/Session/u1',)
+```
+
+Screen capture and pointer/keyboard injection, granted to anything running as
+you, before this project is installed at all. Those are the APIs
+`gnome-remote-desktop` uses, and they are not portal-gated because the portal
+*implementation* is what calls them. It is also why `screencast.py` records
+without a consent dialog. The clipboard is the same story: `wl-clipboard`
+already gives any same-user process read and write.
+
+What GNOME *does* restrict, and what the extension therefore actually adds to
+your session bus:
+
+| Method group | Available to any same-user process already? |
+|---|---|
+| Screenshots | **Yes** — one frame through `Mutter.ScreenCast` |
+| Pointer and keyboard | **Yes** — `Mutter.RemoteDesktop` |
+| Clipboard | **Yes** — `wl-clipboard` |
+| `ListWindows`, `WindowAt`, `ActivateWindow`, `MoveResize`, `Close`, `SetAbove` | **No.** Window enumeration and management have no ordinary-client route; `org.gnome.Shell.Screenshot` answers `AccessDenied: not allowed`, and there is no equivalent window API at all |
+| `ClearHalt` | **No.** Anything on the bus can clear a halt a human set |
+
+So the honest statement is narrower than "it opens up your desktop": **it adds
+window enumeration and management, and it means the halt switch can be cleared
+by anything running as you.** The capture and input exposure that sounds like
+the scary part is GNOME's, and it is there whether or not you install this.
+
+That is still a real surface, and it is a deliberate one. A malicious package
+postinstall, a `curl | bash` script, or a Flatpak granted
+`--socket=session-bus` inherits it. An authenticated variant — a shared secret
+written 0600 at enable time, checked against `invocation.get_sender()` — is
+tractable and would be the right default for a multi-tenant or
+hostile-local-software machine. It is not the default here, because the
+project's posture is that the agent is trusted and capability is not fenced.
+
+**Treat enabling the extension as a machine-level decision.** If you would not
+run an agent with a shell on this machine, do not enable it.
 `gnome-extensions disable wcu@wayland-computer-use` removes the surface
-entirely, and the server degrades to what AT-SPI and the portal allow.
+entirely, and the server degrades to what AT-SPI, mutter and the portal allow
+on their own.
 
 ## What is written to disk, and where
 
