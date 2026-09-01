@@ -48,10 +48,23 @@ jobs:
             | tar xz mcp-publisher
           ./mcp-publisher --version
 
+      # Re-running after a partial failure is a normal thing to do, and the
+      # registry answers "cannot publish duplicate version" when the entry is
+      # already there. That is the desired end state, not an error, so treat it
+      # as done and let the check below confirm it for real.
       - name: publish
         run: |
           ./mcp-publisher login github-oidc
-          ./mcp-publisher publish
+          if ! out=$(./mcp-publisher publish 2>&1); then
+            echo "$out"
+            if echo "$out" | grep -q "cannot publish duplicate version"; then
+              echo "::notice::this version is already in the registry, nothing to do"
+            else
+              exit 1
+            fi
+          else
+            echo "$out"
+          fi
 
       # The registry nests each hit under a "server" key. Reading the name off
       # the outer object gives None, which failed this check on a publish that
