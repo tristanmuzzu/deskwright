@@ -1,0 +1,68 @@
+name: MCP registry
+
+# Publishes server.json to registry.modelcontextprotocol.io.
+#
+# No interactive login and no stored token: GitHub Actions mints an OIDC token,
+# `mcp-publisher login github-oidc` exchanges it for a registry JWT, and the
+# io.github.tristanmuzzu namespace is granted because the OIDC claim says this
+# workflow runs in that account's repository. The alternative is
+# `mcp-publisher login github` on a laptop, which needs a browser and produces
+# a token that expires, which is how the first attempt at this went.
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The registry stores metadata and a pointer at PyPI; it hosts nothing.
+      # Publishing an entry whose version is not on PyPI would leave a listing
+      # that installs nothing, so check before claiming it.
+      - name: the version in server.json is really on PyPI
+        run: |
+          python3 - <<'PY'
+          import json, sys, urllib.error, urllib.request
+          doc = json.load(open("server.json"))
+          pkg = doc["packages"][0]
+          if doc["version"] != pkg["version"]:
+              sys.exit(f"server.json version {doc['version']} != package entry {pkg['version']}")
+          url = f"https://pypi.org/pypi/{pkg['identifier']}/{pkg['version']}/json"
+          try:
+              urllib.request.urlopen(url, timeout=30)
+          except urllib.error.HTTPError as e:
+              sys.exit(f"{pkg['identifier']} {pkg['version']} is not on PyPI ({e.code})")
+          print(f"{pkg['identifier']} {pkg['version']} is on PyPI")
+          PY
+
+      - name: install mcp-publisher
+        run: |
+          curl -fsSL "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher --version
+
+      - name: publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish
+
+      - name: confirm the listing resolves
+        run: |
+          sleep 10
+          python3 - <<'PY'
+          import json, sys, urllib.request
+          name = json.load(open("server.json"))["name"]
+          url = "https://registry.modelcontextprotocol.io/v0/servers?search=deskwright"
+          data = json.load(urllib.request.urlopen(url, timeout=30))
+          servers = data.get("servers") or data.get("data") or []
+          if not any(s.get("name") == name for s in servers):
+              sys.exit(f"{name} is not in the registry after publishing")
+          print(f"{name} is listed")
+          PY
