@@ -118,7 +118,8 @@ def test_the_old_name_is_gone_from_everything_but_the_compat_paths():
             body = path.read_text()
         except (UnicodeDecodeError, OSError):
             continue
-        if "wayland-computer-use" in body or "org.wcu." in body:
+        if ("wayland-computer-use" in body or "org.wcu." in body
+                or "Wayland Computer Use" in body):
             stragglers.append(name)
     assert not stragglers, f"old name still present in: {stragglers}"
 
