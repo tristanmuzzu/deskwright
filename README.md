@@ -354,3 +354,8 @@ plainly. [`ROADMAP.md`](ROADMAP.md) is what's next and why, in order.
 Apache-2.0. If you get it running on a compositor that isn't GNOME, or on a
 GNOME older than 50, please open an issue and say so. That's the most useful
 thing anyone can send.
+
+<sub>`mcp-name: io.github.tristanmuzzu/deskwright`</sub>
+<!-- The line above is how registry.modelcontextprotocol.io proves the PyPI
+     package and the registry entry have the same owner. It reads the README
+     that ships with the package and looks for exactly that string. -->

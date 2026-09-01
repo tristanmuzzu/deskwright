@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.1.1
+
+Adds the `mcp-name: io.github.tristanmuzzu/deskwright` line to the README. The MCP registry reads the README that
+ships with the PyPI package and looks for exactly that string to prove the
+package and the registry entry have the same owner. PyPI metadata is immutable
+per release, so the marker could only reach it in a new version. No code
+changed.
+
 ## 0.1.0, first public release
 
 Named **Deskwright**. It was `wayland-computer-use` during development, until

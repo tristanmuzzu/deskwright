@@ -3,7 +3,7 @@
   "name": "io.github.tristanmuzzu/deskwright",
   "title": "Deskwright",
   "description": "Agents use real GNOME/Wayland apps: on your screen, or an invisible second desktop you never see",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "websiteUrl": "https://github.com/tristanmuzzu/deskwright",
   "repository": {
     "url": "https://github.com/tristanmuzzu/deskwright",
@@ -14,7 +14,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "deskwright",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "runtimeHint": "pipx",
       "transport": {
         "type": "stdio"

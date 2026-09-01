@@ -10,7 +10,7 @@
       "name": "deskwright",
       "displayName": "Deskwright",
       "description": "Claude Code uses a real Linux desktop: GNOME/Wayland apps pressed through the accessibility tree so a click cannot miss, on your screen or on an invisible second desktop that leaves your screen alone. Not Cowork, which runs in a VM on Linux and cannot reach your session.",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "source": "./"
     }
   ]

@@ -65,3 +65,29 @@ def test_the_readme_names_every_tool_and_counts_them_right():
     missing = sorted(n for n in served if f"`{n}`" not in readme)
     assert not missing, f"not in the README table: {missing}"
     assert f"{len(served)} tools" in readme
+
+
+def test_the_registry_ownership_marker_is_in_the_readme():
+    """registry.modelcontextprotocol.io reads the README that ships with the
+    PyPI package and looks for this exact string to prove the package and the
+    registry entry have the same owner. Without it the publish fails with
+    "PyPI package ownership validation failed", and because PyPI metadata is
+    immutable per release, fixing it costs a version bump."""
+    import json
+    name = json.loads((ROOT / "server.json").read_text())["name"]
+    assert f"mcp-name: {name}" in (ROOT / "README.md").read_text()
+
+
+def test_every_manifest_agrees_on_the_version():
+    """Four files carry it, and a registry entry pointing at a version nobody
+    published is worse than no entry."""
+    import json
+    import tomllib
+    pkg = tomllib.loads((ROOT / "pyproject.toml").read_text())["project"]["version"]
+    server = json.loads((ROOT / "server.json").read_text())
+    plugin = json.loads((ROOT / ".claude-plugin" / "plugin.json").read_text())
+    market = json.loads((ROOT / ".claude-plugin" / "marketplace.json").read_text())
+    assert server["version"] == pkg, (server["version"], pkg)
+    assert server["packages"][0]["version"] == pkg
+    assert plugin["version"] == pkg
+    assert market["plugins"][0]["version"] == pkg
