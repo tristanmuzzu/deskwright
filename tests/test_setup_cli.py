@@ -381,3 +381,46 @@ def test_atspi_typelib_is_its_own_requirement():
     with a message that names no package."""
     labels = [d.label for d in setup_cli.DEPS if d.hard]
     assert any("Atspi" in name for name in labels)
+
+
+# ------------------------------------------- enabling never deletes the list
+
+def test_a_failed_reread_never_empties_enabled_extensions(
+        monkeypatch, capsys, fake_repo, tmp_path, no_subprocess):
+    """A flaky second read used to wipe every extension on the machine.
+
+    The write built its list from a SECOND `_gsettings_get` whose failure was
+    spelled `or "[]"`, so "could not read the list" became "the list is
+    empty" and was written back. Observed 2026-09-01: fourteen enabled
+    extensions replaced by the single one being installed. The guard above it
+    is on an earlier read and never covered this.
+    """
+    _patch_probes(monkeypatch, tmp_path,
+                  missing_bins=("gnome-extensions",),
+                  enabled="['keep-me@x', 'other@y']")
+    real_get = setup_cli._gsettings_get
+    reads = {"n": 0}
+
+    def flaky(schema, key):
+        if (schema, key) == (setup_cli.SHELL_SCHEMA, setup_cli.ENABLED_KEY):
+            reads["n"] += 1
+            if reads["n"] > 1:          # the re-read fails
+                return None
+        return real_get(schema, key)
+
+    monkeypatch.setattr(setup_cli, "_gsettings_get", flaky)
+    written = []
+    monkeypatch.setattr(setup_cli, "_gsettings_set",
+                        lambda s, k, v: written.append((s, k, v)) or True)
+
+    setup_cli.run(check_only=False, repo_arg=str(fake_repo))
+
+    values = [v for s, k, v in written
+              if (s, k) == (setup_cli.SHELL_SCHEMA, setup_cli.ENABLED_KEY)]
+    assert values, "the extension was never enabled at all"
+    for value in values:
+        items = setup_cli.parse_string_list(value)
+        assert "keep-me@x" in items and "other@y" in items, (
+            f"enabling deleted the other extensions: {value}")
+        assert UUID in items
+    assert reads["n"] > 1, "the re-read this test is about did not happen"

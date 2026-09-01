@@ -485,8 +485,18 @@ def step_extension(src: Path | None, check_only: bool) -> None:
     if enabled_now is None:
         _say(f"  cannot enable: {_gsettings_why(SHELL_SCHEMA, ENABLED_KEY)}.")
     else:
-        new = list_with_uuid(_gsettings_get(SHELL_SCHEMA, ENABLED_KEY) or "[]",
-                             EXTENSION_UUID)
+        # Re-read, because the `gnome-extensions enable` above may itself have
+        # added the uuid -- but NEVER fall back to "[]" when that read fails.
+        # This was `_gsettings_get(...) or "[]"`, which turned "could not read
+        # the list" into "the list is empty" and wrote that back, deleting
+        # every enabled extension on the machine: observed 2026-09-01 on a box
+        # where fourteen extensions became the single one being installed.
+        # `enabled_now` is the last value a read is known to have returned --
+        # the guard immediately above proves it is not None.
+        current = _gsettings_get(SHELL_SCHEMA, ENABLED_KEY)
+        if current is None:
+            current = enabled_now
+        new = list_with_uuid(current, EXTENSION_UUID)
         if new is None:
             _say(f"  already in {ENABLED_KEY} -- nothing to change.")
         else:
