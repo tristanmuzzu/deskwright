@@ -17,3 +17,17 @@ Run at least three fresh attempts per platform, same model/reasoning settings an
 3. **Recovery**: During an editing workflow, introduce a renamed dialog or move a test window. Success requires detecting the changed state and completing without editing the wrong document. Record the intervention time and any repair.
 
 The September 6–7 GIMP run was an exploratory debugging run and must be reported as such. Its saved artifact demonstrates end-to-end GUI work, but its elapsed time includes code changes, VM setup, documentation work and waiting. Native Windows model scores remain unmeasured until ChatGPT is authenticated and its Computer Use tools have actually run.
+
+## Document task fixtures
+
+Use an untouched copy of `fixtures/project-brief.txt` and give the model only
+`fixtures/document-task.txt` plus the editor and output-directory names. Keep
+`fixtures/expected-revision.txt` out of the model task context. After the trial,
+run `python3 benchmarks/verify_document.py OUTPUT --source SOURCE` to check the
+saved revision and unchanged input. The oracle accepts UTF-8 BOM and platform
+line endings; reopening must still be verified in the actual application.
+
+Each scored trial must record platform, model/reasoning, app/version, display
+size/scaling, start/end monotonic times, supplied prompt, model/tool counts,
+repairs, output paths, file checks and the screenshot after reopening. Missing
+measurements stay missing. Do not label synthetic oracle checks as task passes.

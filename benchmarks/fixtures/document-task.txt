@@ -1,0 +1,17 @@
+Use the native graphical text editor supplied for this trial. Open project-brief.txt and edit it through the application's user interface. Do not write or transform the output file through code, a shell, an API, or an external text-editing tool.
+
+Make these changes:
+1. Change the first draft date to 16 September and the final guide date to 23 September.
+2. Change the guide length from six pages to eight pages and make the map required.
+3. Replace the Open questions section with:
+Decisions
+- Include the map.
+- Sam checks route accessibility.
+- Use the visitor centre contact on the final page.
+4. Add this section at the end:
+Actions
+- Mira: finish the illustrations before the first draft.
+- Leo: add the visitor centre contact to the final page.
+- Sam: verify route accessibility and both exported formats.
+
+Preserve all other text. Save as project-brief-revised.txt in the trial output directory, leaving the source unchanged. Close the revised document, reopen it from disk, and check the dates, scope, decisions and actions. Report completion, any problems and the saved path. You may use code to orchestrate mouse/keyboard/observation calls if that is the supplied computer-control interface, but all document changes must occur in the visible editor.

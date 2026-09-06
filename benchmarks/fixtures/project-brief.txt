@@ -1,0 +1,21 @@
+ALPINE STUDIO — PROJECT BRIEF
+
+Purpose
+Create a small illustrated guide for visitors planning a weekend in the mountains. The guide should work on a phone and as a printed handout.
+
+Delivery
+The first draft is due on 14 September. The final guide is due on 21 September. Mira owns the illustrations; Leo owns the copy; Sam reviews the exported files.
+
+Scope
+Include an arrival checklist, one walking route, a weather note, and a packing list. The guide will contain six pages. The map is optional.
+
+Review
+Collect comments in one shared review document. Resolve factual corrections before polishing the illustrations. Keep the previous draft available for comparison.
+
+Export
+Deliver an editable source document and a PDF. Use the filename alpine-guide-final for the final export. Check that all pages open and that text remains readable at phone width.
+
+Open questions
+- Is the map included?
+- Who checks route accessibility?
+- Which contact appears on the final page?
