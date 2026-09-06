@@ -395,22 +395,14 @@ def tool_type_text(a: dict) -> dict:
         # filter, then confidently verified text in that wrong field.
         widget_focus = ensure_widget_focus(str(app_hint), a.get("path"),
                                            window_title=focus["window"].get("title"))
-        if widget_focus["state"] in ("grab_failed",):
-            # GTK4 refuses AT-SPI GrabFocus (atspi_error 1, measured
-            # 2026-08-23) and gives no usable screen extents to click, so
-            # the remaining route is the one a keyboard user has: Tab until
-            # the text widget reports FOCUSED. Two tabs recovered the
-            # measured popover case; eight is the give-up budget.
-            syms = combo_keysyms("tab")
-            for _ in range(8):
-                _pointer().combo(syms)
-                time.sleep(0.25)
-                widget_focus = ensure_widget_focus(str(app_hint),
-                                                   widget_focus.get("path"))
-                if widget_focus["state"] == "already":
-                    widget_focus = {"state": "tabbed",
-                                    "path": widget_focus["path"]}
-                    break
+        # Do not probe focus with Tab. Two tabs recovered a GTK4 popover on
+        # 2026-08-23, but on 2026-09-07 a document receiving real keyboard input
+        # still reported FOCUSED=false (even after clearing the AT-SPI cache).
+        # The probe inserted a tab into its selection and auto-indent repeated
+        # it on every line. Keep the confirmed window focus, send only the
+        # requested text, and verify the pinned widget below. If it lands in a
+        # void, report that failure; the caller can explicitly refocus or use
+        # ui_set_text without an automatic, content-changing focus probe.
         try:
             if widget_focus.get("path"):
                 before = _read_text(_find_text_widget(str(app_hint), widget_focus["path"]))
@@ -734,6 +726,9 @@ def _changed_nothing(result: dict) -> bool:
     look = result.get("look")
     if not isinstance(look, dict):
         return False
+    if "visual_change_detected" in look:
+        return look["visual_change_detected"] is False
+    # Retain compatibility with older captures; prose is no longer the signal.
     return "NOTHING" in str(look.get("verdict") or "")
 
 

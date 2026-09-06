@@ -276,14 +276,20 @@ def tier2_extension(client: Client, health: dict) -> None:
     # The ADDRESS is the contract; the focused flag is honest state, not a
     # requirement. Measured 2026-08-23: after Tier 1's popover dance NO
     # widget holds the keyboard even though the window is focused -- that
-    # void is real, and type_text below recovers from it (grab, then
-    # Tab-cycling) rather than this test pretending it cannot happen.
+    # void is real. Automatic Tab-cycling was removed on 2026-09-07 because
+    # Tab also inserts indentation into a document whose focus flag is stale.
+    # This fixture has just closed that popover. Explicitly restore GTK focus
+    # before typing; sending text into a menu can activate menu actions even
+    # when the document itself remains unchanged.
     check("the document has an address",
           bool(focused_path),
           f'path={focused_path} focused={focused.get("focused", "?")}')
 
     # Focus-verified injection, then verified by reading the widget back.
     typed = f" typed-{uuid.uuid4().hex[:6]}"
+    if not focused.get("focused"):
+        print("RECOVERY  explicit Ctrl+Tab after this fixture's GTK popover")
+        client.call("press_keys", {"target": window["id"], "combo": "ctrl+Tab", "look": False})
     ok, res = client.call("type_text", {"text": typed, "target": window["id"]})
     check("type_text reports proven focus", ok and isinstance(res, dict),
           res.get("focus") if ok else res)

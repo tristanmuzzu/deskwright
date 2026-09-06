@@ -62,3 +62,18 @@ These small samples establish a regression test, not universal reliability.
 `ui_find` accepts `window_title` to search a specific accessible dialog and reports
 when the node budget truncates a search. Automatic typing focus recovery stays
 inside the named window, preventing a large background GIMP tree from stealing it.
+
+## Document reliability findings
+
+The September 7 revision pilot found and fixed two text-entry defects. AT-SPI
+insert lengths use UTF-8 bytes while positions remain character offsets; using
+Python character length truncated text containing an em dash. Automatic Tab
+focus probes were removed after one inserted indentation into a selected text
+block despite the accessibility tree reporting no focused widget. Typing now
+sends only requested characters and verifies the pinned widget; use
+`ui_set_text` when widget focus is unreliable.
+
+A small successful text edit can fall below the screenshot comparison threshold.
+`look.visual_change_detected` records that visual signal; its verdict no longer
+claims a click missed or an action succeeded. Read back the app state before
+retrying an action with little visual change.

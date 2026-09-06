@@ -885,8 +885,9 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
 
     `look:"auto"` (the default) always reports the change figure -- it costs one
     capture -- but only spends the tokens on an image when something actually
-    moved. A click that changed nothing is the case you most need told about and
-    the one you least need a picture of.
+    moved above the comparison threshold. Small text edits can succeed below
+    that threshold (observed in the September 7 document pilot), so this is
+    visual evidence, not a verdict about whether the action succeeded.
     """
     mode, region, window, before = (prepared.mode, prepared.region,
                                     prepared.window, prepared.before)
@@ -913,10 +914,12 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
         delta = _changed_since(before, after, ambient, floor)
         landed = delta.pop("landed")
         view["changed"] = delta
+        view["visual_change_detected"] = bool(landed)
         view["verdict"] = (
-            "the screen changed, so this landed on something"
+            "visual change detected; verify the intended result"
             if landed else
-            "NOTHING on screen changed -- if this was meant to press something, it missed"
+            "no visual change above the comparison threshold; small edits may "
+            "still have succeeded. Read back the app state before retrying"
         )
         if landed:
             # Say WHERE, and for a small change, WHAT it now reads. Strictly
@@ -948,7 +951,10 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
         if isinstance(shown, dict):
             view["coordinate_note"] = _coordinate_note(shown["dimensions"], native, origin)
     else:
-        view["image"] = "not attached: nothing changed, so there is nothing new to see"
+        view["image"] = (
+            "not attached in auto mode: change was below the comparison threshold; "
+            "use screenshot or explicit look for visual inspection"
+        )
     view["path"] = str(path)
     result["look"] = view
     return result

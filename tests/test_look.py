@@ -167,7 +167,7 @@ def main() -> int:
                                             "expect_window": wid})
             miss_look = miss.get("look") or {}
             check("a click into dead space reports a miss",
-                  "NOTHING" in (miss_look.get("verdict") or ""),
+                  miss_look.get("visual_change_detected") is False,
                   f'changed={miss_look.get("changed")}')
             check("a miss spends no tokens on a picture",
                   "image" not in miss["_blocks"],
@@ -177,7 +177,7 @@ def main() -> int:
                                            "expect_window": wid})
             hit_look = hit.get("look") or {}
             check("a real button press reports a hit",
-                  "landed" in (hit_look.get("verdict") or ""),
+                  hit_look.get("visual_change_detected") is True,
                   f'changed={hit_look.get("changed")}')
             check("a hit comes back with the picture",
                   "image" in hit["_blocks"],

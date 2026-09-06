@@ -751,7 +751,10 @@ def tool_ui_set_text(a: dict) -> dict:
     if replace and before:
         Atspi.EditableText.delete_text(editable, 0, len(before))
     offset = 0 if replace else Atspi.Text.get_character_count(text_iface)
-    if not node.insert_text(offset, text, len(text)):
+    # AT-SPI position is in characters, but length is UTF-8 bytes. A single
+    # em dash in the September 7 document pilot truncated the final two bytes
+    # when Python's character count was passed here.
+    if not node.insert_text(offset, text, len(text.encode("utf-8"))):
         raise ToolError("insert_text returned false; nothing was written",
                         code="atspi_write_failed")
 

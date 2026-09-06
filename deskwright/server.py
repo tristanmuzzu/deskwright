@@ -222,9 +222,9 @@ _LOOK_SCHEMA = {
     "description": (
         "What to show you afterwards. Default \"auto\": wait for the screen to "
         "stop changing, measure how much this action changed, and attach a "
-        "picture of the affected window only if something did change -- so a "
-        "click that hit nothing costs no tokens and says so. \"window\" always "
-        "attaches it, \"screen\" uses the whole desktop (slower, 6x the tokens), "
+        "picture of the affected window only above its change threshold. Small "
+        "successful edits can fall below that threshold; read back app state "
+        "before retrying. \"window\" always attaches it, \"screen\" uses the whole desktop, "
         "\"region\" uses look_at, false skips all of it. Use false for the middle "
         "of a sequence you are going to check at the end anyway."),
     "anyOf": [{"type": "string", "enum": ["auto", "window", "screen", "region", "none"]},
