@@ -16,7 +16,7 @@ Run at least three fresh attempts per platform, same model/reasoning settings an
 2. **Document revision**: In a native editor, open a supplied project brief, revise a specified paragraph, add an action list, save under a new name, close and reopen, and verify exact requested text. Compare the same cross-platform editor for scores; GNOME Text Editor's Linux integration suite is a separate validation.
 3. **Recovery**: During an editing workflow, introduce a renamed dialog or move a test window. Success requires detecting the changed state and completing without editing the wrong document. Record the intervention time and any repair.
 
-The September 6–7 GIMP run was an exploratory debugging run and must be reported as such. Its saved artifact demonstrates end-to-end GUI work, but its elapsed time includes code changes, VM setup, documentation work and waiting. The authenticated Windows native Notepad capability probe passed on September 7. Its app-reported 7m13s includes cold setup and permission time. A substantive Windows GIMP trial is underway; controlled cross-platform scores remain unmeasured.
+The September 6–7 GIMP run was an exploratory debugging run and must be reported as such. Its saved artifact demonstrates end-to-end GUI work, but its elapsed time includes code changes, VM setup, documentation work and waiting. The authenticated Windows native Notepad capability probe passed on September 7. Its app-reported 7m13s includes cold setup and permission time. The substantive Windows GIMP and Notepad pilots are finished; controlled cross-platform scores remain unmeasured.
 
 ## Document task fixtures
 
@@ -45,3 +45,25 @@ The Linux document pilot also completed save-as and GUI reopening with its sourc
 unchanged and an exact saved-file match. It exposed UTF-8 truncation, a mutating
 Tab focus probe, and overconfident visual-change wording; fixes were made during
 the run, so it remains a debugging pilot rather than a scored attempt.
+
+## September 7 functional pilot outcomes
+
+These are exploratory outcomes, not a controlled platform ranking. Full evidence
+lives in the parent workspace's `evidence/` directory.
+
+| Task | Linux / Deskwright | Native Windows VM |
+|---|---|---|
+| GIMP drawing | XCF/PNG saved, reopened, file checks passed | All requested shapes/colors and valid XCF/PNG; correct names in wrong folder; parent stopped after 26m48s of prolonged placement recovery; native reopen not verified |
+| Document revision | Exact saved text, source unchanged, GUI reopening verified after fixing tool defects | Correct content/path, source unchanged, GUI reopening observed; two extra blank lines fail the fixed exact-text oracle |
+| Input recovery | Independent cold-input receiver and moved-window interruption verified | Natural dialog, clipboard and filename recovery observed; no matched forced-interruption score |
+
+The Windows document app reported 8m52s including setup and its app grant. The
+drawing attempt included six app grants and a parent setup dialog; it was stopped
+as an exploratory decision, not at a predeclared scored timeout. Parent artifact
+collection does not count as native task completion. Its saved XCF was also opened
+independently in Linux GIMP with all shapes intact.
+
+The VM used four vCPUs, 4 GiB RAM and no accelerated GPU. Linux debugging ran on
+the host during parts of the trials. Different editor applications, display
+heights and setup histories prevent fair speed or reliability comparisons. The
+three-trial protocol above remains the method for any future scored comparison.
