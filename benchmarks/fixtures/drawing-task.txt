@@ -1,0 +1,10 @@
+Use GIMP's native graphical interface to create an 800 x 500 white canvas. Draw a simple mountain-and-lake illustration with a hard round brush:
+- A dark blue (#234b5c) mountain ridge with three peaks and snowcap details on at least two peaks.
+- A dark blue horizontal shoreline and four separated water lines below it.
+- An orange (#e8a34b) circular sun above the mountains, with at least four short rays.
+- A smooth orange wave below the shoreline.
+Use approximately 6-pixel strokes. Keep the artwork inside the canvas with visible margins. A clear simple line illustration is sufficient; do not generate or import artwork.
+
+Save an editable alpine-lake.xcf and export alpine-lake.png in the supplied trial output directory. Close the image, reopen the saved XCF through GIMP, and inspect the result. Verify the canvas dimensions and that all requested shapes survived saving.
+
+All artwork must be created through GUI brush input. You may use code to orchestrate the supplied mouse, keyboard, accessibility and screenshot tools, including continuous paths and batches where supported. Do not create or edit the image file, SVG, XCF or pixels through code, an API, or an image-generation tool. Batch coherent actions when their targets are known; observe after a dialog or layout changes. Report saved paths, repairs and anything incomplete.

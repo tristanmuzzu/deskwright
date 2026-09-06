@@ -31,3 +31,12 @@ Each scored trial must record platform, model/reasoning, app/version, display
 size/scaling, start/end monotonic times, supplied prompt, model/tool counts,
 repairs, output paths, file checks and the screenshot after reopening. Missing
 measurements stay missing. Do not label synthetic oracle checks as task passes.
+
+## Drawing task fixtures
+
+Use `fixtures/drawing-task.txt` unchanged with each trial's output directory.
+`verify_drawing.py DIRECTORY` checks PNG decoding, dimensions, exact requested
+colors and the XCF header. It does not score recognizable shapes or prove GUI
+reopening; record those observations separately. The original Linux exploratory
+artifact passes these file checks, which does not turn that debug run into a
+controlled model benchmark.
