@@ -42,7 +42,7 @@ def start_deferred() -> bool:
     if not os.environ.pop("DESKWRIGHT_HEADLESS_LAZY", None):
         return False
     from .headless import ensure, pin_env
-    pin_env(ensure(name=pinned_name()))
+    pin_env(ensure(name=pinned_name(), home=os.environ.get("DESKWRIGHT_HEADLESS_HOME")))
     return True
 
 
@@ -96,4 +96,4 @@ def resolve_session(as_server: bool, argv: list[str] | None = None) -> None:
         else:
             os.environ["DESKWRIGHT_HEADLESS_LAZY"] = "1"
         return
-    pin_env(ensure(name=name))
+    pin_env(ensure(name=name, home=os.environ.get("DESKWRIGHT_HEADLESS_HOME")))

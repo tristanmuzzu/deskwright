@@ -1,0 +1,18 @@
+---
+name: deskwright-codex
+description: Operate native Linux GNOME applications with Deskwright, including visual editing, continuous drawing, and private desktop workflows. Use for Linux desktop tasks when Deskwright tools are available.
+---
+
+Use the available Deskwright MCP server for native Linux work. `deskwright` controls the physical desktop; `deskwright_private` controls the private desktop. Read `desktop_health` at the start and confirm the named desktop. Keep a workflow on one server. A private desktop has its own app session; it does not contain the user's open windows.
+
+Choose observations for the task. In large apps, scope `ui_find` with `app` and the exact `window_title` from `list_windows`; heed truncation notes. After opening a dialog, wait for its controls to appear before batching dependent text entry. Accessibility (`ui_find`, `ui_read_text`, `ui_press`, `ui_set_text`) works well for controls and text. Visual work needs screenshots: inspect the canvas and use pointer input. Prefer the installed browser tools for ordinary web UI when available; use Deskwright for native applications and desktop integration.
+
+Images default to `original` in this Codex setup: lossless native pixels, with original-detail metadata. A noisy large screen can exceed the inline limit; crop with `zoom` or use `image_profile: balanced`. Follow the returned coordinate note, especially for crops and scaled screenshots. The legacy token estimate is not OpenAI billing information.
+
+Use `pointer_path` for a continuous brush stroke: pass `target` and `points: [[x,y], ...]` in desktop coordinates, plus `duration_ms` (50–15000, default 1000). It holds one button through up to 2048 vertices. Fit points to the observed canvas; window bounds are not canvas bounds. The tool checks window identity, geometry, occlusion and halt periodically. It releases the button on failure. It has no pen pressure or tilt. Read the resulting image; input delivery alone does not prove good artwork.
+
+Use `do_steps` for known sequences, including `do: path`; it validates the sequence before input and captures the final state. Do not automatically retry a failed stroke, since part of it may already be painted. Inspect, then undo or repair if appropriate. Use persistent tool sessions and batch coherent work; do not batch through an unobserved dialog or layout change.
+
+A new window may briefly report zero geometry. Use the updated window returned by `activate_window`, or observe after it is mapped, before planning coordinates. Private session setup overrides inherited X11 settings and preserves the host session registry for child processes.
+
+Verify the actual deliverable: save and reopen an edited document, inspect/export artwork, or read back the affected app state. Separate scripted tool timings from model task completion and from native Windows/macOS comparisons. `Super+Ctrl+Escape` is the human halt switch; if engaged, stop and report it.

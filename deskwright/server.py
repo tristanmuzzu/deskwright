@@ -45,6 +45,7 @@ from .input import (
     tool_pointer_click,
     tool_pointer_drag,
     tool_pointer_move,
+    tool_pointer_path,
     tool_pointer_position,
     tool_pointer_scroll,
     tool_press_keys,
@@ -689,7 +690,7 @@ TOOLS: list[dict] = [
                     "description": (
                         "Ordered actions. Each is {do: verb, ...the same arguments "
                         "that tool takes}. Verbs: activate(target), click(x,y), "
-                        "move(x,y), drag(from_x,from_y,to_x,to_y), scroll(x,y,dy), "
+                        "move(x,y), drag(from_x,from_y,to_x,to_y), path(target,points,duration_ms), scroll(x,y,dy), "
                         "type(target,text), key(target,combo), press(path,expect_name), "
                         "set_text(path,text), wait_for(condition,target,timeout) -- "
                         "same arguments as the wait_for tool; 'wait' is an alias -- "
@@ -883,6 +884,7 @@ TOOLS: list[dict] = [
                            "role or actionable_only is given -- which is how you "
                            "list the icon-only buttons that have no name to search."),
                 "app": _s("Restrict to one application (much faster)"),
+                "window_title": _s("Restrict to an exact accessible window title from list_windows; useful for dialogs in large apps."),
                 "role": _s("Require an exact AT-SPI role, e.g. push_button"),
                 "actionable_only": {"type": "boolean", "default": False,
                                     "description": "Only widgets that expose an action"},
@@ -1112,6 +1114,33 @@ TOOLS: list[dict] = [
     },
 ]
 
+TOOLS.append({
+    "name": "pointer_path",
+    "description": "Draw one continuous stroke through [x,y] screen-coordinate points, "
+                   "holding the button throughout. Use for curves, painting and lasso selection. "
+                   "Requires an observed target window; stops and releases on halt, movement "
+                   "or detected occlusion. No stylus pressure. Inspect the resulting canvas.",
+    "inputSchema": {"type": "object", "properties": {
+        "points": {"type": "array", "minItems": 2, "maxItems": 2048,
+                   "items": {"type": "array", "items": {"type": "number"},
+                             "minItems": 2, "maxItems": 2}},
+        "target": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+        "duration_ms": {"type": "number", "minimum": 50, "maximum": 15000, "default": 1000},
+        "button": {"type": "string", "enum": ["left", "middle", "right"], "default": "left"},
+        "look": _LOOK_SCHEMA, "look_at": _LOOK_AT_SCHEMA, "settle_max_s": _SETTLE_SCHEMA,
+    }, "required": ["points", "target"]},
+    "handler": tool_pointer_path,
+})
+
+for _tool in TOOLS:
+    _properties = _tool["inputSchema"].get("properties", {})
+    if "look" in _properties or _tool["name"] in ("screenshot", "zoom", "frames"):
+        _properties["image_profile"] = {
+            "type": "string", "enum": ["legacy", "balanced", "original"],
+            "description": "Override DESKWRIGHT_IMAGE_PROFILE: legacy=1568px JPEG75; "
+                           "balanced=1920px JPEG90; original=lossless PNG with no default resize.",
+        }
+
 HANDLERS: dict[str, Callable[[dict], Any]] = {t["name"]: t["handler"] for t in TOOLS}
 _READ_ONLY_TOOLS = {t["name"] for t in TOOLS
                     if (t.get("annotations") or {}).get("readOnlyHint")}
@@ -1148,7 +1177,8 @@ def _content_blocks(result: Any) -> list[dict]:
         # outright with a union-validation error naming every content type.
         blocks.append({"type": "image",
                        "data": image["data"],
-                       "mimeType": image["media_type"]})
+                       "mimeType": image["media_type"],
+                       **({"_meta": image["_meta"]} if image.get("_meta") else {})})
     return blocks
 
 

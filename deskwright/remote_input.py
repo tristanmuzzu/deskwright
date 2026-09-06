@@ -200,6 +200,7 @@ class RemoteInput(Gestures):
         self._sc_path: str | None = None
         self._stream: str | None = None
         self._area: tuple[int, int, int, int] | None = None
+        self._keyboard_ready = False
         self._timer: threading.Timer | None = None
         # Where we last put the pointer. Not the truth -- the human may have
         # moved the mouse since -- but the only answer available without the
@@ -294,6 +295,7 @@ class RemoteInput(Gestures):
             # owns. Starting the screencast session directly is refused
             # ("Must be started from remote desktop session").
             self._call(RD, rd_path, RD_SESSION, "Start")
+            self._keyboard_ready = False
 
             self._rd_path, self._sc_path, self._stream = rd_path, sc_path, stream
             self._area = (x, y, width, height)
@@ -337,10 +339,18 @@ class RemoteInput(Gestures):
         return sx, sy
 
     def move_to(self, x: float, y: float) -> tuple[float, float]:
+        previous_stream = self._stream
         rd_path, stream = self._ensure()
         sx, sy = self._to_stream(x, y)
         self._call(RD, rd_path, RD_SESSION, "NotifyPointerMotionAbsolute",
                    GLib.Variant("(sdd)", (stream, sx, sy)))
+        if previous_stream != stream:
+            # A new virtual device's first motion can precede Wayland enter.
+            # Observed 2026-09-06: first GTK/GIMP click ignored, subsequent
+            # input worked. Reassert only the initial arrival, never a click.
+            time.sleep(0.06)
+            self._call(RD, rd_path, RD_SESSION, "NotifyPointerMotionAbsolute",
+                       GLib.Variant("(sdd)", (stream, sx, sy)))
         self.last_position = (x, y)
         self.last_position_at = time.time()
         return x, y
@@ -371,6 +381,19 @@ class RemoteInput(Gestures):
     # --------------------------------------------------------------- keyboard
     def keysym(self, sym: int, pressed: bool) -> None:
         rd_path, _ = self._ensure()
+        if not self._keyboard_ready:
+            # Initialize the virtual keyboard with a modifier tap before the
+            # first actual key. An unmatched release is rejected by Mutter;
+            # waiting after Start alone did not fix cold-key loss.
+            self._call(RD, rd_path, RD_SESSION, "NotifyKeyboardKeysym",
+                       GLib.Variant("(ub)", (KEYSYMS["shift"], True)))
+            try:
+                time.sleep(0.08)
+            finally:
+                self._call(RD, rd_path, RD_SESSION, "NotifyKeyboardKeysym",
+                           GLib.Variant("(ub)", (KEYSYMS["shift"], False)))
+            time.sleep(0.03)
+            self._keyboard_ready = True
         self._call(RD, rd_path, RD_SESSION, "NotifyKeyboardKeysym",
                    GLib.Variant("(ub)", (int(sym), pressed)))
 

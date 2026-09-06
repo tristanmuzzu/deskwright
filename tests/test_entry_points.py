@@ -32,14 +32,15 @@ def headless(monkeypatch):
     """A stubbed headless module that records what it was asked for."""
     from deskwright import headless as real
 
-    calls: dict[str, list] = {"ensure": [], "pin": [], "status": []}
+    calls: dict[str, list] = {"ensure": [], "pin": [], "status": [], "home": []}
     running: set[str] = set()
 
     def status(name):
         calls["status"].append(name)
         return {"running": name in running, "name": name}
 
-    def ensure(name=None):
+    def ensure(name=None, home=None):
+        calls["home"].append(home)
         calls["ensure"].append(name)
         running.add(real.session_name(name))
         return {"running": True, "name": real.session_name(name)}
@@ -207,3 +208,11 @@ class _FakeServer:
     def serve(self) -> int:
         self._ran.append("serve")
         return 0
+
+
+def test_private_home_reaches_cold_start(headless, monkeypatch, tmp_path):
+    monkeypatch.setenv("DESKWRIGHT_SESSION", "headless:alpha")
+    monkeypatch.setenv("DESKWRIGHT_HEADLESS_HOME", str(tmp_path))
+    sess.resolve_session(as_server=True, argv=["x"])
+    sess.start_deferred()
+    assert headless["home"] == [str(tmp_path)]

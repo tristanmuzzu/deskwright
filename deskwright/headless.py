@@ -126,7 +126,8 @@ def default_display(name: str) -> str:
 
 
 def _state_dir() -> str:
-    state = os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state")
+    state = (os.environ.get("DESKWRIGHT_HOST_STATE_HOME")
+             or os.environ.get("XDG_STATE_HOME") or os.path.expanduser("~/.local/state"))
     d = os.path.join(state, "deskwright")
     os.makedirs(d, exist_ok=True)
     return d
@@ -436,10 +437,12 @@ def _start_locked(name: str, size: str, display: str,
     # headless sessions sharing one runtime dir would fight over at-spi/bus
     # exactly the way a headless session and the user's did.
     runtime_dir = os.path.join(
-        os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
+        os.environ.get("DESKWRIGHT_HOST_RUNTIME_DIR")
+        or os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}",
         RUNTIME_PREFIX + _suffix(name))
     os.makedirs(runtime_dir, mode=0o700, exist_ok=True)
-    real_runtime = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}"
+    real_runtime = (os.environ.get("DESKWRIGHT_HOST_RUNTIME_DIR")
+                    or os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{os.getuid()}")
     for sock in ("pipewire-0", "pipewire-0-manager"):
         target = os.path.join(real_runtime, sock)
         link = os.path.join(runtime_dir, sock)
@@ -459,6 +462,9 @@ def _start_locked(name: str, size: str, display: str,
     if home:
         daemon_env.update(_home_env(home))
     daemon_env.pop("DISPLAY", None)
+    daemon_env["GDK_BACKEND"] = "wayland"
+    daemon_env["QT_QPA_PLATFORM"] = "wayland"
+    daemon_env["MOZ_ENABLE_WAYLAND"] = "1"
     dbus = subprocess.Popen(
         ["dbus-daemon", "--session", "--print-address=1", "--nofork"],
         env=daemon_env, stdout=subprocess.PIPE, stderr=log,
@@ -668,8 +674,21 @@ def pin_env(state: dict[str, Any], env: Any = os.environ) -> None:
     """Point THIS process at a headless session. Must run before the first
     tool call; every backend resolves the session lazily from these three
     variables, so nothing else needs to change."""
+    # Child MCP processes must find the same session registry after HOME and
+    # XDG_RUNTIME_DIR change. Otherwise they try to start a nested compositor.
+    env.setdefault("DESKWRIGHT_HOST_STATE_HOME", env.get("XDG_STATE_HOME")
+                   or os.path.join(env.get("HOME", str(Path.home())), ".local/state"))
+    env.setdefault("DESKWRIGHT_HOST_RUNTIME_DIR", env.get("XDG_RUNTIME_DIR")
+                   or f"/run/user/{os.getuid()}")
     env["DBUS_SESSION_BUS_ADDRESS"] = state["bus_address"]
     env["WAYLAND_DISPLAY"] = state["wayland_display"]
+    # A host may force GDK_BACKEND=x11. Keeping that plus DISPLAY=:0 sends
+    # apps onto the physical desktop despite their private session bus.
+    # This compositor has a Wayland socket, not the user's X11 display.
+    env.pop("DISPLAY", None)
+    env["GDK_BACKEND"] = "wayland"
+    env["QT_QPA_PLATFORM"] = "wayland"
+    env["MOZ_ENABLE_WAYLAND"] = "1"
     if state.get("runtime_dir"):
         env["XDG_RUNTIME_DIR"] = state["runtime_dir"]
     # The flag input.py checks to refuse ydotool -- uinput injection lands on

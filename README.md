@@ -166,8 +166,7 @@ now and what each of them will actually do.
 
 ## What it can do
 
-33 tools, roughly 11k tokens of schema in a session. That's the honest price,
-and it's why each one returns enough that you don't need a second call to work
+34 tools. Each returns enough that you do not need a second call to work
 out what happened. The order below is the order an agent should reach for them.
 Accessibility tree first, pixels last.
 
@@ -180,6 +179,7 @@ Accessibility tree first, pixels last.
 | `launch_app` | Start an app by desktop id and wait for its window, inside one call. |
 | `screen_map` | Where everything is, in pixels: windows top of stack first, plus every pressable widget of the focused app with the point to click it at. Each carries a `ref: N` you pass straight to `ui_press` or `pointer_click`. No coordinates to copy, identity re-checked on use. |
 | `pointer_click`, `pointer_move`, `pointer_drag`, `pointer_scroll` | Real pointer input in absolute screen coordinates. Pass `expect_window` and a click that would land somewhere else is refused, with the blocker named so you can redirect in the same call. |
+| `pointer_path` | Draw a continuous curve through a list of screen points, with one button press, bounded duration and interruption checks. Requires a target window. |
 | `window_at`, `pointer_position` | What a click at a point would hit, before you click it. And where the pointer is now, or an honest note that only the last position it set is known. |
 | `find_text` | Where a visible string is, in screen coordinates. OCR, about 0.3s for a window, and no image in your transcript. This is the answer for Chrome, Electron and Qt, which expose almost nothing to `ui_find`. |
 | `wait_for` | Wait for a window, a widget, some text, a focus change or the clipboard, instead of sleeping a guessed number of seconds. |
@@ -199,7 +199,7 @@ Accessibility tree first, pixels last.
 An agent that needs your screen is only half useful. `deskwright-headless` starts a
 separate GNOME session on a virtual monitor, with its own session bus, its own
 `gnome-shell --headless` and its own runtime directory. A server pinned to it
-drives that desktop with the same 33 tools while you keep the physical one.
+drives that desktop with the same 34 tools while you keep the physical one.
 
 ```bash
 deskwright-headless start                    # about 200 MB of gnome-shell, idempotent

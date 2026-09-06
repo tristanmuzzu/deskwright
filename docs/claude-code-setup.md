@@ -110,6 +110,7 @@ Allow rules accept a wildcard in the tool position after a literal
       "mcp__deskwright__list_windows",
       "mcp__deskwright__pointer_click",
       "mcp__deskwright__pointer_drag",
+      "mcp__deskwright__pointer_path",
       "mcp__deskwright__pointer_move",
       "mcp__deskwright__pointer_position",
       "mcp__deskwright__pointer_scroll",
@@ -162,6 +163,7 @@ one is:
       "mcp__deskwright__list_windows",
       "mcp__deskwright__pointer_click",
       "mcp__deskwright__pointer_drag",
+      "mcp__deskwright__pointer_path",
       "mcp__deskwright__pointer_move",
       "mcp__deskwright__pointer_position",
       "mcp__deskwright__pointer_scroll",
@@ -184,15 +186,15 @@ one is:
 }
 ```
 
-That is all 33 tools the server serves. `tools/list` is the authority;
+That is all 34 tools the server serves. `tools/list` is the authority;
 CI fails if this list and the server's disagree. To check a running server
 yourself: `./tests/mcpdrv.py tools` from a checkout.
 
 ## The cautious variant
 
 If you would rather approve the calls that touch the machine, the split falls
-along the tools the server itself treats as acting -- the same 14 it
-journals and the same 14 the halt switch gates:
+along the tools the server itself treats as acting -- the same 15 it
+journals and the same 15 the halt switch gates:
 
 - `activate_window`
 - `clipboard_write`
@@ -201,6 +203,7 @@ journals and the same 14 the halt switch gates:
 - `launch_app`
 - `pointer_click`
 - `pointer_drag`
+- `pointer_path`
 - `pointer_move`
 - `pointer_scroll`
 - `press_keys`
@@ -210,7 +213,7 @@ journals and the same 14 the halt switch gates:
 - `window_manage`
 
 `do_steps` is on that list because it runs a sequence of the others in one
-call. Leave the allowlist above in place and add those 14 to
+call. Leave the allowlist above in place and add those 15 to
 `permissions.ask` -- `ask` is evaluated ahead of `allow`, from any scope, so
 nothing needs removing from the allow list to make it take effect.
 

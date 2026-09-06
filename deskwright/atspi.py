@@ -152,13 +152,20 @@ def _walk(node, path: str, depth: int, max_depth: int, out: list[dict],
     out.append(_describe(node, path))
     if depth >= max_depth:
         return
-    for i in range(node.get_child_count()):
-        child = node.get_child_at_index(i)
+    children = [(i, node.get_child_at_index(i)) for i in range(node.get_child_count())]
+    if depth == 0:
+        # GIMP's main window can exhaust the search budget before its active
+        # dialog is visited. Keep original path indices while visiting the
+        # active top-level first, so typing cannot refocus a background field.
+        children.sort(key=lambda item: not _in_active_frame(item[1]))
+    for i, child in children:
+        if len(out) >= cap:
+            break
         if child is not None:
             _walk(child, f"{path}/{i}", depth + 1, max_depth, out, cap)
 
 
-TEXT_ROLES = ("text", "document_text", "entry", "document frame", "paragraph")
+TEXT_ROLES = ("text", "document_text", "entry", "document frame", "paragraph", "spin button")
 
 
 def _text_ifaces(node) -> tuple[Any, Any]:
@@ -200,7 +207,7 @@ def _find_text_widget(app_name: str, path: str | None):
     return node
 
 
-def _locate_text_widget(app_name: str, path: str | None):
+def _locate_text_widget(app_name: str, path: str | None, window_title: str | None = None):
     """(widget, path) -- an app's editable text widget, or the one at an
     explicit path.
 
@@ -215,8 +222,19 @@ def _locate_text_widget(app_name: str, path: str | None):
     if path:
         return _resolve_path(path), str(path)
     app = _find_app(app_name)
+    root, root_path = app, app.get_name()
+    if window_title is not None:
+        matches = []
+        for i in range(app.get_child_count()):
+            child = app.get_child_at_index(i)
+            if child is not None and child.get_name() == window_title:
+                matches.append((child, f"{app.get_name()}/{i}"))
+        if len(matches) != 1:
+            raise ToolError("target window has no unique accessible text root; "
+                            "preserve keyboard focus and verify visually", code="widget_missing")
+        root, root_path = matches[0]
     collected: list[dict] = []
-    _walk(app, app.get_name(), 0, DEFAULT_FIND_DEPTH, collected, cap=MAX_FIND_NODES)
+    _walk(root, root_path, 0, DEFAULT_FIND_DEPTH, collected, cap=MAX_FIND_NODES)
     candidates = [n for n in collected if n["role"] in TEXT_ROLES]
     if not candidates:
         raise ToolError(
@@ -278,7 +296,8 @@ def _locate_text_widget(app_name: str, path: str | None):
     return _resolve_path(candidates[0]["path"]), candidates[0]["path"]
 
 
-def ensure_widget_focus(app_name: str, path: str | None = None) -> dict:
+def ensure_widget_focus(app_name: str, path: str | None = None,
+                        window_title: str | None = None) -> dict:
     """Make sure SOME text widget in this app holds the keyboard, and say how.
 
     Window focus is not widget focus. Measured 2026-08-23: after ui_press
@@ -296,7 +315,8 @@ def ensure_widget_focus(app_name: str, path: str | None = None) -> dict:
     already handles by picture-verification.
     """
     try:
-        node, resolved = _locate_text_widget(app_name, path)
+        node, resolved = (_locate_text_widget(app_name, path, window_title)
+                          if window_title is not None else _locate_text_widget(app_name, path))
     except ToolError:
         return {"state": "no_widget", "path": None}
     if _is_focused(node):
@@ -334,7 +354,7 @@ def _in_active_frame(node) -> bool:
         Atspi = _atspi()
         seen = 0
         while node is not None and seen < 40:
-            if node.get_role() == Atspi.Role.FRAME:
+            if node.get_role() in (Atspi.Role.FRAME, Atspi.Role.DIALOG, Atspi.Role.ALERT):
                 return bool(node.get_state_set().contains(Atspi.StateType.ACTIVE))
             node = node.get_parent()
             seen += 1
@@ -436,6 +456,7 @@ def tool_ui_find(a: dict) -> dict:
     needle = text.lower()
     hits: list[dict] = []
     unreachable: list[str] = []
+    truncated: list[str] = []
     for root in roots:
         # One AppArmor-confined snap used to end the whole scan: hitting
         # snap.telegram-desktop raised out of the loop and ui_find returned
@@ -444,7 +465,18 @@ def tool_ui_find(a: dict) -> dict:
         name = labels.get(id(root), "<unnamed application>")
         collected: list[dict] = []
         try:
-            _walk(root, name, 0, depth, collected, cap=MAX_FIND_NODES)
+            search_root, search_path = root, name
+            if a.get("window_title"):
+                matches = [(root.get_child_at_index(i), f"{name}/{i}")
+                           for i in range(root.get_child_count())
+                           if root.get_child_at_index(i) is not None
+                           and root.get_child_at_index(i).get_name() == a["window_title"]]
+                if len(matches) != 1:
+                    raise ToolError("window_title has no unique accessible match", code="widget_missing")
+                search_root, search_path = matches[0]
+            _walk(search_root, search_path, 0, depth, collected, cap=MAX_FIND_NODES)
+            if len(collected) >= MAX_FIND_NODES:
+                truncated.append(name)
         except Exception as e:
             unreachable.append(f"{name}: {str(e).strip()[:120] or type(e).__name__}")
             continue
@@ -471,6 +503,9 @@ def tool_ui_find(a: dict) -> dict:
             "this) and were skipped; anything inside them is not in these results. "
             "find_text reads them from the pixels instead."
         )
+    if truncated:
+        out["truncated_apps"] = truncated
+        out["truncated_note"] = "Search budget reached; restrict app and window_title to inspect a dialog."
     return out
 
 

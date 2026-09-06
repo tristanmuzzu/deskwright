@@ -101,9 +101,13 @@ def _gdbus(method: str, *args: str, timeout: float = 30.0) -> str:
 
 
 def _extension_state() -> str:
+    # Health is often the first tool call; choose the live extension before
+    # asking gnome-extensions about its UUID, just as the D-Bus tools do.
+    _pick_bus()
     try:
         out = subprocess.run(["gnome-extensions", "info", EXTENSION_UUID],
-                             capture_output=True, text=True, timeout=15).stdout
+                             capture_output=True, text=True, timeout=15,
+                             env={**os.environ, "LC_ALL": "C"}).stdout
         m = re.search(r"State:\s*(\S+)", out)
         return m.group(1) if m else "unknown"
     except Exception:

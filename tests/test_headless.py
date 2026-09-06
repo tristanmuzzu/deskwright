@@ -56,10 +56,13 @@ def test_pin_env_sets_all_three():
     env: dict[str, str] = {}
     headless.pin_env({"bus_address": "unix:path=/tmp/x",
                       "wayland_display": "wayland-deskwright"}, env=env)
-    assert env == {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/x",
+    expected = {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/tmp/x",
                    "WAYLAND_DISPLAY": "wayland-deskwright",
                    "DESKWRIGHT_HEADLESS": "1",
                    "DESKWRIGHT_HEADLESS_NAME": "default"}
+    assert all(env[k] == v for k, v in expected.items())
+    assert env["GDK_BACKEND"] == "wayland"
+    assert "DESKWRIGHT_HOST_STATE_HOME" in env
 
 
 # ---- named sessions (2026-08-27) ----------------------------------------

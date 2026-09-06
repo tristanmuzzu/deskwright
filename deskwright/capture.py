@@ -183,7 +183,10 @@ def tool_screenshot(a: dict) -> dict:
 
     if inline:
         native_long = max(_dimension_pair(native) or (MODEL_MAX_EDGE, 0))
-        target_edge = max(16, min(MODEL_MAX_EDGE, int(native_long * scale)))
+        profile_edge, _, _ = _image_options(a)
+        target_edge = max(16, int(native_long * scale))
+        if profile_edge:
+            target_edge = min(profile_edge, target_edge)
         _attach_inline(result, path, {**a, "max_edge": target_edge,
                                       "upscale": scale > 1.0})
         shown = result.get("shown")
@@ -364,10 +367,26 @@ def _pillow():
 # 1920x1080 PNG pays for a resize that happens anyway. Doing it here costs 40ms
 # and turns 1843 tokens into what the caller actually needs.
 
-MODEL_MAX_EDGE = 1568      # above this the API downscales anyway
+MODEL_MAX_EDGE = 1568      # legacy client limit measured above
 INLINE_QUALITY = 75        # JPEG; 60 starts to smear small UI text
 INLINE_MAX_BYTES = 3_500_000
 _INLINE_KEY = "__inline_image__"
+
+
+def _image_options(a: dict) -> tuple[int, int, str]:
+    """Keep the measured Claude defaults; let other clients preserve pixels.
+
+    The historical 1568px/75-quality measurements above apply to that client,
+    not every model. `original` is lossless and never silently reduces quality.
+    Per-call settings override the server's DESKWRIGHT_IMAGE_PROFILE.
+    """
+    profile = a.get("image_profile", os.environ.get("DESKWRIGHT_IMAGE_PROFILE", "legacy"))
+    defaults = {"legacy": (MODEL_MAX_EDGE, INLINE_QUALITY, "jpeg"),
+                "balanced": (1920, 90, "jpeg"), "original": (0, 100, "png")}
+    if not isinstance(profile, str) or profile not in defaults:
+        raise ToolError("image_profile must be legacy, balanced or original", code="bad_args")
+    edge, quality, fmt = defaults[profile]
+    return int(a.get("max_edge", edge)), int(a.get("quality", quality)), fmt
 
 
 def _estimate_tokens(width: int, height: int) -> int:
@@ -375,8 +394,9 @@ def _estimate_tokens(width: int, height: int) -> int:
 
 
 def _encode_inline(path: Path, max_edge: int = MODEL_MAX_EDGE,
-                   quality: int = INLINE_QUALITY, upscale: bool = False) -> dict:
-    """A PNG on disk, as a JPEG the model can be handed directly.
+                   quality: int = INLINE_QUALITY, upscale: bool = False,
+                   image_format: str = "jpeg") -> dict:
+    """A PNG on disk, as an inline JPEG or lossless PNG for the model.
 
     RGBA -> RGB is required, not cosmetic: the extension writes RGBA and JPEG
     has no alpha channel, so this raises OSError without it.
@@ -391,28 +411,33 @@ def _encode_inline(path: Path, max_edge: int = MODEL_MAX_EDGE,
         img = img.convert("RGB")
         width, height = img.size
         longest = max(width, height)
-        if longest > max_edge or (upscale and longest < max_edge):
+        if max_edge and (longest > max_edge or (upscale and longest < max_edge)):
             factor = max_edge / longest
             width, height = max(1, int(width * factor)), max(1, int(height * factor))
             img = img.resize((width, height), Image.LANCZOS)
 
         import io
-        for attempt_quality in (quality, 55, 40):
+        for attempt_quality in ((quality,) if image_format == "png" else (quality, 55, 40)):
             buf = io.BytesIO()
-            img.save(buf, "JPEG", quality=attempt_quality)
+            if image_format == "png":
+                img.save(buf, "PNG")
+            else:
+                img.save(buf, "JPEG", quality=attempt_quality)
             raw = buf.getvalue()
             if len(raw) <= INLINE_MAX_BYTES:
                 break
         else:                                               # pragma: no cover
-            raise ToolError("this image will not compress to a sane size",
+            raise ToolError("image exceeds the inline size limit; request a smaller region "
+                            "or image_profile='balanced'",
                             code="capture_failed")
 
     return {
         "data": base64.b64encode(raw).decode("ascii"),
-        "media_type": "image/jpeg",
+        "media_type": f"image/{image_format}",
         "dimensions": f"{width}x{height}",
         "bytes": len(raw),
         "tokens_estimate": _estimate_tokens(width, height),
+        "tokens_estimate_basis": "legacy Claude width*height/750; not an OpenAI token estimate",
         "quality": attempt_quality,
     }
 
@@ -955,11 +980,13 @@ def _attach_inline(result: dict, path: Path, a: dict) -> dict:
         result["inline"] = False
         return result
     try:
+        max_edge, quality, image_format = _image_options(a)
         image = _encode_inline(
             path,
-            max_edge=int(a.get("max_edge") or MODEL_MAX_EDGE),
-            quality=int(a.get("quality") or INLINE_QUALITY),
+            max_edge=max_edge,
+            quality=quality,
             upscale=bool(a.get("upscale")),
+            image_format=image_format,
         )
     except ToolError:
         raise
@@ -970,6 +997,8 @@ def _attach_inline(result: dict, path: Path, a: dict) -> dict:
         return result
     result[_INLINE_KEY] = {"data": image.pop("data"),
                            "media_type": image["media_type"]}
+    if image_format == "png":
+        result[_INLINE_KEY]["_meta"] = {"codex/imageDetail": "original"}
     result["shown"] = image
     return result
 

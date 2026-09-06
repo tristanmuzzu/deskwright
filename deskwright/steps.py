@@ -33,6 +33,7 @@ _STEP_VERBS: dict[str, tuple[str, tuple[str, ...]]] = {
     "click":    ("pointer_click", ()),
     "move":     ("pointer_move", ()),
     "drag":     ("pointer_drag", ()),
+    "path":     ("pointer_path", ("points", "target")),
     "scroll":   ("pointer_scroll", ()),
     "type":     ("type_text", ("target", "text")),
     "key":      ("press_keys", ("target", "combo")),
@@ -145,6 +146,13 @@ def _validate_step(index: int, step: Any, schemas: dict[str, dict]) -> None:
             f"Allowed: {', '.join(sorted(allowed))}", code="bad_args")
     if step.get("retry") is not None:
         _validate_retry(index, verb, step["retry"])
+
+    if verb == "path":
+        from .paths import validate_path
+        validate_path(step)
+        if step.get("retry"):
+            raise ToolError("path steps cannot retry automatically: a partial stroke "
+                            "must be inspected before drawing again", code="bad_args")
 
     if tool_name == "wait_for":
         condition = str(step.get("condition") or "").strip()

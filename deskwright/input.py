@@ -390,7 +390,11 @@ def tool_type_text(a: dict) -> dict:
         # then land in a void (measured 2026-08-23, gnome-text-editor). Grab
         # focus onto the preferred text widget before typing, and read THAT
         # widget back afterwards so write and verify address one document.
-        widget_focus = ensure_widget_focus(str(app_hint), a.get("path"))
+        # Scope recovery to the actual target window. Searching GIMP's whole
+        # app skipped its spin-button dialog and focused a background brush
+        # filter, then confidently verified text in that wrong field.
+        widget_focus = ensure_widget_focus(str(app_hint), a.get("path"),
+                                           window_title=focus["window"].get("title"))
         if widget_focus["state"] in ("grab_failed",):
             # GTK4 refuses AT-SPI GrabFocus (atspi_error 1, measured
             # 2026-08-23) and gives no usable screen extents to click, so
@@ -408,8 +412,8 @@ def tool_type_text(a: dict) -> dict:
                                     "path": widget_focus["path"]}
                     break
         try:
-            before = _read_text(_find_text_widget(str(app_hint),
-                                                  widget_focus.get("path")))
+            if widget_focus.get("path"):
+                before = _read_text(_find_text_widget(str(app_hint), widget_focus["path"]))
         except ToolError:
             before = None
 
@@ -781,6 +785,33 @@ def tool_pointer_drag(a: dict) -> dict:
             "that last one retry with dwell_ms:400."
         )
     return out
+
+
+def tool_pointer_path(a: dict) -> dict:
+    """Draw a continuous stroke inside one observed, identified window."""
+    from .path_guard import PathGuard
+    from .paths import execute_path, validate_path
+
+    points, duration, button = validate_path(a)
+    window = _resolve_target(a["target"])
+    rect = tuple(window[k] for k in ("x", "y", "width", "height"))
+    x, y, width, height = rect
+    if any(not (x <= px < x + width and y <= py < y + height) for px, py in points):
+        raise ToolError("all path points must be inside the target window; "
+                        "observe its current geometry first", code="bad_args")
+    pointer = _pointer()
+    bx, by, bw, bh = pointer.desktop_bounds()
+    if any(not (bx <= px < bx + bw and by <= py < by + bh) for px, py in points):
+        raise ToolError("path contains a point outside the desktop", code="bad_args")
+    # No focus change: a hidden or stale target must be observed again, not
+    # raised automatically over the UI the model based its path on.
+    check = PathGuard(window)
+
+    watching = _look_before(a, hint_window=window)
+    result = execute_path(pointer, points, duration, button, check)
+    result["target"] = window["id"]
+    result["detail"] = "continuous stroke delivered; inspect the canvas to verify the result"
+    return _look(a, result, watching)
 
 
 def tool_pointer_scroll(a: dict) -> dict:
