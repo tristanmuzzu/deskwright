@@ -210,3 +210,19 @@ def test_supervised_raw_uinput_refused_before_sending(monkeypatch):
             run.assert_not_called()
     finally:
         CURRENT.reset(token)
+
+
+def test_health_uses_live_extension_when_status_cli_is_unknown(monkeypatch):
+    from types import SimpleNamespace
+    monkeypatch.setattr(server, '_extension_state', lambda: 'unknown')
+    monkeypatch.setattr(server, '_extension_diagnosis', lambda: pytest.fail('working extension needs no logout diagnosis'))
+    monkeypatch.setattr(server, 'list_windows', lambda: [])
+    monkeypatch.setattr(server, 'list_atspi_apps', lambda: [1])
+    monkeypatch.setattr(server, 'extension_methods', lambda: {'Pointer','WindowAt','ScreenshotArea','ScreenshotWindow'})
+    monkeypatch.setattr(server, 'keyboard_layouts', lambda: ['us'])
+    monkeypatch.setattr(server, 'layout_hazard', lambda: '')
+    monkeypatch.setattr(server, '_input', lambda: SimpleNamespace(shared=lambda: SimpleNamespace(desktop_bounds=lambda: (0,0,1280,800))))
+    monkeypatch.setattr(server.subprocess, 'run', lambda *a, **k: SimpleNamespace(stdout=''))
+    out = server.tool_health({})
+    assert out['extension'] == 'ACTIVE' and out['extension_cli_state'] == 'unknown'
+    assert out['verdict'].startswith('READY')

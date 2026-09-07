@@ -103,13 +103,17 @@ def tool_health(_: dict) -> dict:
         "python_exec_enabled": os.environ.get("DESKWRIGHT_ENABLE_EXEC") == "1"}}
 
     report["extension"] = _extension_state()
-    if report["extension"] != "ACTIVE":
-        report["extension_diagnosis"] = _extension_diagnosis()
-
     try:
         report["windows"] = len(list_windows())
     except ToolError as e:
         report["windows"] = f"FAIL: {e}"
+
+    if report["extension"] == "unknown" and isinstance(report.get("windows"), int):
+        report["extension_cli_state"] = "unknown"
+        report["extension"] = "ACTIVE"
+        report["extension_evidence"] = "ListWindows answered on the compositor extension D-Bus service"
+    if report["extension"] != "ACTIVE":
+        report["extension_diagnosis"] = _extension_diagnosis()
 
     try:
         report["atspi_apps"] = len(list_atspi_apps())
