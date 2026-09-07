@@ -113,6 +113,7 @@ def _redact(value: Any, depth: int = 0) -> Any:
 TEXT_BEARING = {
     "type_text": ("text",),
     "clipboard_write": ("text",),
+    "desktop_exec": ("code",),
     "ui_set_text": ("text",),
 }
 
@@ -172,9 +173,11 @@ def _summary(outcome: Any) -> dict:
     """
     if not isinstance(outcome, dict):
         return {"ok": True, "detail": _redact(str(outcome))}
-    s: dict[str, Any] = {"ok": "error" not in outcome}
+    s: dict[str, Any] = {"ok": "error" not in outcome and outcome.get("all_ok") is not False}
+    if outcome.get("action_status"):
+        s["action_status"] = outcome["action_status"]
     if not s["ok"]:
-        s["error"] = _redact(str(outcome["error"]))
+        s["error"] = _redact(str(outcome.get("error", "batch incomplete")))
         if outcome.get("code"):
             s["code"] = str(outcome["code"])
     look = outcome.get("look")
@@ -203,6 +206,12 @@ def record(tool: str, args: dict, outcome: dict) -> None:
     {"error": <message>, "code": <ToolError code>} on failure.
     """
     try:
+        summary = _summary(outcome)
+        if os.environ.get("DESKWRIGHT_JOURNAL_TEXT") != "1" and (tool in TEXT_BEARING or tool == "do_steps"):
+            # Verification errors can quote the requested or observed text too.
+            for key in ("error", "detail"):
+                if isinstance(summary.get(key), str):
+                    summary[key] = _fingerprint(summary[key])
         entry = {
             "ts": datetime.now(UTC).isoformat(timespec="milliseconds"),
             "session": _session(),
@@ -215,7 +224,7 @@ def record(tool: str, args: dict, outcome: dict) -> None:
             or ("headless" if os.environ.get("DESKWRIGHT_HEADLESS") else "primary"),
             "tool": str(tool),
             "args": _redact(_redact_text_args(tool, dict(args or {}))),
-            "outcome": _summary(outcome),
+            "outcome": summary,
         }
         line = json.dumps(entry, ensure_ascii=False, default=str) + "\n"
         d = _journal_dir()

@@ -138,9 +138,11 @@ class Gestures:
         for i in range(max(1, int(count))):
             if i:
                 time.sleep(0.05)             # inside the double-click window
-            self.button(button, True)
-            time.sleep(0.02)
-            self.button(button, False)
+            try:
+                self.button(button, True)
+                time.sleep(0.02)
+            finally:
+                self.button(button, False)
 
     def drag(self, x1: float, y1: float, x2: float, y2: float,
              button: str = "left", steps: int = 24,
@@ -174,19 +176,21 @@ class Gestures:
         """
         self.move_to(x1, y1)
         time.sleep(0.06)
-        self.button(button, True)
-        steps = max(2, int(steps))
-        for i in range(1, steps + 1):
-            self.move_to(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)
-            time.sleep(0.012)
-        time.sleep(0.06)
-        if dwell_ms > 0:
-            # A second motion at the same point, then the wait: some receivers
-            # only re-evaluate the drop target on a motion event, so a bare
-            # sleep would hover without telling anyone.
-            self.move_to(x2, y2)
-            time.sleep(min(dwell_ms, 5000) / 1000.0)
-        self.button(button, False)
+        try:
+            self.button(button, True)
+            steps = max(2, int(steps))
+            for i in range(1, steps + 1):
+                self.move_to(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps)
+                time.sleep(0.012)
+            time.sleep(0.06)
+            if dwell_ms > 0:
+                # A second motion at the same point, then the wait: some receivers
+                # only re-evaluate the drop target on a motion event, so a bare
+                # sleep would hover without telling anyone.
+                self.move_to(x2, y2)
+                time.sleep(min(dwell_ms, 5000) / 1000.0)
+        finally:
+            self.button(button, False)
 
 
 class RemoteInput(Gestures):
@@ -412,12 +416,16 @@ class RemoteInput(Gestures):
 
     def combo(self, keys: list[int]) -> None:
         """Press keysyms in order, release in reverse. Modifiers first."""
-        for sym in keys:
-            self.keysym(sym, True)
-            time.sleep(0.02)
-        for sym in reversed(keys):
-            self.keysym(sym, False)
-            time.sleep(0.01)
+        pressed = []
+        try:
+            for sym in keys:
+                pressed.append(sym)
+                self.keysym(sym, True)
+                time.sleep(0.02)
+        finally:
+            for sym in reversed(pressed):
+                self.keysym(sym, False)
+                time.sleep(0.01)
 
 
 _SHARED: RemoteInput | None = None

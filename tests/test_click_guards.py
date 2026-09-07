@@ -178,14 +178,14 @@ def test_drag_dwell_is_passed_through(rig):
     assert kwargs["dwell_ms"] == 400
 
 
-def test_failed_drop_does_not_blame_the_timings(rig, monkeypatch):
+def test_unverified_drop_reports_evidence_without_repeating_input(rig, monkeypatch):
     monkeypatch.setattr(wi, "_look", lambda a, result, watching: {
         **result, "look": {"verdict": "NOTHING on screen changed"}})
     out = wi.tool_pointer_drag({"from_x": 10, "from_y": 10, "to_x": 90, "to_y": 90})
     hint = out["nothing_changed_hint"]
-    assert "not the first thing to suspect" in hint
-    assert "input grab" in hint
-    assert "dwell_ms:400" in hint
+    assert "input grabs" in hint
+    assert out["look"]["verdict"] == "NOTHING on screen changed"
+    assert len([e for e in rig["pointer"].events if e[0] == "drag"]) == 1
 
 
 # ----------------------------------------------------------- the halt gate

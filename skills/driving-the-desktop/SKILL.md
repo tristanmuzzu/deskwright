@@ -1,80 +1,18 @@
 ---
 name: driving-the-desktop
-description: How to drive a GNOME/Wayland desktop well with the deskwright tools, which tool to reach for first, how to prove an action landed, and how to work on the invisible second desktop instead of the user's screen. Use whenever a task means operating a native Linux application: launching an app, clicking or typing in a GUI, filling a dialog, testing a desktop flow, reading what is on screen, or recording something that moves.
+description: Operate native GNOME Wayland applications with Deskwright, using accessibility, pointer input, screenshots, and private desktops.
 ---
 
-# Driving the desktop
+Read `desktop_health` at the start to confirm the desktop and available capabilities. Keep the workflow on the intended server. `DESKWRIGHT_SESSION=headless` or `headless:<name>` selects a private desktop with separate applications, not the user's open windows.
 
-The expensive thing is not the work. It is the round trips. Every tool here is
-built so one call can decide the next move without a screenshot in between.
+Choose observations for the task. Accessibility can address controls and read or set text; scope `ui_find` by app and exact window title in large applications. Verify the resulting state. Widget paths and screen-map refs can become stale. Browser tooling can be useful for ordinary web UI when available. Canvas work needs visual inspection and pointer input; OCR can help when a toolkit exposes little accessibility information. Neither accessibility nor pointer delivery proves that an application performed the intended operation.
 
-## Reach for tools in this order
+Batch short coherent sequences with `do_steps`. Wait for actual controls and inspect a newly opened dialog before entering data into it; window existence can precede painting. Unmet required waits stop the batch. A failed action may have partially applied: inspect before retrying. Read back small text changes because a visual-change threshold can miss them.
 
-1. **`desktop_health` once, at the start.** One line says whether this desktop
-   is usable and which one it is. Do not guess at capability; ask.
-2. **The accessibility tree before pixels.** `ui_apps` → `ui_find` → `ui_press`
-   presses the widget's own action: it cannot miss, cannot be defeated by the
-   window moving, and needs no pointer. `ui_set_text` is the preferred way to
-   put text in a field, no focus, no keyboard, and it reads the widget back to
-   prove the write.
-3. **`screen_map` when you need coordinates.** It returns windows top-of-stack
-   first and every pressable widget of the focused app, each with a `ref: N`.
-   Pass the ref straight to `ui_press(ref)` or `pointer_click(ref)`, identity
-   is re-checked, so a stale ref fails loudly instead of clicking the wrong
-   thing. Refs die at the next `screen_map`.
-4. **`find_text` for Chrome, Electron and Qt.** Those toolkits expose almost
-   nothing to `ui_find`. OCR gives screen coordinates in about 0.3 s with no
-   image in the transcript, much cheaper than a screenshot you then have to
-   look at.
-5. **Pixels last.** `screenshot` when you genuinely need to see; `zoom` to look
-   closer at one window, region or widget without scaling.
+Use `pointer_path` for continuous marks: observed target window, desktop-coordinate `points`, and `duration_ms` from 50 to 15000. Up to 2048 vertices are accepted; pen pressure and tilt are unavailable. Window bounds are not canvas bounds. Dabs and paths are both useful; choose from the task and observed output rather than assuming a model-training preference. Save/reopen the deliverable and inspect an export for artwork.
 
-## Prove it landed
+When offered, `desktop_exec` runs persistent Python with `desktop`, `log`, and `display`. `display(desktop.screenshot())` returns captured pixels. `desktop.call` uses the same guarded tools; helper input is compact by default. Variables survive ordinary calls and errors. The 60-second execution deadline, cancellation, or worker loss resets variables and observations; a shorter unmet condition wait is an ordinary error. Code inherits the worker's host permissions and is not a separate sandbox.
 
-- `pointer_click` takes `expect_window`; a click that would land elsewhere is
-  refused, and names the blocker so `on_occluded: "click_topmost"` can redirect
-  in the same call.
-- `ui_press` requires `expect_name`/`expect_role`. That is the identity check,
-  not ceremony.
-- Read the result. Acting tools report whether they landed; a click that
-  changed nothing says so.
-- `assert_state` turns "I think it worked" into a pass/fail with evidence, so
-  a run can end itself.
+Screenshots/zoom return observation IDs when geometry is available. Pass `observation_id` for image-relative pointer coordinates; otherwise coordinates are desktop-relative. Crop origin and x/y scaling are transformed by the server. Geometry changes invalidate frames. Content changes can also make a target stale, so observe after scrolling or changing a document view. Explicit screenshots are immediate; wait for readiness when needed. `observation_mode: compact` skips automatic captures while retaining input guards.
 
-## Never sleep, wait
-
-`wait_for` handles `window_exists`, `window_gone`, `window_focused`,
-`focus_changes`, `text_appears`, `widget_exists`, `clipboard_changed` and
-`elapsed`. `region_changed` covers what those cannot express: a reply
-arriving, a spinner finishing. A guessed `sleep` is either a wasted second or
-a flaky step.
-
-## Batch a known sequence
-
-`do_steps` runs a sequence in one call, validated up front, with per-step
-retry and one picture at the end (or at the step that failed). Use it the
-moment you know the next three actions.
-
-## Anything that moves needs a recording
-
-A still cannot show motion. `screencast` records, then `frames` tiles it into
-one contact-sheet PNG and reports a per-frame delta series with a jerk figure,
-peak and mean cannot tell a smooth pan from a jolting one. Read the PNG; never
-try to read the mp4.
-
-## Work where the user is not looking
-
-`DESKWRIGHT_SESSION=headless` (or `headless:<name>`) drives a private virtual-monitor
-session the user never sees, so windows do not steal focus and a long
-unattended run does not fight for the screen. Prefer it for anything the user
-did not ask to watch. `headless:<name>` picks which desktop, so two agents can
-work at once without watching each other's windows move.
-
-## Two things to respect
-
-- **The human halt switch is `Super+Ctrl+Escape`.** It is grabbed inside the
-  compositor and cannot be pressed or cleared by injected input. If tools start
-  refusing with a halt, a human stopped you on purpose, say so and stop.
-- **Every acted call is journaled.** `journal` reads the trail back with
-  arguments, outcome and verdict. Use it to reconstruct state after context
-  loss instead of re-deriving it by clicking around.
+The human halt switch is `Super+Ctrl+Escape`. If engaged, stop and report it. `journal` provides the action trail, with text/code fingerprinted by default. Cancellation stops input; it does not undo edits. Separate scripted tool timings from autonomous model completion, token usage, and comparisons with native Windows/macOS.

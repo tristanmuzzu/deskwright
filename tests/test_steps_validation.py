@@ -48,6 +48,8 @@ class Harness:
         def record(name):
             def handler(a, _name=name):
                 self.calls.append((_name, dict(a)))
+                if _name == "wait_for":
+                    return {"met": True, "detail": "condition met"}
                 if _name == "pointer_click":
                     return {"window": {"id": 42, "x": 500, "y": 500,
                                        "width": 300, "height": 200,

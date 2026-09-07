@@ -7,6 +7,7 @@ from typing import Any
 from .atspi import _window_for_atspi_app
 from .capture import _Look, _look, _look_before, _parse_region
 from .errors import CODES, ToolError
+from .execution import execute, pause
 from .shell import WAIT_CONDITIONS, _resolve_target, window_at
 
 
@@ -262,7 +263,7 @@ def tool_do_steps(a: dict) -> dict:
         verb = _canonical_verb(step)
         if verb == "sleep":
             millis = _sleep_ms(step, index)
-            time.sleep(millis / 1000)
+            pause(millis / 1000)
             done.append({"step": index, "do": "sleep", "ok": True, "ms": millis})
             continue
 
@@ -278,14 +279,19 @@ def tool_do_steps(a: dict) -> dict:
             while True:
                 tried += 1
                 try:
-                    out = HANDLERS[tool_name](args)
+                    out = execute(tool_name, args, handler=HANDLERS[tool_name])
+                    if tool_name == "wait_for" and not out.get("met"):
+                        raise ToolError("required wait condition was not met",
+                                        code="timeout", action_status="not_started")
                     break
                 except ToolError as e:
                     # Retry only the codes whose recovery is "try again": the
                     # world may have settled (focus landed, widget redrawn).
                     # Honest accounting -- the step result says how many runs
                     # it took, because a retried success is still a wobble.
-                    if tried >= attempts or e.code not in retry_on:
+                    if tried >= attempts or e.code not in retry_on or (
+                        tool_name != "wait_for" and e.action_status != "not_started"
+                    ):
                         raise
                     time.sleep(0.4 * tried)
             record = {"step": index, "do": verb, "ok": True,
@@ -308,7 +314,7 @@ def tool_do_steps(a: dict) -> dict:
                     pass
         except ToolError as e:
             failure = {"step": index, "do": verb, "ok": False,
-                       "error": str(e), "code": e.code}
+                       "error": str(e), "code": e.code, "action_status": e.action_status}
             if tried > 1:
                 failure["attempts"] = tried
             done.append(failure)
@@ -321,6 +327,7 @@ def tool_do_steps(a: dict) -> dict:
         "steps_given": len(steps),
         "all_ok": failed_at is None and len(done) == len(steps),
         "results": done,
+        "remaining_steps": len(steps) - len(done),
     }
     if failed_at is not None:
         result["failed_at_step"] = failed_at

@@ -56,7 +56,6 @@ from .journal import record as journal_record
 from .journal import tool_journal
 from .ocr import OCR_MIN_CONFIDENCE, tool_find_text
 from .shell import (
-    WAIT_TIMEOUT_MAX_S,
     _extension_diagnosis,
     _extension_state,
     _needs_relogin,
@@ -91,7 +90,17 @@ SERVER_INFO = {"name": "deskwright", "version": _version()}
 
 def tool_health(_: dict) -> dict:
     """Whether each mechanism is actually usable right now."""
-    report: dict[str, Any] = {}
+    from pathlib import Path
+    root = Path(__file__).resolve().parent.parent
+    revision = subprocess.run(["git", "-C", str(root), "rev-parse", "--short", "HEAD"],
+                              capture_output=True, text=True, timeout=2).stdout.strip()
+    report: dict[str, Any] = {"implementation": {"source": str(root),
+        "revision": revision or "installed-package",
+        "dirty": bool(subprocess.run(["git", "-C", str(root), "status", "--porcelain"],
+                                     capture_output=True, text=True, timeout=2).stdout.strip()), "session": os.environ.get("DESKWRIGHT_SESSION", "primary"),
+        "image_profile": os.environ.get("DESKWRIGHT_IMAGE_PROFILE", "legacy"),
+        "observation_default": "auto", "execution_deadline_seconds": 60,
+        "python_exec_enabled": os.environ.get("DESKWRIGHT_ENABLE_EXEC") == "1"}}
 
     report["extension"] = _extension_state()
     if report["extension"] != "ACTIVE":
@@ -257,38 +266,14 @@ _LOOK_AT_SCHEMA = {
 TOOLS: list[dict] = [
     {
         "name": "list_windows",
-        "description": "Every open window with id, wm_class, title, geometry, pid and "
-                       "which one has focus. Start here: ids from this list are what "
-                       "type_text and press_keys target (ids change when a dialog is "
-                       "recreated -- a wm_class or title fragment does not). "
-                       "HOW TO DRIVE THIS DESKTOP, because the round trip is the "
-                       "expensive part and the actions are milliseconds: (1) ui_find "
-                       "then ui_press where the app has an accessibility tree -- it "
-                       "cannot miss; (2) find_text for Chrome, Electron and Qt, which "
-                       "expose almost nothing; (3) do_steps when you already know the "
-                       "next few actions, instead of one call each; (4) let the acting "
-                       "tool show you the result rather than following it with a "
-                       "screenshot -- they all do now. A screenshot of the whole "
-                       "screen is the last resort, not the first move.",
+        "description": 'List open windows with stable current IDs, class, title, geometry, PID and focus. IDs change when windows are recreated.',
         "inputSchema": {"type": "object", "properties": {}},
         "handler": tool_list_windows,
         "annotations": {"readOnlyHint": True},
     },
     {
         "name": "screenshot",
-        "description": "Look at the screen, one window, or one rectangle. The image "
-                       "comes back in this reply -- there is nothing to Read "
-                       "afterwards. CROP, DO NOT SHRINK: `window` costs about 1300 "
-                       "tokens and a `region` strip about 160, against 1843 for the "
-                       "whole desktop, and all three stay legible, while `scale` "
-                       "below 1 makes small text unreadable for a saving a crop "
-                       "would have made anyway. Passing `window` AND `region` means "
-                       "a rectangle measured inside that window. `annotate` draws "
-                       "grid lines and window boxes labelled in SCREEN coordinates, "
-                       "so the number to pass to pointer_click can be read off the "
-                       "picture instead of estimated. Before reaching for this at "
-                       "all: ui_find and find_text answer \"where is X\" without an "
-                       "image, and every acting tool already shows you the result.",
+        "description": 'Capture the desktop, a window or a region. Returns an inline image and observation ID. With window and region, the region is window-relative. Default coordinate inputs are desktop pixels; observation_id enables image-relative input. Original profile preserves PNG pixels.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -334,11 +319,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "zoom",
-        "description": "Look closer at a small area at FULL resolution -- never "
-                       "scaled, unlike screenshot, which fits everything to the "
-                       "model's 1568px ceiling. For a tiny glyph, a hairline "
-                       "border, an icon. Refuses more than half the desktop: "
-                       "zoom exists to spend tokens on FEW pixels.",
+        "description": 'Capture a small region at native resolution, with an observation ID for image-relative input. Window plus region uses window-relative capture bounds.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -362,11 +343,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "pointer_move",
-        "description": "Move the pointer to an absolute screen position. Exact: this "
-                       "goes to the compositor (org.gnome.Mutter.RemoteDesktop), not "
-                       "through ydotool, so there is no acceleration curve and no "
-                       "closed loop needed. Coordinates are the same ones "
-                       "list_windows and screen_map report.",
+        "description": 'Move the pointer to desktop coordinates or a screen_map reference. Returns measured pointer state.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -386,15 +363,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "pointer_click",
-        "description": "Click at an absolute screen position. Reports whether it "
-                       "LANDED on anything -- the screen is compared before and "
-                       "after, so a click into dead space says so instead of looking "
-                       "exactly like one that worked -- and shows you the result "
-                       "without a separate screenshot. Also reports whether the "
-                       "keyboard moved as a result. PASS expect_window: the click is "
-                       "refused if something else is under that point, which is the "
-                       "difference between a missed click and a click in someone "
-                       "else's window. Needs no consent dialog, unlike xdotool.",
+        "description": 'Click a desktop point or screen_map reference. expect_window checks the receiver before input; on_occluded controls refusal or explicit retargeting. look controls the resulting observation.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -447,9 +416,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "pointer_drag",
-        "description": "Press at one point, travel, release at another. The travel is "
-                       "real intermediate motion, because a press-and-teleport is not "
-                       "a drag to most toolkits.",
+        "description": 'Drag between desktop points, holding a mouse button. Optional dwell lets a drop target react. Inspect the receiver after dragging.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -477,8 +444,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "pointer_scroll",
-        "description": "Wheel clicks at a point. dy positive scrolls down, dx "
-                       "positive scrolls right.",
+        "description": 'Scroll at a desktop point, with direction and amount. Inspect the application to verify movement.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -544,17 +510,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "wait_for",
-        "description": "Wait until the desktop reaches a state, instead of sleeping a "
-                       "guessed number of seconds. Conditions: window_exists, "
-                       "window_gone, window_focused, focus_changes; text_appears "
-                       "(OCR polls a window for a string -- a reply arriving, a "
-                       "build finishing); widget_exists (an AT-SPI widget matching "
-                       "text/role shows up in app); clipboard_changed (a copy "
-                       "landed); elapsed (just wait N seconds -- for a long install "
-                       "with nothing to poll, and the honest alternative to watching "
-                       "for a string you know will never appear). Returns as soon as "
-                       "it is true, or reports honestly that it timed out. A timeout "
-                       f"over {int(WAIT_TIMEOUT_MAX_S)}s is clamped, not refused.",
+        "description": 'Poll a condition until met or the bounded timeout. Returns met=false on timeout; required waits stop do_steps and desktop.wait. Window selectors use IDs or trimmed names.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -613,13 +569,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "find_text",
-        "description": "Where a visible piece of text is on screen, in coordinates you "
-                       "can click. Reads the pixels with OCR, so it works in Chrome, "
-                       "Electron and Qt apps, which expose almost nothing to ui_find. "
-                       "Try ui_find FIRST -- pressing a real widget cannot miss -- and "
-                       "come here when it returns nothing. About 1.5s for a window; "
-                       "cheaper and more exact than taking a picture and estimating. "
-                       "Blind to icon-only buttons: there is no text in them to read.",
+        "description": 'Find visible text with OCR and return desktop-coordinate matches. Accuracy depends on text visibility, font and rendering.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -672,15 +622,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "do_steps",
-        "description": "Run a short sequence of actions in ONE call and look once at "
-                       "the end. Every separate tool call costs a model round trip of "
-                       "several seconds while the action itself takes milliseconds, so "
-                       "a known sequence -- activate, click, type, press Return, see "
-                       "the result -- belongs here rather than in four calls. Steps run "
-                       "with their own `look` off; the picture is taken after the last "
-                       "one, or at the step that failed. Use single tools when the next "
-                       "action depends on what the last one revealed. The sequence is "
-                       "validated up front -- a call that cannot finish never starts.",
+        "description": 'Execute up to 24 validated sequential actions. Stops on failure by default and observes once at the end. Unmet waits count as failures. Returns executed steps and remaining count. Partial input must be inspected before retrying.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -742,17 +684,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "frames",
-        "description": "Turn a video into ONE image you can actually look at: N "
-                       "frames, evenly spaced, stamped with frame number and "
-                       "timestamp, tiled into a contact sheet. This is the other "
-                       "half of screencast -- a model cannot decode an mp4, so a "
-                       "recording is useless until it becomes stills. Also "
-                       "measures per-frame change and reports duplicate frames, "
-                       "which detects a source repainting slower than the capture "
-                       "rate and catches stutter and frozen output that eyeballing "
-                       "misses. Use from_frame/to_frame to zoom into a fraction of "
-                       "a second once the overview shows where the interesting "
-                       "moment is. Works on any video, not just screencast output.",
+        "description": 'Capture a sequence of frames for inspecting motion or delayed changes.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -857,9 +789,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ui_tree",
-        "description": "Accessibility tree for one application: roles, names, screen "
-                       "bounds, and which nodes are actionable. Prefer ui_find unless "
-                       "you genuinely need the shape of the whole window.",
+        "description": 'Read an application accessibility tree with paths, names, roles and states. Scope the query and inspect truncation metadata.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -898,9 +828,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ui_read_text",
-        "description": "Read the content of a text widget straight out of the "
-                       "accessibility tree. This is how you VERIFY that something "
-                       "landed, instead of trusting that a keystroke arrived.",
+        "description": 'Read text from an AT-SPI widget. Use the exact returned path to address the same document later.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -914,11 +842,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ui_set_text",
-        "description": "PREFERRED way to enter text. Writes through AT-SPI "
-                       "EditableText, which needs no focus and no ydotool: it works "
-                       "on an unfocused window and even while the screen is locked, "
-                       "and it reads the widget back to prove the text landed. Use "
-                       "type_text only when a widget is not AT-SPI-editable.",
+        "description": 'Set text through the specified AT-SPI widget and read back the result. Keep the returned widget path for subsequent reads.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -938,11 +862,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ui_press",
-        "description": "Invoke a widget's own action through AT-SPI -- the preferred "
-                       "way to act on this desktop. Requires expect_name or "
-                       "expect_role, and refuses if the path no longer points at that "
-                       "widget, so a shifted tree cannot make you press the wrong "
-                       "thing.",
+        "description": 'Invoke an AT-SPI widget action. Optional identity expectations reject stale paths. Verify the application result.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1078,23 +998,14 @@ TOOLS: list[dict] = [
     },
     {
         "name": "desktop_health",
-        "description": "Whether each mechanism is usable right now, and what each one "
-                       "will actually do: extension state and which methods the "
-                       "RUNNING shell has (an edited extension does not load until "
-                       "the next login), absolute pointer control, window and AT-SPI "
-                       "counts, keyboard layout, and the XTEST trap. Call this first "
-                       "when something behaves oddly.",
+        "description": 'Report live desktop capabilities, source revision, named session and effective image/execution configuration.',
         "inputSchema": {"type": "object", "properties": {}},
         "handler": tool_health,
         "annotations": {"readOnlyHint": True},
     },
     {
         "name": "journal",
-        "description": "Read back the trail of acted tool calls -- every "
-                       "state-changing call is journaled with its arguments, "
-                       "outcome, hit/miss verdict and screenshot hash. Use it to "
-                       "reconstruct what already happened after context loss, or "
-                       "to review an unattended run. Reading tools are not in it.",
+        "description": 'Read recorded desktop actions and their reported outcomes. Input delivery is distinct from task success.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -1132,8 +1043,29 @@ TOOLS.append({
     "handler": tool_pointer_path,
 })
 
+if os.environ.get("DESKWRIGHT_ENABLE_EXEC") == "1":
+    from .code_runtime import tool_desktop_exec
+    TOOLS.append({"name": "desktop_exec", "description":
+        "Execute Python in a persistent desktop worker. Globals: desktop, log(value), "
+        "display(desktop.screenshot()). desktop.call(tool, **args) uses the same guarded "
+        "tools; click(x,y,target=...), path(points,target=...), type(text,target=...), "
+        "key(combo,target=...), wait(condition,...), sleep(seconds) are helpers. "
+        "Input is sequential; screenshots are explicit. Inspect before acting and after "
+        "short groups. 60s deadline; cancellation resets variables and observations. "
+        "Runs with host permissions, not a Python sandbox. No implicit retries.",
+        "inputSchema": {"type": "object", "properties": {
+            "code": {"type": "string"}, "reset": {"type": "boolean", "default": False}},
+            "required": ["code"]}, "handler": tool_desktop_exec})
+
 for _tool in TOOLS:
     _properties = _tool["inputSchema"].get("properties", {})
+    if "look" in _properties:
+        _properties["observation_mode"] = {"type": "string", "enum": ["compact", "auto"],
+            "description": "compact suppresses captures/settling; explicit screenshot still works."}
+    if _tool["name"] in {"pointer_click", "pointer_move", "pointer_drag", "pointer_path", "pointer_scroll"}:
+        _properties["observation_id"] = {"type": "string", "description":
+            "Use coordinates in this screenshot image; server maps origin and scale. "
+            "Omit for desktop coordinates. Geometry changes invalidate the observation."}
     if "look" in _properties or _tool["name"] in ("screenshot", "zoom", "frames"):
         _properties["image_profile"] = {
             "type": "string", "enum": ["legacy", "balanced", "original"],
@@ -1238,20 +1170,24 @@ def handle(msg: dict) -> None:
                     "or calls ClearHalt. Reading tools still work.",
                     code="halted",
                 )
-            result = handler(args)
+            from .execution import execute
+            result = execute(name, args, handler=handler)
             # Evidence, not surveillance: every acted call leaves a trail a
             # human can review after an unattended run and an agent can
             # re-read after context loss. record() never raises.
-            if acted:
+            from .execution import CURRENT
+            if acted and CURRENT.get() is None:
                 journal_record(name, args, result)
-            _respond(msg_id, {"content": _content_blocks(result)})
+            _respond(msg_id, {"content": _content_blocks(result),
+                              **({"isError": True} if isinstance(result, dict) and result.get("all_ok") is False else {})})
         except ToolError as e:
             # A tool-level failure is a result the model must see and reason
             # about, not a protocol error that hides the reason. The [code]
             # prefix is the machine-readable half (see deskwright/errors.py).
             if acted:
-                journal_record(name, args, {"error": str(e), "code": e.code})
-            _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()}],
+                journal_record(name, args, {"error": str(e), "code": e.code, "action_status": e.action_status})
+            _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()},
+                              {"type": "text", "text": json.dumps({"code": e.code, "action_status": e.action_status})}],
                               "isError": True})
         except Exception as e:
             if acted:
@@ -1267,20 +1203,8 @@ def handle(msg: dict) -> None:
 
 
 def serve() -> int:
-    for line in sys.stdin:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            msg = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        try:
-            handle(msg)
-        except Exception as e:                      # never die on one bad message
-            if isinstance(msg, dict) and msg.get("id") is not None:
-                _error(msg["id"], -32603, f"{type(e).__name__}: {e}")
-    return 0
+    from .supervisor import serve as supervised_serve
+    return supervised_serve()
 
 
 def self_test() -> int:

@@ -11,7 +11,9 @@ codex mcp add deskwright_private --env DESKWRIGHT_SESSION=headless:codex --env D
 ```
 
 Use `startup_timeout_sec = 60` and `tool_timeout_sec = 180` for each server in `~/.codex/config.toml`, to allow
-cold private-session startup and bounded waits. Start a private session with an
+cold private-session startup and bounded waits. The supervised execution deadline is 60 seconds.
+See [execution and observations](execution-contract.md) for cancellation, image-coordinate
+input, compact results and the opt-in persistent Python interface. Start a private session with an
 isolated home before first use if restored personal app state is unwanted:
 
 ```bash

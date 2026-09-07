@@ -304,3 +304,15 @@ def test_desktop_field_falls_back_when_only_the_flag_is_set(jdir, monkeypatch):
     monkeypatch.delenv("DESKWRIGHT_HEADLESS_NAME", raising=False)
     journal.record("pointer_click", {"x": 1, "y": 2}, {"detail": "ok"})
     assert _read_lines(jdir)[-1]["desktop"] == "headless"
+
+
+def test_failed_typing_and_python_errors_do_not_leak_text(jdir):
+    for tool, args in [('type_text', {'text': 'private-fixture'}),
+                       ('desktop_exec', {'code': 'raise ValueError("private-fixture")'}),
+                       ('do_steps', {'steps': [{'do': 'type', 'text': 'private-fixture'}]})]:
+        journal.record(tool, args, {'error': 'requested private-fixture',
+                                   'code': 'verification_failed', 'action_status': 'partial'})
+    lines = _read_lines(jdir)
+    assert 'private-fixture' not in json.dumps(lines)
+    assert all(e['outcome']['action_status'] == 'partial' for e in lines)
+    assert all(e['outcome']['code'] == 'verification_failed' for e in lines)

@@ -493,7 +493,7 @@ def tool_ui_find(a: dict) -> dict:
         "query": text or (role or "actionable widgets"),
         "matches": len(hits), "results": hits[:40],
         "hint": ("pass the path plus expect_name or expect_role to ui_press; "
-                 "pressing the real widget cannot miss, and paths go stale as soon "
+                 "verify the resulting state; paths can go stale as soon "
                  "as the tree changes"),
     }
     if unreachable:
@@ -1065,7 +1065,7 @@ def _clickable_widgets(app_name: str, limit: int) -> list[dict]:
 
     The AT-SPI tree already carries screen extents, so this is the answer to
     "where do I click for X" without measuring anything off a screenshot. Press
-    them with ui_press where possible -- it cannot miss -- and use these
+    them with ui_press where supported, verify the result, and use these
     coordinates when the widget only responds to a real pointer.
     """
     app = _find_app(app_name)

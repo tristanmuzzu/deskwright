@@ -49,6 +49,9 @@ CODES = {
     "atspi_unavailable":   "the AT-SPI bus itself is not reachable",
 
     # Time ran out on an honest wait.
+    "cancelled": "the caller cancelled execution",
+    "stale_observation": "observation expired, changed geometry or belongs to another session",
+    "verification_failed": "input was attempted but its intended effect was not verified",
     "timeout":             "the awaited condition did not occur in time",
 
     # A human pressed the kill switch. Nothing injects until a human clears
@@ -64,10 +67,13 @@ CODES = {
 class ToolError(Exception):
     """A failure the model should see and can act on, not a crash."""
 
-    def __init__(self, message: str, *, code: str = "unclassified"):
+    def __init__(self, message: str, *, code: str = "unclassified", action_status: str | None = None):
         assert code in CODES, f"unknown error code {code!r}"
         super().__init__(message)
         self.code = code
+        self.action_status = action_status or ("not_started" if code in {
+            "bad_args", "no_expectation", "refused_combo", "window_not_found",
+            "focus_not_acquired", "stale_observation"} else "unknown")
 
     def wire_text(self) -> str:
         """The message as sent over MCP: `[code] prose`."""

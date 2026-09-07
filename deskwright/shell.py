@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import json
+import math
 import os
 import re
 import subprocess
@@ -10,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ToolError
+from .execution import check, clock, pause, remaining
 
 # Three extensions can serve this server, and the pick happens once per
 # process on first use. gnome-shell cannot gain or lose an extension without a
@@ -84,7 +86,7 @@ def _gdbus(method: str, *args: str, timeout: float = 30.0) -> str:
     cmd = ["gdbus", "call", "--session", "--dest", BUS_NAME,
            "--object-path", OBJ_PATH, "--method", f"{BUS_NAME}.{method}", *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=remaining(timeout))
     except subprocess.TimeoutExpired:
         raise ToolError(f"{method} did not answer within {timeout:.0f}s",
                         code="extension_unavailable") from None
@@ -532,14 +534,16 @@ def _read_clipboard_now() -> str | None:
 
 def tool_wait_for(a: dict) -> dict:
     """Poll a desktop condition instead of sleeping and hoping."""
-    requested = float(a.get("timeout") or 10)
+    requested = float(a.get("timeout", 10))
+    if not math.isfinite(requested):
+        raise ToolError("timeout must be finite", code="bad_args")
     if requested < WAIT_TIMEOUT_MIN_S:
         raise ToolError(f"timeout must be at least {WAIT_TIMEOUT_MIN_S} seconds",
                         code="bad_args")
     # Clamp rather than refuse. A rejected call taught callers to chain two
     # waits or drop to a shell loop; a clamped one waits as long as it can
     # and SAYS so, which is the same information without the round trip.
-    timeout = min(requested, WAIT_TIMEOUT_MAX_S)
+    timeout = min(requested, WAIT_TIMEOUT_MAX_S, remaining(50))
     clamped = requested > timeout
     condition = str(a.get("condition") or "").strip()
     target = a.get("target")
@@ -555,9 +559,9 @@ def tool_wait_for(a: dict) -> dict:
     # session (2026-08-26). That is a lie in the transcript and a wasted OCR
     # pass every 0.4s; this is the same wait, told truthfully and cheaply.
     if condition == "elapsed":
-        start = time.monotonic()
-        time.sleep(timeout)
-        waited = round(time.monotonic() - start, 2)
+        start = clock()
+        pause(timeout)
+        waited = round(clock() - start, 2)
         out = {"condition": condition, "met": True, "waited_seconds": waited,
                "evidence": f"waited {waited}s; nothing was polled and nothing "
                            "was changed by waiting"}
@@ -581,9 +585,10 @@ def tool_wait_for(a: dict) -> dict:
     # The slow-probe conditions poll on their own rhythm: an OCR pass is
     # ~0.3s of work, so re-running it every 0.15s would be pure heat.
     if condition in ("text_appears", "widget_exists", "clipboard_changed"):
-        start = time.monotonic()
+        start = clock()
         clip_before = _read_clipboard_now() if condition == "clipboard_changed" else None
         while True:
+            check()
             if condition == "text_appears":
                 met, evidence = _probe_text_appears(str(a["text"]), target)
             elif condition == "widget_exists":
@@ -591,10 +596,12 @@ def tool_wait_for(a: dict) -> dict:
                                                      a.get("role"))
             else:
                 now = _read_clipboard_now()
-                met = now != clip_before
+                met = now is not None and clip_before is not None and now != clip_before
+                if clip_before is None and now is not None:
+                    clip_before = now
                 evidence = ("clipboard changed" if met
                             else "clipboard still holds the same content")
-            waited = round(time.monotonic() - start, 2)
+            waited = round(clock() - start, 2)
             if met:
                 return {"condition": condition, "met": True,
                         "waited_seconds": waited, "evidence": evidence,
@@ -604,19 +611,23 @@ def tool_wait_for(a: dict) -> dict:
                         "waited_seconds": waited, "evidence": evidence,
                         "detail": "timed out; nothing was changed by waiting",
                         **clamp_note}
-            time.sleep(0.4)
+            pause(0.4)
 
     def matches(w: dict) -> bool:
         if isinstance(target, int) or (isinstance(target, str) and str(target).isdigit()):
             return w["id"] == int(target)
-        needle = str(target).lower()
+        needle = str(target).strip().lower()
         return (needle in (w["wm_class"] or "").lower()
                 or needle in (w["title"] or "").lower())
 
-    start = time.monotonic()
+    if target is not None and (isinstance(target, bool) or not isinstance(target, (str, int))
+                               or (isinstance(target, str) and not target.strip())):
+        raise ToolError("target must be a window id or nonempty name", code="bad_args")
+    start = clock()
     first = [w for w in list_windows() if w.get("focused")]
     was = first[0]["id"] if first else None
     while True:
+        check()
         windows = list_windows()
         hits = [w for w in windows if matches(w)] if target is not None else []
         focused = [w for w in windows if w.get("focused")]
@@ -627,7 +638,7 @@ def tool_wait_for(a: dict) -> dict:
             or (condition == "window_focused" and any(w.get("focused") for w in hits))
             or (condition == "focus_changes" and now != was)
         )
-        waited = round(time.monotonic() - start, 2)
+        waited = round(clock() - start, 2)
         if met:
             return {"condition": condition, "met": True, "waited_seconds": waited,
                     "focused": (focused[0]["wm_class"] if focused else None),
@@ -639,7 +650,7 @@ def tool_wait_for(a: dict) -> dict:
                     "focused": (focused[0]["wm_class"] if focused else None),
                     "detail": "timed out; nothing was changed by waiting",
                     **clamp_note}
-        time.sleep(0.15)
+        pause(0.15)
 
 
 def tool_assert_state(a: dict) -> dict:

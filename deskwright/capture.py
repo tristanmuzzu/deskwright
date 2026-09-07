@@ -198,6 +198,10 @@ def tool_screenshot(a: dict) -> dict:
             f"pixel (px, py) in this image is screen "
             f"({origin[0]} + px, {origin[1]} + py)."
         )
+    if inline and result.get("shown"):
+        from .observations import register
+        register(result, origin, _dimension_pair(native),
+                 _dimension_pair(result["shown"]["dimensions"]))
     return result
 
 
@@ -294,6 +298,10 @@ def tool_zoom(a: dict) -> dict:
         result["coordinate_note"] = (
             f"pixel (px, py) in this image is screen "
             f"({origin[0]} + px, {origin[1]} + py).")
+    if result.get("shown"):
+        from .observations import register
+        register(result, origin, _dimension_pair(native),
+                 _dimension_pair(result["shown"]["dimensions"]))
     return result
 
 
@@ -314,12 +322,13 @@ def _coordinate_note(shown: str, native: str, origin: tuple[int, int]) -> str:
     if not shown_wh or not native_wh:                       # pragma: no cover
         return f"this image starts at screen ({ox}, {oy})."
     factor = native_wh[0] / shown_wh[0] if shown_wh[0] else 1.0
-    if abs(factor - 1.0) < 0.005:
+    factor_y = native_wh[1] / shown_wh[1] if shown_wh[1] else 1.0
+    if abs(factor - 1.0) < 0.005 and abs(factor_y - 1.0) < 0.005:
         if not ox and not oy:
             return "this image is 1:1 with the screen; pixel (px, py) is screen (px, py)."
         return f"pixel (px, py) in this image is screen ({ox} + px, {oy} + py)."
     return (f"this image is {shown} for a {native} area, so pixel (px, py) is screen "
-            f"({ox} + px*{factor:.3f}, {oy} + py*{factor:.3f}). "
+            f"({ox} + px*{factor:.3f}, {oy} + py*{factor_y:.3f}). "
             "Any drawn labels are already in screen coordinates.")
 
 
@@ -895,7 +904,7 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
         return result
 
     path, _ = _shot_path({})
-    settle = _settle(path, region, float(a.get("settle_max_s") or SETTLE_MAX_S))
+    settle = _settle(path, region, float(a.get("settle_max_s", SETTLE_MAX_S)))
     after = settle.pop("fingerprint")
     ambient = settle.pop("ambient", None) or set()
 

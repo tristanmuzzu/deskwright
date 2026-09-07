@@ -24,6 +24,7 @@ from .atspi import (
 from .capture import _Look, _look, _look_before, _look_typed
 from .config import KEYS, MODIFIERS
 from .errors import ToolError
+from .execution import CURRENT, check, pause, remaining
 from .shell import (
     _gdbus,
     _needs_relogin,
@@ -79,6 +80,11 @@ def layout_hazard() -> str:
 
 
 def _ydotool(*args: str, timeout: float = 30.0) -> None:
+    if CURRENT.get() is not None:
+        raise ToolError("raw ydotool input is unavailable in supervised calls: its daemon "
+                        "can retain keys after worker cancellation. Use compositor keysyms "
+                        "or AT-SPI instead.", code="input_backend_failed", action_status="not_started")
+    timeout = remaining(timeout)
     if os.environ.get("DESKWRIGHT_HEADLESS"):
         # uinput events enter BELOW the compositor, on the machine's real
         # seat -- they would land on the user's screen no matter what this
@@ -265,6 +271,8 @@ class _InputProxy:
             return attr
 
         def wrapped(*args: Any, **kwargs: Any) -> Any:
+            if name != "stop" and not (name in {"button", "keysym"} and len(args) > 1 and args[1] is False):
+                check()
             try:
                 return attr(*args, **kwargs)
             except Exception as e:
@@ -421,11 +429,9 @@ def tool_type_text(a: dict) -> dict:
             _pointer().type_text(text, delay=max(delay, 8) / 1000)
             used = "compositor keysyms"
         except Exception as e:
-            if via == "keysym":
-                raise ToolError(f"keysym typing failed: {e}",
-                                code="input_backend_failed") from None
-            _ydotool("type", "--key-delay", str(delay), text,
-                     timeout=max(30.0, len(text) * delay / 1000 + 15))
+            raise ToolError(f"keysym typing interrupted: {e}; some characters may have arrived. "
+                            "Inspect the target before choosing another input route.",
+                            code="input_backend_failed", action_status="unknown") from None
     else:
         _ydotool("type", "--key-delay", str(delay), text,
                  timeout=max(30.0, len(text) * delay / 1000 + 15))
@@ -443,37 +449,30 @@ def tool_type_text(a: dict) -> dict:
     if before is None:
         result["verified"] = False
         result["detail"] += (" -- no readable AT-SPI text widget (Qt, Electron and "
-                             "Chrome expose none), so this is verified by picture "
-                             "instead of by readback"
+                             "Chrome expose none), so this requires visual verification "
+                             "rather than text readback"
                              + (f". {hazard}" if hazard else ""))
         return _look_typed(a, result, focus["window"], watching)
 
-    time.sleep(0.4)
-    try:
-        after = _read_text(_find_text_widget(
-            str(app_hint), widget_focus.get("path") if widget_focus else None))
-    except ToolError:
-        result["verified"] = False
-        result["detail"] += " -- could not re-read the widget; verified by picture instead"
-        return _look_typed(a, result, focus["window"], watching)
-
-    added = after[len(before):] if after.startswith(before) else after
-    if text in added or text in after[len(before):]:
-        result["verified"] = True
-        result["detail"] = (f'typed {len(text)} characters into '
-                            f'{focus["window"]["wm_class"]} and read them back')
-        # Readback already proved it; a picture would be pure token spend.
-        return _look(a, result, watching) if a.get("look") not in (None, "auto") \
-            else result
-
-    raise ToolError(
-        f"{used} reported success but the wrong characters arrived. Sent {text!r}, "
-        f"the widget gained {added!r}. Nothing here is retryable -- with ydotool "
-        f"this is the keycode/layout mismatch, not a race. {hazard or ''} "
-        "Use ui_set_text instead: it hands characters to the widget and cannot be "
-        "transposed.",
-        code="input_backend_failed",
-    )
+    # Poll the pinned widget without resending; delayed visibility is not a layout diagnosis.
+    added = ""
+    for attempt in range(5):
+        pause(.15 if attempt else .1)
+        try:
+            after = _read_text(_find_text_widget(
+                str(app_hint), widget_focus.get("path") if widget_focus else None))
+        except ToolError:
+            result.update(verified=False, verification="unavailable", action_status="unknown")
+            return _look_typed(a, result, focus["window"], watching)
+        added = after[len(before):] if after.startswith(before) else after
+        if text in added:
+            result.update(verified=True, verification="read_back", action_status="applied")
+            return _look(a, result, watching) if a.get("look") not in (None, "auto") else result
+    raise ToolError(f"Text input attempted via {used}, but readback did not confirm it. "
+                    f"Requested {text!r}; observed change {added!r}. "
+                    "The update may be delayed, partial, or in a different widget. "
+                    "Inspect before retrying; no layout cause is established.",
+                    code="verification_failed", action_status="partial" if added else "unknown")
 
 
 def tool_press_keys(a: dict) -> dict:
@@ -487,6 +486,9 @@ def tool_press_keys(a: dict) -> dict:
             "wrong window can do real damage. Pass a window id or wm_class.",
             code="no_expectation",
         )
+    via = str(a.get("via") or "auto").lower()
+    if via not in ("auto", "keysym", "ydotool"):
+        raise ToolError("via must be auto, keysym or ydotool", code="bad_args")
     codes = parse_combo(combo)          # validate BEFORE stealing focus
     focus = focus_window(target)
     watching = _look_before(a, hint_window=focus["window"])
@@ -501,10 +503,8 @@ def tool_press_keys(a: dict) -> dict:
             _pointer().combo(syms)
             used = "compositor keysyms"
         except Exception as e:
-            if via == "keysym":
-                raise ToolError(f"keysym combo failed: {e}",
-                                code="input_backend_failed") from None
-            used = "ydotool"
+            raise ToolError(f"keysym combo interrupted: {e}; inspect before retrying",
+                            code="input_backend_failed", action_status="unknown") from None
     if used == "ydotool":
         sequence = [f"{c}:1" for c in codes] + [f"{c}:0" for c in reversed(codes)]
         _ydotool("key", "--key-delay", "40", *sequence)
@@ -562,7 +562,13 @@ def tool_hold_key(a: dict) -> dict:
     started = time.monotonic()
     ri.keysym(syms[0], True)
     try:
-        time.sleep(seconds)
+        from .shell import halt_active
+        until = time.monotonic() + seconds
+        while time.monotonic() < until:
+            if halt_active():
+                raise ToolError("human halt switch engaged during key hold", code="halted",
+                                action_status="partial")
+            pause(min(.1, max(0, until - time.monotonic())))
     finally:
         try:
             ri.keysym(syms[0], False)
@@ -771,13 +777,8 @@ def tool_pointer_drag(a: dict) -> dict:
     # ruled out instead of inviting another round of timing roulette.
     if not dwell and _changed_nothing(out):
         out["nothing_changed_hint"] = (
-            "the drag timings are not the first thing to suspect -- they were "
-            "measured at 5/5 on a real drop target, and a slower variant "
-            "scored worse. More likely: something holds an input grab (a "
-            "shell-level modal makes every point report click-through), the "
-            "source needed selecting before the drag, or the receiver is a "
-            "cross-toolkit target that had not painted a drop zone yet -- for "
-            "that last one retry with dwell_ms:400."
+            "No visual change was detected. Inspect the receiver and input grabs "
+            "before retrying; delivery alone does not prove a successful drop."
         )
     return out
 
