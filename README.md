@@ -166,7 +166,7 @@ now and what each of them will actually do.
 
 ## What it can do
 
-34 tools. Each returns enough that you do not need a second call to work
+35 tools. Each returns enough that you do not need a second call to work
 out what happened. The order below is the order an agent should reach for them.
 Accessibility tree first, pixels last.
 
@@ -186,7 +186,7 @@ Accessibility tree first, pixels last.
 | `region_changed` | Wait for pixels to change. For what `wait_for` can't express, like a reply arriving or a spinner stopping. |
 | `assert_state` | Pass or fail with evidence, so a long run can decide for itself that it's finished. |
 | `do_steps` | A known sequence in one call, validated before anything runs, with per-step retry and one picture at the end, or at the step that broke. |
-| `list_windows`, `activate_window`, `window_manage` | Window list, focus, and move, resize, close, minimize, maximize, workspace. |
+| `list_windows`, `activate_window`, `window_layout`, `window_manage` | Window list, focus and layout. `window_layout` cannot close windows; general `window_manage` retains close. |
 | `screenshot`, `zoom` | A picture, or a full-resolution crop of one window, region or widget. `zoom` never scales, so small text stays readable. |
 | `screencast`, `frames` | For anything that moves, because a still can't show motion. `frames` also reports a per-frame delta series, which is how you tell a smooth scroll from a juddering one. |
 | `type_text`, `press_keys`, `hold_key` | Keyboard input through compositor keysyms, with focus proven before anything gets typed. |
@@ -199,7 +199,7 @@ Accessibility tree first, pixels last.
 An agent that needs your screen is only half useful. `deskwright-headless` starts a
 separate GNOME session on a virtual monitor, with its own session bus, its own
 `gnome-shell --headless` and its own runtime directory. A server pinned to it
-drives that desktop with the same 34 tools while you keep the physical one.
+drives that desktop with the same 35 tools while you keep the physical one.
 
 ```bash
 deskwright-headless start                    # about 200 MB of gnome-shell, idempotent

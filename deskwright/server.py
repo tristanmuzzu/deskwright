@@ -56,6 +56,7 @@ from .journal import record as journal_record
 from .journal import tool_journal
 from .ocr import OCR_MIN_CONFIDENCE, tool_find_text
 from .shell import (
+    WINDOW_LAYOUT_ACTIONS,
     _extension_diagnosis,
     _extension_state,
     _needs_relogin,
@@ -67,6 +68,7 @@ from .shell import (
     tool_list_windows,
     tool_wait_for,
     tool_window_at,
+    tool_window_layout,
     tool_window_manage,
     window_at,
 )
@@ -724,10 +726,36 @@ TOOLS: list[dict] = [
                                        "settle_max_s": _SETTLE_SCHEMA},
                         "required": ["target"]},
         "handler": tool_activate_window,
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "openWorldHint": False},
+    },
+    {
+        "name": "window_layout",
+        "description": "Arrange a window: move, resize, minimize, restore, maximize, "
+                       "set workspace or pin. Prefer this tool for layout. Cannot close "
+                       "windows, launch applications, type or click. Returns the observed "
+                       "window state through the same compositor path as window_manage.",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "action": {"type": "string", "enum": list(WINDOW_LAYOUT_ACTIONS)},
+                "target": {"anyOf": [{"type": "integer"}, {"type": "string"}],
+                           "description": "Window id, wm_class or title fragment."},
+                "x": {"type": "integer"}, "y": {"type": "integer"},
+                "width": {"type": "integer"}, "height": {"type": "integer"},
+                "index": {"type": "integer", "description": "Workspace index."},
+                "above": {"type": "boolean", "description": "Pin or unpin."},
+            },
+            "required": ["action", "target"],
+        },
+        "handler": tool_window_layout,
+        "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                        "openWorldHint": False},
     },
     {
         "name": "window_manage",
-        "description": "Move, resize, close, (un)minimize, (un)maximize, "
+        "description": "General window control including close; prefer window_layout for "
+                       "non-destructive arrangement. Move, resize, close, (un)minimize, (un)maximize, "
                        "re-workspace or pin a window -- through the "
                        "compositor, where these are ordinary calls. The "
                        "result reports the window as it IS afterwards (new "

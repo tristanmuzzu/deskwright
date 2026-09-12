@@ -128,6 +128,7 @@ Allow rules accept a wildcard in the tool position after a literal
       "mcp__deskwright__ui_tree",
       "mcp__deskwright__wait_for",
       "mcp__deskwright__window_at",
+      "mcp__deskwright__window_layout",
       "mcp__deskwright__window_manage",
       "mcp__deskwright__zoom"
     ]
@@ -186,15 +187,15 @@ one is:
 }
 ```
 
-That is all 34 tools the server serves. `tools/list` is the authority;
+That is all 35 tools the server serves. `tools/list` is the authority;
 CI fails if this list and the server's disagree. To check a running server
 yourself: `./tests/mcpdrv.py tools` from a checkout.
 
 ## The cautious variant
 
 If you would rather approve the calls that touch the machine, the split falls
-along the tools the server itself treats as acting -- the same 15 it
-journals and the same 15 the halt switch gates:
+along the tools the server itself treats as acting -- the same 16 it
+journals and the same 16 the halt switch gates:
 
 - `activate_window`
 - `clipboard_write`
@@ -211,9 +212,10 @@ journals and the same 15 the halt switch gates:
 - `ui_press`
 - `ui_set_text`
 - `window_manage`
+- `window_layout`
 
 `do_steps` is on that list because it runs a sequence of the others in one
-call. Leave the allowlist above in place and add those 15 to
+call. Leave the allowlist above in place and add those 16 to
 `permissions.ask` -- `ask` is evaluated ahead of `allow`, from any scope, so
 nothing needs removing from the allow list to make it take effect.
 

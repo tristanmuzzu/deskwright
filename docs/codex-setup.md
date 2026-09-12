@@ -26,6 +26,34 @@ not refresh. Verify `desktop_health` and a screenshot on each intended server.
 The physical server drives the user's screen; the private server has separate
 windows. Do not drive both concurrently as though they were the same desktop.
 
+## Scoped window preapproval
+
+Codex supports per-tool approval policies. To preapprove only focus and window
+arrangement, add these tables to the existing registration in `config.toml`:
+
+```toml
+[mcp_servers.deskwright.tools.activate_window]
+approval_mode = "approve"
+
+[mcp_servers.deskwright.tools.window_layout]
+approval_mode = "approve"
+```
+
+Repeat for `deskwright_private` if that registration is used. Keep the existing
+global Auto review and other tool policies. `window_layout` has an explicit
+runtime allowlist for arrangement; it rejects close and arbitrary actions.
+Both tools remain state-changing, journaled and halt-guarded. Their metadata
+declares them non-destructive, not read-only. General `window_manage`, keyboard,
+pointer, application launch, batches and Python execution are not exempted.
+Refresh existing MCP connections after changing source or registration.
+
+Use a separately named headless desktop for concurrent benchmark runs. A single
+private registration can be shared by several tasks; its windows are not isolated
+per task. Never move or close another task's application to make a benchmark pass.
+
+See [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp) and
+[approval rules](https://learn.chatgpt.com/docs/agent-approvals-security).
+
 ## Image profiles
 
 - `legacy`: existing 1568 px/JPEG 75 behavior; default for compatibility.

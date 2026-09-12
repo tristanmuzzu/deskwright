@@ -769,6 +769,24 @@ _WINDOW_VERBS = {
 }
 
 
+# Explicit list: a future general window command must not silently inherit
+# preapproval through the restricted layout tool.
+WINDOW_LAYOUT_ACTIONS = (
+    "move_resize", "minimize", "unminimize", "maximize", "unmaximize",
+    "workspace", "above",
+)
+
+
+def tool_window_layout(a: dict) -> dict:
+    """Arrange a window without closing it or invoking application actions."""
+    action = str(a.get("action") or "").strip()
+    if action not in WINDOW_LAYOUT_ACTIONS:
+        raise ToolError("window_layout permits only: "
+                        + ", ".join(WINDOW_LAYOUT_ACTIONS)
+                        + "; use window_manage for closing windows", code="bad_args")
+    return tool_window_manage({**a, "action": action})
+
+
 def tool_window_manage(a: dict) -> dict:
     """Move, resize, close, (un)minimize, (un)maximize, re-workspace or pin a
     window -- through the compositor, where these are ordinary calls."""

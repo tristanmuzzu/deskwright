@@ -337,3 +337,14 @@ Approving the dialog is itself automatable: the switch is a `switch` node with
 a `Toggle` action, and **Share** is a `button` node, both reachable with
 `ui_find` + `ui_press`. Note the roles: filtering for `push button` finds
 nothing, and clicking Share by coordinate is unreliable.
+
+
+## No-op window layout verification still waits (2026-09-08)
+
+In the local 71-action approval trial, requesting geometry that already matched
+the window took about two seconds of backend time. The window-management loop
+waits for geometry to change rather than recognizing an already satisfied target.
+The new restricted window_layout tool inherits that same implementation. This
+latency issue was left unchanged in both conditions to isolate scoped approval
+changes. A follow-up should validate the requested geometry and state before
+waiting, while retaining verification for actual moves and asynchronous mapping.
