@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import ToolError
-from .execution import check, clock, pause, remaining
+from .execution import check, clock, ensure_session_bus_env, pause, remaining
 
 # Three extensions can serve this server, and the pick happens once per
 # process on first use. gnome-shell cannot gain or lose an extension without a
@@ -75,12 +75,12 @@ def _pick_bus() -> None:
 # =========================================================================
 def _gdbus(method: str, *args: str, timeout: float = 30.0) -> str:
     _pick_bus()
-    if not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+    if not ensure_session_bus_env():
         raise ToolError(
-            "DBUS_SESSION_BUS_ADDRESS is not set, so the session bus is "
-            "unreachable. This server has to run inside the user's graphical "
-            "session -- it cannot work over a bare ssh login or from a system "
-            "service.",
+            "No session bus is reachable: DBUS_SESSION_BUS_ADDRESS is unset "
+            "and $XDG_RUNTIME_DIR/bus does not exist. This server has to run "
+            "inside the user's graphical session -- it cannot work over a "
+            "bare ssh login or from a system service.",
             code="extension_unavailable",
         )
     cmd = ["gdbus", "call", "--session", "--dest", BUS_NAME,

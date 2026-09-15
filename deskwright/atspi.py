@@ -734,7 +734,7 @@ def tool_ui_set_text(a: dict) -> dict:
     path = a.get("path")
     if not app and not path:
         raise ToolError("app or path is required", code="bad_args")
-    replace = bool(a.get("replace", False))
+    replace = bool(a.get("replace", True))
 
     node, resolved = _locate_text_widget(app, path)
     Atspi = _atspi()
@@ -760,10 +760,16 @@ def tool_ui_set_text(a: dict) -> dict:
 
     time.sleep(0.2)
     after = _read_text(node)
-    if text not in after:
+    # The write must be verifiable in BOTH modes. `text in after` let a failed
+    # append report verified:True when a retry doubled the value (issue #2's
+    # silent-corruption case: the substring is present either way).
+    appended = before + text
+    expected = text if replace else appended
+    if after != expected:
         raise ToolError(
-            "insert_text reported success but the text is not in the widget "
-            f"(now {len(after)} chars). Treat this as a failure, not a success.",
+            f"the widget does not hold what was written: expected "
+            f"{len(expected)} chars ({expected[:60]!r}...), it holds "
+            f"{len(after)} chars starting {after[:60]!r}.",
             code="atspi_write_failed",
         )
     # With replace=True, `text in after` is too weak: a no-op delete_text leaves
@@ -771,7 +777,7 @@ def tool_ui_set_text(a: dict) -> dict:
     # verified:True on a widget that was never actually cleared.
     if replace and after.strip() != text.strip():
         raise ToolError(
-            f"replace=True did not clear the widget: it holds {len(after)} chars "
+            f"replace did not clear the widget: it holds {len(after)} chars "
             f"but {len(text)} were written. delete_text appears to be a no-op on "
             f"this widget ({node.get_role_name()}); content now starts "
             f"{after[:60]!r}.",
@@ -870,6 +876,69 @@ def _exec_argv(desktop_path: Path) -> list[str]:
     return argv
 
 
+def _desktop_facts(desktop_path: Path) -> dict:
+    """Identity facts from the [Desktop Entry] section of a .desktop file.
+
+    Only what launch_app needs to reason about an app it is about to start:
+    whether activation (not spawning) is what `gio launch` will do, the Exec
+    binary to match live windows against, and StartupWMClass when the app
+    declares it (Exec basename and wm_class diverge more often than not --
+    `gnome-text-editor` vs `org.gnome.TextEditor`).
+    """
+    facts: dict = {"dbus_activatable": False, "exec_base": None,
+                   "startup_wm_class": None}
+    try:
+        with open(desktop_path) as f:
+            in_entry = False
+            for line in f:
+                line = line.strip()
+                if line.startswith("["):
+                    # Desktop Action sections have their own Exec lines; the
+                    # identity of the entry is the [Desktop Entry] one.
+                    in_entry = line == "[Desktop Entry]"
+                elif in_entry and line.startswith("DBusActivatable="):
+                    facts["dbus_activatable"] = line.split("=", 1)[1].strip().lower() == "true"
+                elif in_entry and line.startswith("Exec="):
+                    if facts["exec_base"] is None:
+                        first = line[5:].split(None, 1)[0]
+                        if not first.startswith("%"):
+                            facts["exec_base"] = first
+                elif in_entry and line.startswith("StartupWMClass="):
+                    facts["startup_wm_class"] = line.split("=", 1)[1].strip()
+    except OSError as e:
+        raise ToolError(f"could not read {desktop_path}: {e}",
+                        code="bad_args") from None
+    return facts
+
+
+def _norm_class(s: str) -> str:
+    """Compare app-identity strings across the Exec/wm_class spelling gap.
+
+    'gnome-text-editor', 'org.gnome.TextEditor' and 'Gnome-text-editor' all
+    collapse to the same key once punctuation and case are gone.
+    """
+    return s.replace("-", "").replace("_", "").replace(".", "").lower()
+
+
+def _wm_class_matches(wm_class: str, candidates: set[str]) -> bool:
+    """Does a live window's wm_class belong to the app we are launching?
+
+    Reverse-DNS wm classes ('org.gnome.TextEditor') carry vendor prefixes the
+    Exec binary never has, so equality is checked after normalization against
+    every candidate (Exec basename, StartupWMClass), and containment covers
+    the prefix ('gnometexteditor' in 'orggnometexteditor' after stripping the
+    non-identity segments is too aggressive a parse, containment is not).
+    """
+    if not wm_class or not candidates:
+        return False
+    wm = _norm_class(wm_class)
+    for cand in candidates:
+        c = _norm_class(cand)
+        if wm == c or c in wm or wm in c:
+            return True
+    return False
+
+
 def tool_launch_app(a: dict) -> dict:
     """Launch an application and CONFIRM it arrived, instead of assuming.
 
@@ -881,6 +950,7 @@ def tool_launch_app(a: dict) -> dict:
     """
     desktop_id = a.get("desktop_id")
     command = a.get("command")
+    facts: dict | None = None
     if (desktop_id is None) == (command is None):
         raise ToolError(
             "give exactly one of desktop_id (a .desktop id for `gio launch`) or "
@@ -907,14 +977,42 @@ def tool_launch_app(a: dict) -> dict:
     else:
         desktop_path = _resolve_desktop_file(str(desktop_id))
         what = desktop_path.name
+        facts = _desktop_facts(desktop_path)
         if os.environ.get("DESKWRIGHT_HEADLESS"):
             argv = _exec_argv(desktop_path) + ([file] if file else [])
             spawn_direct, via = True, "exec (headless)"
         else:
             argv = ["gio", "launch", str(desktop_path)] + ([file] if file else [])
             spawn_direct, via = False, "gio launch"
+            # Activation, not launching: a DBusActivatable app with a window
+            # already up will not open a NEW one -- `gio launch` just presents
+            # the existing instance (issue #10). Waiting for a new window id
+            # either times out over a running app or "confirms" off an
+            # unrelated window change. Say what actually happened instead.
+            # A lingering windowless --gapplication-service is NOT "running"
+            # here: it owns no window, and activating it may still open one,
+            # so it falls through to the normal launch-and-wait.
+            if wait_window and facts["dbus_activatable"]:
+                identity = {c for c in (facts["exec_base"],
+                                        facts["startup_wm_class"]) if c}
+                try:
+                    mine = [w for w in list_windows()
+                            if _wm_class_matches(w.get("wm_class", ""), identity)]
+                except ToolError:
+                    mine = []  # windows unreadable (locked screen?): launch anyway
+                if mine:
+                    return {"launched": what,
+                            "via": "activation (already running)",
+                            "desktop_file": str(desktop_path),
+                            **({"file": file} if file else {}),
+                            "activated": True, "already_running": True,
+                            "windows": mine,
+                            "detail": ("the app is already running; `gio "
+                                       "launch` would only present the "
+                                       "existing instance, so no new window "
+                                       "was awaited")}
 
-    # Snapshots BEFORE the launch, so "new" means new. Either mechanism may be
+    # Snapshot BEFORE the launch, so "new" means new. Either mechanism may be
     # down; which one answered is part of the result.
     window_ids: set | None = None
     atspi_before: set | None = None
@@ -968,15 +1066,28 @@ def tool_launch_app(a: dict) -> dict:
 
     awaited = (f"a new window after launching {what}" if window_ids is not None
                else f"a new AT-SPI application after launching {what}")
+    # The confirming window must belong to the launched app. Confirming off
+    # ANY new window id let an unrelated window opened during the wait count
+    # as this launch's arrival (issue #10). Identity for desktop_id launches
+    # is the Exec basename / StartupWMClass; a raw `command` launch has no
+    # desktop identity to match, so it keeps the old any-new-window rule.
+    desktop_identity = facts
+    identity = ({c for c in (desktop_identity["exec_base"],
+                             desktop_identity["startup_wm_class"]) if c}
+                if desktop_identity is not None else None)
     start = time.monotonic()
     while time.monotonic() - start < timeout:
         if window_ids is not None:
             try:
                 for w in list_windows():
-                    if w["id"] not in window_ids:
-                        return {**launched, "confirmed": True,
-                                "confirmed_by": "window", "window": w,
-                                "waited_seconds": round(time.monotonic() - start, 2)}
+                    if w["id"] in window_ids:
+                        continue
+                    if identity is not None and not _wm_class_matches(
+                            w.get("wm_class", ""), identity):
+                        continue
+                    return {**launched, "confirmed": True,
+                            "confirmed_by": "window", "window": w,
+                            "waited_seconds": round(time.monotonic() - start, 2)}
             except ToolError:
                 # The extension died mid-wait (a lock, most likely). Fall back
                 # to the AT-SPI diff rather than failing a launch that worked.

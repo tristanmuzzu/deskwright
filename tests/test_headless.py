@@ -293,8 +293,162 @@ def test_pin_env_sends_launched_apps_to_the_session_home(tmp_path):
 
 
 def test_a_session_without_a_home_leaves_the_environment_alone(tmp_path):
-    env: dict = {}
+    env: dict[str, str] = {}
     headless.pin_env({"bus_address": "unix:path=/tmp/x",
                       "wayland_display": "wayland-deskwright-demo",
                       "runtime_dir": "/run/user/1000/x", "name": "demo"}, env)
     assert "HOME" not in env
+
+
+# ---- the headless a11y registry (2026-09-15) -------------------------------
+#
+# A private dbus-daemon cannot activate at-spi2-registryd: the a11y broker
+# proxies activation through org.freedesktop.systemd1, which answers
+# /bin/false on a bus with no systemd behind it. So headless.py now spawns
+# registryd itself. These tests hold that code to its measured facts without
+# needing a desktop; tests/test_headless_atspi.py proves it against a real
+# headless session.
+
+def test_registryd_comm_is_the_truncated_proc_name():
+    """_pid_is reads /proc/<pid>/comm, which the kernel truncates to 15
+    chars (TASK_COMM_LEN). The untruncated string never matches, and a
+    wrong comm means a registryd that is never believed alive nor cleaned
+    up. Measured 2026-09-15, at-spi2-core 2.60.4."""
+    assert "at-spi2-registryd"[:15] == headless.REGISTRYD_COMM
+    assert len(headless.REGISTRYD_COMM) == 15
+
+
+class _FakeRegistryd:
+    pid = 4242
+    returncode = None
+
+    def poll(self) -> int | None:
+        return None
+
+
+def _wire_fake_registryd(monkeypatch, alive_after: int = 1) -> dict:
+    """Point _ensure_atspi_registry at a fake spawn. `alive_after` is the
+    poll count after which the registry pretends to be up, so the happy
+    path exercises the wait loop exactly once."""
+    seen: dict = {}
+    polls = {"n": 0}
+
+    def fake_popen(argv, **kw):
+        seen["argv"] = argv
+        seen["env"] = kw["env"]
+        return _FakeRegistryd()
+
+    def fake_alive(address):
+        polls["n"] += 1
+        return polls["n"] > alive_after
+
+    monkeypatch.setattr(headless.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(headless, "_registry_alive", fake_alive)
+    monkeypatch.setattr(headless.shutil, "which",
+                        lambda b: "/usr/libexec/at-spi2-registryd")
+    return seen
+
+
+def test_ensure_atspi_registry_spawns_registryd_on_the_private_bus(monkeypatch, tmp_path):
+    seen = _wire_fake_registryd(monkeypatch)
+    log = tmp_path / "headless.log"
+    log.write_text("")
+    pid = headless._ensure_atspi_registry("unix:path=/tmp/private-bus", str(log))
+    assert pid == "4242"
+    assert seen["argv"] == ["/usr/libexec/at-spi2-registryd",
+                            "--use-gnome-session"]
+    # The one environment fact that makes the fix work: registryd resolves
+    # the a11y socket itself by asking the session bus, so pointing it at
+    # the private bus is all it needs (measured 2026-09-15: no AT_SPI_BUS
+    # required).
+    assert seen["env"]["DBUS_SESSION_BUS_ADDRESS"] == "unix:path=/tmp/private-bus"
+    # and the bring-up line lands in the session log, not stdout
+    assert "starting" in log.read_text()
+
+
+def test_ensure_atspi_registry_does_not_double_start(monkeypatch, tmp_path):
+    monkeypatch.setattr(headless, "_registry_alive", lambda a: True)
+
+    def boom(*a, **k):
+        pytest.fail("spawned a registryd when one was already answering")
+
+    monkeypatch.setattr(headless.subprocess, "Popen", boom)
+    assert headless._ensure_atspi_registry("unix:path=/tmp/x",
+                                           str(tmp_path / "l.log")) is None
+
+
+def test_ensure_atspi_registry_degrades_when_there_is_no_binary(monkeypatch, tmp_path):
+    monkeypatch.setattr(headless, "_registry_alive", lambda a: False)
+    monkeypatch.setattr(headless.shutil, "which", lambda b: None)
+    monkeypatch.setattr(headless, "_registryd_path", lambda: None)
+    log = tmp_path / "l.log"
+    # None, not a crash: a machine without registryd gets the pre-fix
+    # behaviour (session works, ui_* tools do not) and a log line saying so.
+    assert headless._ensure_atspi_registry("unix:path=/tmp/x", str(log)) is None
+    assert "no at-spi2-registryd" in log.read_text()
+
+
+def test_ensure_atspi_registry_reports_a_registryd_that_dies_young(monkeypatch, tmp_path):
+    seen = _wire_fake_registryd(monkeypatch, alive_after=99)   # never "up"
+
+    def dead_poll(self):
+        self.returncode = 1
+        return 1
+
+    monkeypatch.setattr(_FakeRegistryd, "poll", dead_poll)
+    log = tmp_path / "l.log"
+    assert headless._ensure_atspi_registry("unix:path=/tmp/x", str(log)) is None
+    assert "exited rc=1" in log.read_text()
+    assert seen["argv"][0].endswith("at-spi2-registryd")
+
+
+def test_registryd_path_is_read_from_the_distro_service_file(tmp_path):
+    service = tmp_path / "org.a11y.atspi.Registry.service"
+    service.write_text("[D-Bus Service]\nName=org.a11y.atspi.Registry\n"
+                       "Exec=/usr/libexec/at-spi2-registryd --use-gnome-session\n")
+    monkeypatch = pytest.MonkeyPatch()
+    monkeypatch.setattr(headless, "REGISTRY_SERVICE", str(service))
+    try:
+        assert headless._registryd_path() == "/usr/libexec/at-spi2-registryd"
+    finally:
+        monkeypatch.undo()
+
+
+def test_stop_ends_the_registryd_it_started(tmp_path, monkeypatch):
+    import signal
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    state_dir = tmp_path / "deskwright"
+    state_dir.mkdir()
+    state = {**_dead_state(), "registry_pid": 4242}
+    (state_dir / "headless.json").write_text(json.dumps(state))
+    killed: list[tuple[int, int]] = []
+
+    def fake_pid_is(pid, comm):
+        # dies on cue when killed, so stop() does not wait out its timeout
+        return comm == headless.REGISTRYD_COMM and (pid, signal.SIGTERM) not in killed
+
+    monkeypatch.setattr(headless, "_pid_is", fake_pid_is)
+    monkeypatch.setattr(headless.os, "kill",
+                        lambda pid, sig: killed.append((pid, int(sig))))
+    report = headless.stop()
+    assert report["stopped"] is True
+    assert killed == [(4242, signal.SIGTERM)]
+
+
+def test_stop_tolerates_a_session_with_no_registry_pid(tmp_path, monkeypatch):
+    """Sessions started before the fix (and ones where the registry could
+    not be started) have no registry_pid, or an explicit None. Stopping
+    them must not crash on the way to ending the shell and the bus."""
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path))
+    state_dir = tmp_path / "deskwright"
+    state_dir.mkdir()
+    for raw in (None, "4242"):
+        (state_dir / "headless.json").write_text(
+            json.dumps({**_dead_state(), "registry_pid": raw}))
+        killed: list[tuple[int, int]] = []
+        monkeypatch.setattr(headless, "_pid_is", lambda pid, comm: False)
+        monkeypatch.setattr(headless.os, "kill",
+                            lambda pid, sig, k=killed: k.append((pid, int(sig))))
+        report = headless.stop()
+        assert report["stopped"] is True
+        assert killed == []          # nothing alive to kill, no crash either
