@@ -889,8 +889,8 @@ TOOLS: list[dict] = [
                 "app": _s("Application name; its editable text widget is located "
                           "automatically"),
                 "path": _s("Or an exact index path. Both tools return the resolved path -- pass it back to address the SAME document across write and read; without it, both prefer the focused text widget."),
-                "replace": {"type": "boolean", "default": False,
-                            "description": "Clear existing content first"},
+                "replace": {"type": "boolean", "default": True,
+                            "description": "Replace the widget's contents (default). Pass false to append at the caret."},
             },
             "required": ["text"],
         },
