@@ -57,7 +57,51 @@ def pause(seconds: float) -> None:
 
 def session_key() -> str:
     # The bus identifies the actual desktop even if callers use different aliases.
-    return hashlib.sha256(os.environ.get("DBUS_SESSION_BUS_ADDRESS", "unbound").encode()).hexdigest()[:24]
+    # Resolve first: a server started with DBUS_SESSION_BUS_ADDRESS unset (MCP
+    # hosts that sanitize the environment, e.g. Hermes) reaches the same
+    # systemd user bus via the $XDG_RUNTIME_DIR/bus fallback GLib uses. Hashing
+    # the raw env var would hand two servers on ONE desktop different keys.
+    return hashlib.sha256(
+        (session_bus_address() or "unbound").encode()).hexdigest()[:24]
+
+
+def session_bus_address() -> str | None:
+    """The session bus this process can actually reach, or None.
+
+    DBUS_SESSION_BUS_ADDRESS is the documented address, but it is an
+    environment proxy, not the mechanism: since the systemd user bus, GLib
+    (and gdbus, and AT-SPI) connect to $XDG_RUNTIME_DIR/bus when the variable
+    is absent. Hosts that spawn this server with a sanitized environment --
+    MCP clients strip everything but a safe baseline (PATH/HOME/USER/LANG/
+    XDG_*) to avoid leaking credentials -- therefore still have a working
+    desktop behind a guard that says otherwise. Prefer the explicit address,
+    fall back to the socket GLib would use, and return None only when neither
+    exists, which is the bare `ssh` login or system service the guard exists
+    for.
+    """
+    explicit = os.environ.get("DBUS_SESSION_BUS_ADDRESS")
+    if explicit:
+        return explicit
+    runtime_dir = os.environ.get("XDG_RUNTIME_DIR")
+    if runtime_dir:
+        fallback = Path(runtime_dir) / "bus"
+        if fallback.exists():
+            return f"unix:path={fallback}"
+    return None
+
+
+def ensure_session_bus_env() -> str | None:
+    """Resolve the reachable bus and export it, so subprocesses agree.
+
+    Every subprocess path (gdbus, gnome-extensions, the extension calls
+    themselves) inherits this process's environment. Resolving once here and
+    exporting keeps them all on the bus GLib already picked in-process, and
+    keeps session_key() stable for the process lifetime.
+    """
+    address = session_bus_address()
+    if address and not os.environ.get("DBUS_SESSION_BUS_ADDRESS"):
+        os.environ["DBUS_SESSION_BUS_ADDRESS"] = address
+    return address
 
 
 @contextlib.contextmanager
