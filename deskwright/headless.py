@@ -76,6 +76,16 @@ DEFAULT_NAME = "default"
 DISPLAY_PREFIX = "wayland-deskwright"
 RUNTIME_PREFIX = "deskwright-headless"
 
+# The AT-SPI registry, which every ui_* tool needs. Normally the session's
+# a11y bus launcher starts it; on the PRIVATE bus it never does (see
+# _ensure_atspi_registry for the measured chain of causes).
+REGISTRY_NAME = "org.a11y.atspi.Registry"
+# /proc/<pid>/comm truncates to 15 chars (TASK_COMM_LEN): "at-spi2-registryd"
+# reads back as "at-spi2-registr". Measured 2026-09-15, at-spi2-core 2.60.4.
+# pid-liveness checks must use the truncated form or they never match.
+REGISTRYD_COMM = "at-spi2-registr"
+REGISTRY_SERVICE = "/usr/share/dbus-1/accessibility-services/org.a11y.atspi.Registry.service"
+
 # The spike's shell reached "extension answering" well inside 15 s on this
 # machine; the margin covers a loaded box without making a real failure slow
 # to report.
@@ -256,6 +266,7 @@ def status(name: str | None = None) -> dict[str, Any]:
         "bus_reachable": bus_ok, "extension_answering": ext_ok,
         **{k: state[k] for k in ("bus_address", "wayland_display", "size",
                                  "runtime_dir", "home", "shell_pid", "dbus_pid",
+                                 "registry_pid",
                                  "started_at", "log")
            if k in state},
     }
@@ -414,6 +425,154 @@ def start(size: str = DEFAULT_SIZE, display: str | None = None,
         return _start_locked(name, size, display, home)
 
 
+def _registry_alive(address: str) -> bool:
+    """Is org.a11y.atspi.Registry owned on the a11y bus behind `address`?
+
+    The registry is a name on the ACCESSIBILITY bus, not the session bus,
+    so this resolves the a11y socket the way every real AT-SPI client does
+    (org.a11y.Bus.GetAddress on the session bus) and asks that bus for the
+    name owner. No socket means the a11y launcher never started either,
+    which is also "not alive" for the caller's purposes.
+    """
+    socket_path = _a11y_socket_path(address)
+    if socket_path is None:
+        return False
+    try:
+        proc = subprocess.run(
+            ["gdbus", "call", "--address", f"unix:path={socket_path}",
+             "--dest", "org.freedesktop.DBus", "--object-path", "/org/freedesktop/DBus",
+             "--method", "org.freedesktop.DBus.GetNameOwner",
+             REGISTRY_NAME],
+            capture_output=True, timeout=5)
+        return proc.returncode == 0
+    except (subprocess.TimeoutExpired, OSError):
+        return False
+
+
+def _a11y_socket_path(address: str) -> str | None:
+    """The a11y bus socket for the session bus at `address`.
+
+    The at-spi bus launcher binds it under the session's XDG_RUNTIME_DIR
+    (`<runtime>/at-spi/bus`). This function asks the session bus for the
+    address instead of guessing a path, because the launcher writes it
+    there: org.a11y.Bus owns the socket address on the session bus.
+    """
+    try:
+        out = subprocess.run(
+            ["gdbus", "call", "--session", "--dest", "org.a11y.Bus",
+             "--object-path", "/org/a11y/bus", "--method",
+             "org.a11y.Bus.GetAddress"],
+            env=dict(os.environ, DBUS_SESSION_BUS_ADDRESS=address),
+            capture_output=True, text=True, timeout=5)
+        if out.returncode != 0 or not out.stdout.strip():
+            return None
+        # ('unix:path=/run/user/1000/deskwright-headless/at-spi/bus',)
+        address_str = out.stdout.strip().strip("()").split(",")[0].strip().strip("'\"")
+        if address_str.startswith("unix:path="):
+            return address_str[len("unix:path="):]
+        return None
+    except (subprocess.TimeoutExpired, OSError):
+        # An unreachable org.a11y.Bus on the session bus means the a11y
+        # launcher itself never started; _registry_alive's caller treats
+        # that as "not alive", which is the safe answer.
+        return None
+
+
+def _ensure_atspi_registry(address: str, log_path: str) -> str | None:
+    """Start at-spi2-registryd on the private session, or say why not.
+
+    THE BUG THIS EXISTS FOR (measured 2026-09-15, Ubuntu 26.04, at-spi2-core
+    2.60.4, GNOME Shell 50.1, systemd 259):
+
+    The private session's at-spi-bus-launcher starts its a11y broker fine.
+    The broker then tries to start registryd by asking the bus to activate
+    org.freedesktop.systemd1, and Ubuntu's session-service dir maps that
+    name to `Exec=/bin/false` (upstream systemd ships that stub so a
+    systemd-less bus refuses politely). On the USER's real session bus the
+    name resolves to the real systemd and registryd starts; on a private
+    dbus-daemon --session it never can. Result: the headless session's a11y
+    bus exists, its socket answers, but org.a11y.atspi.Registry is owned by
+    nobody, and every ui_* tool fails with app_not_on_bus /
+    "no application named 'gnome-shell' on the AT-SPI bus".
+
+    The same chain fails on any distro whose at-spi2-core is >= 2.59.0,
+    which switched the launcher to dbus-broker by default: dbus-broker's
+    launcher is the one that proxies service activation through systemd.
+    The Ubuntu 25.10 stack (at-spi 2.56, dbus 1.14 x) does not hit it.
+
+    THE FIX: start registryd directly, pointed at the private session bus.
+    registryd resolves the a11y socket itself by asking the session bus
+    (measured 2026-09-15: starts and owns org.a11y.atspi.Registry with only
+    DBUS_SESSION_BUS_ADDRESS set, no AT_SPI_BUS needed), and
+    --use-gnome-session makes it exit when its bus dies, so it cannot
+    outlive the session.
+
+    Returns the pid (as str) for the state file when THIS start spawned and
+    verified a registryd, else None (already alive, no binary, or it died
+    young -- the reason is logged either way). A None never blocks the
+    session: the pre-fix behaviour is exactly "no registry", degraded but
+    running, and old state files simply have no registry_pid at all.
+
+    `log_path` (not an open handle: _start_locked's log is opened "ab" for
+    the subprocesses, and print(str) into a binary handle is a TypeError,
+    found the embarrassing way 2026-09-15) is the session log every other
+    bring-up message goes to.
+    """
+    def _log(message: str) -> None:
+        with open(log_path, "a") as f:
+            print(f"deskwright: {message}", file=f, flush=True)
+
+    if _registry_alive(address):
+        _log(f"{REGISTRY_NAME} already owned on the headless a11y bus; "
+             f"not starting another")
+        return None
+    binary = shutil.which("at-spi2-registryd") or _registryd_path()
+    if binary is None:
+        _log("no at-spi2-registryd on this machine; ui_* tools will be "
+             f"unavailable on the headless session (searched PATH and "
+             f"{REGISTRY_SERVICE})")
+        return None
+    _log(f"starting {binary} for the headless a11y bus (the private bus "
+         f"cannot activate it; see the comment at _ensure_atspi_registry)")
+    # One handle for both streams, closed as soon as the spawn returns; the
+    # child keeps its own dup of the fd.
+    with open(log_path, "ab") as child_log:
+        registryd = subprocess.Popen(
+            [binary, "--use-gnome-session"],
+            env=dict(os.environ, DBUS_SESSION_BUS_ADDRESS=address),
+            stdout=child_log, stderr=child_log, start_new_session=True)
+    # Wait for the name to be owned, the same wait-for-readiness shape the
+    # shell start uses. 10s: registryd takes well under 1s on this machine;
+    # the margin is for a cold cache on a loaded box.
+    deadline = time.monotonic() + 10.0
+    while time.monotonic() < deadline:
+        if _registry_alive(address):
+            _log(f"{REGISTRY_NAME} owned by pid {registryd.pid} "
+                 f"after {time.monotonic() - (deadline - 10.0):.1f}s")
+            return str(registryd.pid)
+        if registryd.poll() is not None:
+            break
+        time.sleep(0.2)
+    _log(f"registryd exited rc={registryd.returncode} before owning "
+         f"{REGISTRY_NAME}")
+    return None
+
+
+def _registryd_path() -> str | None:
+    """Locate at-spi2-registryd without a PATH entry, from the D-Bus service
+    file the distro shipped, the same place `deskwright-setup --check` reads
+    package facts from."""
+    try:
+        with open(REGISTRY_SERVICE) as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("Exec="):
+                    return line[len("Exec="):].split()[0]
+    except OSError:
+        return None
+    return None
+
+
 def _start_locked(name: str, size: str, display: str,
                   home: str | None = None) -> dict[str, Any]:
     _check_capacity(name)
@@ -487,6 +646,15 @@ def _start_locked(name: str, size: str, display: str,
         # empty; seeding later is too late, because gnome-shell reads
         # enabled-extensions at startup.
         _seed_home(home, env)
+    # The a11y registry must be up BEFORE the shell, not after: the shell's
+    # atk-bridge registers during startup, and how long it keeps retrying
+    # when no registry answers is not contract we can rely on. Measured
+    # both ways 2026-09-15: with the registry appearing ~20 s after the
+    # shell, self-test ui_tree failed with gnome-shell absent from the bus
+    # while apps started later (portal-gtk, ibus) were on it; a registry
+    # started before the shell gave 18/18. This also matches the primary
+    # session, where the registry is up before any app starts.
+    registry_pid = _ensure_atspi_registry(address, log_path)
     # The headless shell CREATES a display; it must not attach to the user's.
     env.pop("WAYLAND_DISPLAY", None)
     env.pop("DISPLAY", None)
@@ -531,6 +699,7 @@ def _start_locked(name: str, size: str, display: str,
         "runtime_dir": runtime_dir,
         "home": os.path.abspath(os.path.expanduser(home)) if home else None,
         "shell_pid": shell.pid, "dbus_pid": dbus.pid,
+        "registry_pid": registry_pid,
         "started_at": time.time(), "log": log_path,
     }
     with open(_state_file(name), "w") as f:
@@ -556,8 +725,14 @@ def stop(name: str | None = None) -> dict[str, Any]:
         return {"stopped": False, "name": name,
                 "detail": f"no headless session recorded for {name!r}"}
     ended = []
-    for key, comm in (("shell_pid", "gnome-shell"), ("dbus_pid", "dbus-daemon")):
-        pid = int(state.get(key, -1))
+    # registry_pid may be None (registry already alive, or not startable
+    # here); int(None) is a crash, so the default has to cover it.
+    for key, comm in (("shell_pid", "gnome-shell"), ("dbus_pid", "dbus-daemon"),
+                      ("registry_pid", REGISTRYD_COMM)):
+        raw = state.get(key)
+        if raw is None:
+            continue
+        pid = int(raw)
         if not _pid_is(pid, comm):
             continue
         os.kill(pid, signal.SIGTERM)
