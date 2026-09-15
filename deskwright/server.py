@@ -31,6 +31,7 @@ from .capture import (
 )
 from .config import KEYS, MODIFIERS
 from .errors import ToolError
+from .execution import session_bus_address
 from .input import (
     YDOTOOL_SOCKET,
     _input,
@@ -173,7 +174,10 @@ def tool_health(_: dict) -> dict:
     except Exception:
         report["toolkit_accessibility"] = "unknown"
     report["session_type"] = os.environ.get("XDG_SESSION_TYPE", "unset")
-    report["dbus_session"] = "set" if os.environ.get("DBUS_SESSION_BUS_ADDRESS") else "MISSING"
+    # Report the bus actually in use, not just the env var: hosts that spawn
+    # this server with a sanitized environment still reach the systemd user
+    # bus at $XDG_RUNTIME_DIR/bus (see execution.session_bus_address).
+    report["dbus_session"] = session_bus_address() or "MISSING"
     report["desktop"] = (os.environ.get("DESKWRIGHT_HEADLESS_NAME")
                          or ("headless" if os.environ.get("DESKWRIGHT_HEADLESS")
                              else "primary (the user's own screen)"))
@@ -885,8 +889,8 @@ TOOLS: list[dict] = [
                 "app": _s("Application name; its editable text widget is located "
                           "automatically"),
                 "path": _s("Or an exact index path. Both tools return the resolved path -- pass it back to address the SAME document across write and read; without it, both prefer the focused text widget."),
-                "replace": {"type": "boolean", "default": False,
-                            "description": "Clear existing content first"},
+                "replace": {"type": "boolean", "default": True,
+                            "description": "Replace the widget's contents (default). Pass false to append at the caret."},
             },
             "required": ["text"],
         },

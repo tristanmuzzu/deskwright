@@ -65,6 +65,9 @@ deskwright = "deskwright.cli:main"
 deskwright-setup = "deskwright.setup_cli:main"
 # Lifecycle of the invisible second (virtual-monitor) session.
 deskwright-headless = "deskwright.headless:main"
+# Post-install health check of the running stack: deps, a11y registry,
+# extension, a real MCP stdio handshake with the registered command.
+deskwright-doctor = "deskwright.doctor:main"
 # The two hands-on CLIs the README walks through. They exist as console
 # scripts because after `pipx install` there is no checkout and no `deskwright` on
 # the system python's path, so `python3 -m deskwright.atspi_ui` -- which is what the

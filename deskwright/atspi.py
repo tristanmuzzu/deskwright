@@ -734,7 +734,7 @@ def tool_ui_set_text(a: dict) -> dict:
     path = a.get("path")
     if not app and not path:
         raise ToolError("app or path is required", code="bad_args")
-    replace = bool(a.get("replace", False))
+    replace = bool(a.get("replace", True))
 
     node, resolved = _locate_text_widget(app, path)
     Atspi = _atspi()
@@ -760,10 +760,16 @@ def tool_ui_set_text(a: dict) -> dict:
 
     time.sleep(0.2)
     after = _read_text(node)
-    if text not in after:
+    # The write must be verifiable in BOTH modes. `text in after` let a failed
+    # append report verified:True when a retry doubled the value (issue #2's
+    # silent-corruption case: the substring is present either way).
+    appended = before + text
+    expected = text if replace else appended
+    if after != expected:
         raise ToolError(
-            "insert_text reported success but the text is not in the widget "
-            f"(now {len(after)} chars). Treat this as a failure, not a success.",
+            f"the widget does not hold what was written: expected "
+            f"{len(expected)} chars ({expected[:60]!r}...), it holds "
+            f"{len(after)} chars starting {after[:60]!r}.",
             code="atspi_write_failed",
         )
     # With replace=True, `text in after` is too weak: a no-op delete_text leaves
@@ -771,7 +777,7 @@ def tool_ui_set_text(a: dict) -> dict:
     # verified:True on a widget that was never actually cleared.
     if replace and after.strip() != text.strip():
         raise ToolError(
-            f"replace=True did not clear the widget: it holds {len(after)} chars "
+            f"replace did not clear the widget: it holds {len(after)} chars "
             f"but {len(text)} were written. delete_text appears to be a no-op on "
             f"this widget ({node.get_role_name()}); content now starts "
             f"{after[:60]!r}.",

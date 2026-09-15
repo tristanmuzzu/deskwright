@@ -83,3 +83,72 @@ def test_visual_threshold_is_evidence_not_action_failure(monkeypatch, tmp_path):
     assert "small edits may still have succeeded" in result["look"]["verdict"]
     assert "missed" not in result["look"]["verdict"]
     assert wi._changed_nothing(result) is True
+
+
+# ---- ui_set_text default semantics (issue #2) ------------------------------
+def _set_text_env(monkeypatch, initial):
+    """The issue-#2 environment: one editable widget, honest readback."""
+    class Buffer:
+        value = initial
+
+        def insert_text(self, offset, text, byte_length):
+            inserted = text.encode("utf-8")[:byte_length].decode("utf-8")
+            self.value = self.value[:offset] + inserted + self.value[offset:]
+            return True
+
+        def get_role_name(self):
+            return "text"
+
+    node = Buffer()
+
+    def delete(buffer, start, end):
+        buffer.value = buffer.value[:start] + buffer.value[end:]
+
+    api = SimpleNamespace(
+        Text=SimpleNamespace(get_character_count=lambda n: len(n.value)),
+        EditableText=SimpleNamespace(delete_text=delete),
+    )
+    monkeypatch.setattr(atspi, "_atspi", lambda: api)
+    monkeypatch.setattr(atspi, "_locate_text_widget", lambda *a: (node, "editor/0"))
+    monkeypatch.setattr(atspi, "_text_ifaces", lambda n: (n, n))
+    monkeypatch.setattr(atspi, "_read_text", lambda n: n.value)
+    monkeypatch.setattr(atspi, "_is_focused", lambda n: False)
+    monkeypatch.setattr(atspi.time, "sleep", lambda n: None)
+    return node
+
+
+def test_set_text_default_replaces_not_appends(monkeypatch):
+    """Issue #2's exact repro: two default calls must yield the second value."""
+    node = _set_text_env(monkeypatch, "")
+    atspi.tool_ui_set_text({"path": "editor/0", "text": "ONE"})
+    atspi.tool_ui_set_text({"path": "editor/0", "text": "TWO"})
+    assert node.value == "TWO"
+
+
+def test_set_text_append_is_opt_in(monkeypatch):
+    """replace=False keeps the old behaviour for callers who ask for it."""
+    node = _set_text_env(monkeypatch, "préface ")
+    atspi.tool_ui_set_text({"path": "editor/0", "text": "ONE", "replace": False})
+    assert node.value == "préface ONE"
+
+
+def test_set_text_failed_append_no_longer_verifies(monkeypatch):
+    """A doubled append (retry after failure) must FAIL verify, not pass.
+
+    Old check was `text in after` — the substring is present in "ONEONE",
+    so a corrupted widget reported verified:True.
+    """
+    node = _set_text_env(monkeypatch, "ONE")
+
+    def double_append(offset, text, byte_length):
+        # a widget that applies the insert twice, as a retried write can
+        Buffer = type(node)
+        Buffer.insert_text(node, offset, text, byte_length)
+        Buffer.insert_text(node, offset, text, byte_length)
+        return True
+
+    node.insert_text = double_append
+    from deskwright.errors import ToolError
+    with pytest.raises(ToolError, match="does not hold what was written"):
+        atspi.tool_ui_set_text({"path": "editor/0", "text": "ONE",
+                                "replace": False})
