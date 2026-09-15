@@ -348,3 +348,43 @@ The new restricted window_layout tool inherits that same implementation. This
 latency issue was left unchanged in both conditions to isolate scoped approval
 changes. A follow-up should validate the requested geometry and state before
 waiting, while retaining verification for actual moves and asynchronous mapping.
+
+
+## The headless session never had an AT-SPI registry (2026-09-15)
+
+The headless self-test failing `ui_tree`/`ui_find` with "no application named
+'gnome-shell' on the AT-SPI bus" was not a flaky app. The headless session's
+a11y bus had no registry at all, and never had.
+
+The chain, read out of the session's own log (`~/.local/state/deskwright/
+headless-shell*.log`): the private dbus-daemon activates `org.a11y.Bus` fine,
+the a11y broker then asks the session bus to activate
+`org.freedesktop.systemd1` to start `at-spi2-registryd`, and on a bus with no
+systemd behind it that name is served by the stub systemd ships for
+systemd-less buses, `Exec=/bin/false`, which exits 1:
+
+    Activating service name='org.freedesktop.systemd1' ... failed:
+    Process org.freedesktop.systemd1 exited with status 1
+
+The user's real session never sees this, because its bus has the real systemd
+behind the name. That asymmetry is why this looked like "apps expose stunted
+trees" (the usual toolkit-accessibility explanation) instead of "no registry".
+
+Two measurements worth keeping:
+
+* at-spi2-core 2.59.0 switched the a11y launcher to dbus-broker by default,
+  and the dbus-broker launcher is the one that routes activation through
+  systemd. GNOME 49 and older stacks do not hit this; anything on 2.59+
+  should, whatever the distro. (Only measured on Ubuntu 26.04, at-spi 2.60.4.)
+* ORDER matters. Starting registryd before the shell gives 18/18. Starting it
+  after the shell answers gives 16/18 anyway, because gnome-shell's
+  atk-bridge gives up registering after a while and does not come back: apps
+  started later (portal-gtk, ibus) were on the bus while gnome-shell was not,
+  in the same session. The primary session always has its registry before any
+  app starts, and the headless one now does too.
+
+The fix spawns registryd directly against the private bus
+(deskwright/headless.py, `_ensure_atspi_registry`). It resolves the a11y
+socket itself from `org.a11y.Bus.GetAddress`, so `DBUS_SESSION_BUS_ADDRESS`
+is the only variable it needs, and `--use-gnome-session` makes it exit when
+the bus dies, so it cannot outlive the session.
