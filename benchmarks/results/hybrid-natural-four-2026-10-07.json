@@ -1,0 +1,2233 @@
+{
+  "fixture_root": "/tmp/deskwright-natural-k1e2zj1o",
+  "events": [
+    {
+      "phase": "R1",
+      "tool": "launch_app",
+      "started": 8152.641112568,
+      "ok": true,
+      "duration_s": 1.4757450350007275
+    },
+    {
+      "phase": "R1",
+      "tool": "window_layout",
+      "started": 8154.117178037,
+      "ok": true,
+      "duration_s": 0.3451228789999732
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8154.462612884,
+      "ok": true,
+      "duration_s": 0.8294877549997182
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8155.292533645,
+      "ok": true,
+      "duration_s": 0.3162722389997725
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8155.60914341,
+      "ok": true,
+      "duration_s": 0.8848316140001771
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8156.494267765,
+      "ok": true,
+      "duration_s": 0.09742644500056485
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_wait",
+      "started": 8156.592056482,
+      "ok": true,
+      "duration_s": 0.018903545000284794
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8156.611345724,
+      "ok": true,
+      "duration_s": 0.07909576900055981
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8156.690807453,
+      "ok": true,
+      "duration_s": 1.4719831960001102
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8158.163148162,
+      "ok": true,
+      "duration_s": 0.20267263599998842
+    },
+    {
+      "phase": "R1",
+      "tool": "pointer_click",
+      "started": 8174.967144642,
+      "ok": true,
+      "duration_s": 0.4843496419998701
+    },
+    {
+      "phase": "R1",
+      "tool": "wait_for",
+      "started": 8175.451977798,
+      "ok": false,
+      "error": "condition must be one of: clipboard_changed, elapsed, focus_changes, text_appears, widget_exists, window_exists, window_focused, window_gone",
+      "duration_s": 0.00018967899995914195
+    },
+    {
+      "phase": "R1",
+      "tool": "list_windows",
+      "started": 8183.950863397,
+      "ok": true,
+      "duration_s": 0.015279921000001195
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8183.96660466,
+      "ok": true,
+      "duration_s": 0.1548068609999973
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8198.122254657,
+      "ok": true,
+      "duration_s": 0.06501421599932655
+    },
+    {
+      "phase": "R1",
+      "tool": "wait_for",
+      "started": 8198.187854049,
+      "ok": true,
+      "duration_s": 0.1935913220004295
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8198.38234402,
+      "ok": true,
+      "duration_s": 0.5398691460013652
+    },
+    {
+      "phase": "R1",
+      "tool": "launch_app",
+      "started": 8198.922642387,
+      "ok": true,
+      "duration_s": 1.1680772889994842
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8200.091228057,
+      "ok": true,
+      "duration_s": 0.3585006040011649
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8200.450091046,
+      "ok": true,
+      "duration_s": 0.07542486900092626
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8200.525852131,
+      "ok": true,
+      "duration_s": 0.06092564499886066
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8200.587260228,
+      "ok": true,
+      "duration_s": 0.3860859110009187
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8217.023844925,
+      "ok": true,
+      "duration_s": 0.3385845770008018
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8217.362917825,
+      "ok": true,
+      "duration_s": 0.0674423670006945
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8217.430791287,
+      "ok": true,
+      "duration_s": 0.05904692299918679
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8217.490264265,
+      "ok": true,
+      "duration_s": 0.3595277160002297
+    },
+    {
+      "phase": "R1",
+      "tool": "activate_window",
+      "started": 8217.850263473,
+      "ok": true,
+      "duration_s": 0.16018987800089235
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8218.010969026,
+      "ok": true,
+      "duration_s": 0.5462469650010462
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8218.557584127,
+      "ok": true,
+      "duration_s": 0.09384375399895362
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8218.651853837,
+      "ok": true,
+      "duration_s": 0.13447588000053656
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_snapshot",
+      "started": 8218.786752757,
+      "ok": true,
+      "duration_s": 0.8813928899999155
+    },
+    {
+      "phase": "R1",
+      "tool": "list_windows",
+      "started": 8227.277449709,
+      "ok": true,
+      "duration_s": 0.01330495799993514
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8227.291382018,
+      "ok": true,
+      "duration_s": 0.185825702999864
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_snapshot",
+      "started": 8237.129753468,
+      "ok": true,
+      "duration_s": 0.7479649090000748
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8254.077939435,
+      "ok": true,
+      "duration_s": 0.8085142020008789
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8254.886962826,
+      "ok": true,
+      "duration_s": 0.09548897099921305
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8254.983214012,
+      "ok": true,
+      "duration_s": 0.19332788700012316
+    },
+    {
+      "phase": "R1",
+      "tool": "wait_for",
+      "started": 8255.177056748,
+      "ok": true,
+      "duration_s": 5.117535090999809
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8270.145808211,
+      "ok": true,
+      "duration_s": 0.12234291799904895
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8270.268768982,
+      "ok": true,
+      "duration_s": 0.5928782970004249
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8283.87161745,
+      "ok": false,
+      "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+      "duration_s": 5.000311870999212
+    },
+    {
+      "phase": "R1",
+      "tool": "pointer_click",
+      "started": 8302.405171978,
+      "ok": true,
+      "duration_s": 0.492812425000011
+    },
+    {
+      "phase": "R1",
+      "tool": "wait_for",
+      "started": 8302.898472175,
+      "ok": true,
+      "duration_s": 5.079207722999854
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8316.047144155,
+      "ok": true,
+      "duration_s": 0.13133574499988754
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_snapshot",
+      "started": 8316.179389478,
+      "ok": true,
+      "duration_s": 0.9034517790005339
+    },
+    {
+      "phase": "R1",
+      "tool": "pointer_click",
+      "started": 8334.200050147,
+      "ok": true,
+      "duration_s": 0.4948703630016098
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8334.695636713,
+      "ok": true,
+      "duration_s": 0.20688183799938997
+    },
+    {
+      "phase": "R1",
+      "tool": "type_text",
+      "started": 8334.903082316,
+      "ok": true,
+      "duration_s": 1.42662790400027
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8336.330281419,
+      "ok": true,
+      "duration_s": 0.09583677400041779
+    },
+    {
+      "phase": "R1",
+      "tool": "type_text",
+      "started": 8336.426634738,
+      "ok": true,
+      "duration_s": 1.408027535999281
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8337.835435014,
+      "ok": true,
+      "duration_s": 0.06417276799948013
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8337.900198939,
+      "ok": true,
+      "duration_s": 0.13308439799948246
+    },
+    {
+      "phase": "R1",
+      "tool": "pointer_click",
+      "started": 8350.969306876,
+      "ok": true,
+      "duration_s": 0.41942049199860776
+    },
+    {
+      "phase": "R1",
+      "tool": "wait_for",
+      "started": 8351.389372907,
+      "ok": true,
+      "duration_s": 0.038048907999836956
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8351.431052724,
+      "ok": true,
+      "duration_s": 1.3352807410010428
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8352.767129168,
+      "ok": true,
+      "duration_s": 0.1428138779992878
+    },
+    {
+      "phase": "R1",
+      "tool": "activate_window",
+      "started": 8352.910605127,
+      "ok": true,
+      "duration_s": 0.2427620080015913
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8353.154103346,
+      "ok": true,
+      "duration_s": 0.11816105599973525
+    },
+    {
+      "phase": "R1",
+      "tool": "type_text",
+      "started": 8353.272970156,
+      "ok": true,
+      "duration_s": 2.1047863660005532
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8355.378409279,
+      "ok": true,
+      "duration_s": 0.08271898600105487
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8355.461880488,
+      "ok": true,
+      "duration_s": 1.2923414350007079
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8356.754999283,
+      "ok": true,
+      "duration_s": 0.23394647399982205
+    },
+    {
+      "phase": "R1",
+      "tool": "pointer_click",
+      "started": 8373.292209139,
+      "ok": true,
+      "duration_s": 0.4214315350000106
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8373.714355838,
+      "ok": true,
+      "duration_s": 0.05876166000052763
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_snapshot",
+      "started": 8373.773721633,
+      "ok": true,
+      "duration_s": 0.7266252749996056
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8391.555716082,
+      "ok": true,
+      "duration_s": 0.7169489869993413
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8392.273317965,
+      "ok": true,
+      "duration_s": 0.08957944499888981
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_wait",
+      "started": 8392.363827988,
+      "ok": true,
+      "duration_s": 0.026428909999594907
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_action",
+      "started": 8392.390903873,
+      "ok": true,
+      "duration_s": 0.08701655100048811
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8392.478544957,
+      "ok": true,
+      "duration_s": 1.4953009059991018
+    },
+    {
+      "phase": "R1",
+      "tool": "press_keys",
+      "started": 8393.974556057,
+      "ok": true,
+      "duration_s": 0.05921782699988398
+    },
+    {
+      "phase": "R1",
+      "tool": "wait_for",
+      "started": 8394.034478067,
+      "ok": true,
+      "duration_s": 0.03517649300010817
+    },
+    {
+      "phase": "R1",
+      "tool": "ui_query",
+      "started": 8394.070639731,
+      "ok": true,
+      "duration_s": 0.5941528610001114
+    },
+    {
+      "phase": "R1",
+      "tool": "screenshot",
+      "started": 8394.665539124,
+      "ok": true,
+      "duration_s": 0.1685575039991818
+    },
+    {
+      "phase": "R2",
+      "tool": "launch_app",
+      "started": 8429.417520352,
+      "ok": true,
+      "duration_s": 0.3311767499999405
+    },
+    {
+      "phase": "R2",
+      "tool": "window_layout",
+      "started": 8429.749604172,
+      "ok": true,
+      "duration_s": 0.31650659699880634
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8430.06685307,
+      "ok": true,
+      "duration_s": 0.8295951139989484
+    },
+    {
+      "phase": "R2",
+      "tool": "screenshot",
+      "started": 8430.897186247,
+      "ok": true,
+      "duration_s": 0.17326909999974305
+    },
+    {
+      "phase": "R2",
+      "tool": "pointer_click",
+      "started": 8444.446670885,
+      "ok": true,
+      "duration_s": 0.4110570419998112
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8444.858403863,
+      "ok": true,
+      "duration_s": 0.05988716300089436
+    },
+    {
+      "phase": "R2",
+      "tool": "wait_for",
+      "started": 8444.919073713,
+      "ok": true,
+      "duration_s": 0.04010281600130838
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8444.960336934,
+      "ok": true,
+      "duration_s": 0.5612998679989687
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8445.522396155,
+      "ok": true,
+      "duration_s": 0.09173008899961133
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_snapshot",
+      "started": 8445.614948385,
+      "ok": true,
+      "duration_s": 0.6408494200004498
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8454.675025694,
+      "ok": true,
+      "duration_s": 0.6051624000010634
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_action",
+      "started": 8455.280966022,
+      "ok": true,
+      "duration_s": 0.08907854000062798
+    },
+    {
+      "phase": "R2",
+      "tool": "screenshot",
+      "started": 8455.370749763,
+      "ok": true,
+      "duration_s": 0.169138307999674
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8476.480736262,
+      "ok": true,
+      "duration_s": 0.18737288000011176
+    },
+    {
+      "phase": "R2",
+      "tool": "launch_app",
+      "started": 8476.668898512,
+      "ok": true,
+      "duration_s": 0.9137957220009412
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8477.583499112,
+      "ok": true,
+      "duration_s": 0.5449589850013581
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_action",
+      "started": 8478.129229262,
+      "ok": true,
+      "duration_s": 0.08051147399964975
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8478.210636064,
+      "ok": true,
+      "duration_s": 0.06129836800027988
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8478.272728069,
+      "ok": true,
+      "duration_s": 0.35346262600069167
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_action",
+      "started": 8478.626948555,
+      "ok": true,
+      "duration_s": 0.06854431799911254
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8478.696228581,
+      "ok": true,
+      "duration_s": 0.05896459399991727
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8478.755908326,
+      "ok": true,
+      "duration_s": 0.3362365119992319
+    },
+    {
+      "phase": "R2",
+      "tool": "activate_window",
+      "started": 8479.092910644,
+      "ok": true,
+      "duration_s": 0.16054104599970742
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8479.254607816,
+      "ok": true,
+      "duration_s": 0.6126016520011035
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_action",
+      "started": 8479.867997745,
+      "ok": true,
+      "duration_s": 0.11526704900097684
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8479.984063842,
+      "ok": true,
+      "duration_s": 0.13237218500034942
+    },
+    {
+      "phase": "R2",
+      "tool": "list_windows",
+      "started": 8480.117212713,
+      "ok": true,
+      "duration_s": 0.019645277001473005
+    },
+    {
+      "phase": "R2",
+      "tool": "wait_for",
+      "started": 8496.426287247,
+      "ok": true,
+      "duration_s": 0.02838274799978535
+    },
+    {
+      "phase": "R2",
+      "tool": "list_windows",
+      "started": 8496.455506628,
+      "ok": true,
+      "duration_s": 0.01388391599903116
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8496.470409329,
+      "ok": false,
+      "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+      "duration_s": 5.00212641699909
+    },
+    {
+      "phase": "R2",
+      "tool": "screenshot",
+      "started": 8517.586849242,
+      "ok": true,
+      "duration_s": 0.1286980679997214
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8543.296829868,
+      "ok": true,
+      "duration_s": 0.23111079299997073
+    },
+    {
+      "phase": "R2",
+      "tool": "type_text",
+      "started": 8543.528763398,
+      "ok": true,
+      "duration_s": 1.2170897769992735
+    },
+    {
+      "phase": "R2",
+      "tool": "pointer_click",
+      "started": 8544.746667927,
+      "ok": true,
+      "duration_s": 0.4337399510004616
+    },
+    {
+      "phase": "R2",
+      "tool": "wait_for",
+      "started": 8545.182868485,
+      "ok": true,
+      "duration_s": 0.03331901899946388
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8545.217171354,
+      "ok": true,
+      "duration_s": 0.7843457880007918
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8546.002710195,
+      "ok": true,
+      "duration_s": 0.10474311600046349
+    },
+    {
+      "phase": "R2",
+      "tool": "activate_window",
+      "started": 8546.108424998,
+      "ok": true,
+      "duration_s": 0.16913260600085778
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8546.278783269,
+      "ok": true,
+      "duration_s": 0.14725696400091692
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8546.426932691,
+      "ok": true,
+      "duration_s": 1.090225427000405
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_action",
+      "started": 8547.51806336,
+      "ok": true,
+      "duration_s": 0.0937575600000855
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_wait",
+      "started": 8547.612768722,
+      "ok": true,
+      "duration_s": 0.016704388999642106
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_action",
+      "started": 8547.630364748,
+      "ok": true,
+      "duration_s": 0.0688843009993434
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8547.700101973,
+      "ok": true,
+      "duration_s": 1.7991939670009742
+    },
+    {
+      "phase": "R2",
+      "tool": "screenshot",
+      "started": 8549.500259002,
+      "ok": true,
+      "duration_s": 0.16951551000056497
+    },
+    {
+      "phase": "R2",
+      "tool": "pointer_click",
+      "started": 8564.325410228,
+      "ok": true,
+      "duration_s": 0.4929038499994931
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8564.819477758,
+      "ok": true,
+      "duration_s": 0.16830853999999817
+    },
+    {
+      "phase": "R2",
+      "tool": "pointer_click",
+      "started": 8564.988794194,
+      "ok": true,
+      "duration_s": 0.48778680299983534
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8565.477875252,
+      "ok": true,
+      "duration_s": 0.12384717600070871
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8565.608588577,
+      "ok": true,
+      "duration_s": 1.2475092479999148
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8566.85720064,
+      "ok": true,
+      "duration_s": 0.11060903899851837
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8566.969642868,
+      "ok": true,
+      "duration_s": 1.0509313599995949
+    },
+    {
+      "phase": "R2",
+      "tool": "screenshot",
+      "started": 8568.021725454,
+      "ok": true,
+      "duration_s": 0.22795064499950968
+    },
+    {
+      "phase": "R2",
+      "tool": "press_keys",
+      "started": 8580.967208144,
+      "ok": true,
+      "duration_s": 0.062469054999382934
+    },
+    {
+      "phase": "R2",
+      "tool": "wait_for",
+      "started": 8581.032192852,
+      "ok": true,
+      "duration_s": 0.04674844599867356
+    },
+    {
+      "phase": "R2",
+      "tool": "ui_query",
+      "started": 8581.080816717,
+      "ok": true,
+      "duration_s": 0.543558456000028
+    },
+    {
+      "phase": "R2",
+      "tool": "screenshot",
+      "started": 8581.625150803,
+      "ok": true,
+      "duration_s": 0.14181458100028976
+    },
+    {
+      "phase": "R3",
+      "tool": "launch_app",
+      "started": 8595.795041517,
+      "ok": true,
+      "duration_s": 1.1312938400005805
+    },
+    {
+      "phase": "R3",
+      "tool": "window_layout",
+      "started": 8596.928121708,
+      "ok": true,
+      "duration_s": 0.31439895699986664
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8597.243505958,
+      "ok": true,
+      "duration_s": 0.9906655209997552
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8598.235234038,
+      "ok": true,
+      "duration_s": 0.17963678399974015
+    },
+    {
+      "phase": "R3",
+      "tool": "pointer_click",
+      "started": 8611.701448778,
+      "ok": true,
+      "duration_s": 0.5023085850007192
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8612.204762664,
+      "ok": true,
+      "duration_s": 0.17986176900012651
+    },
+    {
+      "phase": "R3",
+      "tool": "wait_for",
+      "started": 8612.38561109,
+      "ok": true,
+      "duration_s": 10.053747137000755
+    },
+    {
+      "phase": "R3",
+      "tool": "list_windows",
+      "started": 8645.469338797,
+      "ok": true,
+      "duration_s": 0.014858171000014408
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8645.485484712,
+      "ok": true,
+      "duration_s": 0.585114313998929
+    },
+    {
+      "phase": "R3",
+      "tool": "window_layout",
+      "started": 8656.025586709,
+      "ok": true,
+      "duration_s": 0.30747028199948545
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8656.334094874,
+      "ok": true,
+      "duration_s": 0.2214701269986108
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8656.556597054,
+      "ok": true,
+      "duration_s": 0.19185426400144934
+    },
+    {
+      "phase": "R3",
+      "tool": "pointer_click",
+      "started": 8666.869841202,
+      "ok": true,
+      "duration_s": 0.42275802999938605
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8667.293584266,
+      "ok": true,
+      "duration_s": 0.1572422679982992
+    },
+    {
+      "phase": "R3",
+      "tool": "launch_app",
+      "started": 8679.554119439,
+      "ok": true,
+      "duration_s": 0.883208883999032
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8680.438418366,
+      "ok": true,
+      "duration_s": 0.6276938099999825
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_action",
+      "started": 8681.06739399,
+      "ok": true,
+      "duration_s": 0.07347074399876874
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8681.141924259,
+      "ok": true,
+      "duration_s": 0.06363251699985994
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8681.206852666,
+      "ok": true,
+      "duration_s": 0.41401155200037465
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_action",
+      "started": 8681.621950574,
+      "ok": true,
+      "duration_s": 0.07841120700140891
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8681.701541092,
+      "ok": true,
+      "duration_s": 0.05967927300116571
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8681.762622024,
+      "ok": true,
+      "duration_s": 0.46119984300094075
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_action",
+      "started": 8682.224910677,
+      "ok": true,
+      "duration_s": 0.0726040120007383
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8682.298655177,
+      "ok": true,
+      "duration_s": 0.0620975260007981
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8682.361799154,
+      "ok": true,
+      "duration_s": 0.39663276499959466
+    },
+    {
+      "phase": "R3",
+      "tool": "activate_window",
+      "started": 8682.759514317,
+      "ok": true,
+      "duration_s": 0.1689373989993328
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8682.929652958,
+      "ok": true,
+      "duration_s": 0.14792537099856418
+    },
+    {
+      "phase": "R3",
+      "tool": "pointer_click",
+      "started": 8698.075883889,
+      "ok": true,
+      "duration_s": 0.428823664000447
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8698.505796133,
+      "ok": true,
+      "duration_s": 0.06043243099884421
+    },
+    {
+      "phase": "R3",
+      "tool": "wait_for",
+      "started": 8698.567487956,
+      "ok": true,
+      "duration_s": 0.054050062000897015
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8698.623341895,
+      "ok": true,
+      "duration_s": 0.607543183999951
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_action",
+      "started": 8699.23210694,
+      "ok": true,
+      "duration_s": 0.08619611699941743
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8699.319486927,
+      "ok": true,
+      "duration_s": 0.12989276300140773
+    },
+    {
+      "phase": "R3",
+      "tool": "wait_for",
+      "started": 8699.450525387,
+      "ok": true,
+      "duration_s": 0.3742512480002915
+    },
+    {
+      "phase": "R3",
+      "tool": "list_windows",
+      "started": 8699.825907946,
+      "ok": true,
+      "duration_s": 0.02026154499981203
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8699.848361118,
+      "ok": true,
+      "duration_s": 0.19568781300040428
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8713.608865866,
+      "ok": true,
+      "duration_s": 0.10021760100062238
+    },
+    {
+      "phase": "R3",
+      "tool": "type_text",
+      "started": 8713.710293446,
+      "ok": true,
+      "duration_s": 1.4040723300004174
+    },
+    {
+      "phase": "R3",
+      "tool": "pointer_click",
+      "started": 8715.115523226,
+      "ok": true,
+      "duration_s": 0.4355227189989819
+    },
+    {
+      "phase": "R3",
+      "tool": "wait_for",
+      "started": 8715.554721086,
+      "ok": true,
+      "duration_s": 0.05255731099896366
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8715.60866595,
+      "ok": true,
+      "duration_s": 1.6593650160011748
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8717.269391428,
+      "ok": true,
+      "duration_s": 0.12383097800011456
+    },
+    {
+      "phase": "R3",
+      "tool": "activate_window",
+      "started": 8717.394929931,
+      "ok": true,
+      "duration_s": 0.24186080199979187
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8717.638218873,
+      "ok": true,
+      "duration_s": 0.2665598219991807
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8717.90604515,
+      "ok": true,
+      "duration_s": 1.4419051939985366
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_action",
+      "started": 8719.349224884,
+      "ok": true,
+      "duration_s": 0.11005830300018715
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_wait",
+      "started": 8719.460138197,
+      "ok": true,
+      "duration_s": 0.0353356409996195
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_action",
+      "started": 8719.49668585,
+      "ok": true,
+      "duration_s": 0.14127215200096543
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8719.640245369,
+      "ok": true,
+      "duration_s": 4.241915816999608
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8723.883462968,
+      "ok": true,
+      "duration_s": 0.1556626099991263
+    },
+    {
+      "phase": "R3",
+      "tool": "pointer_click",
+      "started": 8740.922116879,
+      "ok": true,
+      "duration_s": 0.44478119399900606
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8741.368129502,
+      "ok": true,
+      "duration_s": 0.13304218400116952
+    },
+    {
+      "phase": "R3",
+      "tool": "pointer_click",
+      "started": 8741.502497984,
+      "ok": true,
+      "duration_s": 0.423495319999347
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8741.927169579,
+      "ok": true,
+      "duration_s": 0.0634564660012984
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8741.991917337,
+      "ok": true,
+      "duration_s": 0.8926173609997932
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8742.885770636,
+      "ok": true,
+      "duration_s": 0.09620452400122304
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8742.983310915,
+      "ok": true,
+      "duration_s": 0.7329218169998057
+    },
+    {
+      "phase": "R3",
+      "tool": "press_keys",
+      "started": 8743.717465142,
+      "ok": true,
+      "duration_s": 0.060704554000039934
+    },
+    {
+      "phase": "R3",
+      "tool": "wait_for",
+      "started": 8743.779661245,
+      "ok": true,
+      "duration_s": 0.035301556999911554
+    },
+    {
+      "phase": "R3",
+      "tool": "ui_query",
+      "started": 8743.816886043,
+      "ok": true,
+      "duration_s": 0.6655174570005329
+    },
+    {
+      "phase": "R3",
+      "tool": "screenshot",
+      "started": 8744.483814326,
+      "ok": true,
+      "duration_s": 0.14511367599880032
+    },
+    {
+      "phase": "R4",
+      "tool": "launch_app",
+      "started": 8763.86852445,
+      "ok": true,
+      "duration_s": 1.1427381780013093
+    },
+    {
+      "phase": "R4",
+      "tool": "window_layout",
+      "started": 8765.012629602,
+      "ok": true,
+      "duration_s": 0.3339960829998745
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 8765.348230958,
+      "ok": true,
+      "duration_s": 0.9145292640005209
+    },
+    {
+      "phase": "R4",
+      "tool": "launch_app",
+      "started": 8766.264126676,
+      "ok": true,
+      "duration_s": 0.9081854979995114
+    },
+    {
+      "phase": "R4",
+      "tool": "window_layout",
+      "started": 8767.17605384,
+      "ok": true,
+      "duration_s": 0.31789667600060056
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8767.495114438,
+      "ok": true,
+      "duration_s": 0.161776954000743
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_snapshot",
+      "started": 8767.658386648,
+      "ok": true,
+      "duration_s": 0.2316740189999109
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 8777.893369662,
+      "ok": true,
+      "duration_s": 0.17185930099913094
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 8778.066465181,
+      "ok": true,
+      "duration_s": 0.056941376999020576
+    },
+    {
+      "phase": "R4",
+      "tool": "list_windows",
+      "started": 8778.12475113,
+      "ok": true,
+      "duration_s": 0.015101006998520461
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8778.1412663,
+      "ok": true,
+      "duration_s": 0.14484770500166633
+    },
+    {
+      "phase": "R4",
+      "tool": "list_windows",
+      "started": 8785.425819174,
+      "ok": true,
+      "duration_s": 0.013776613001027727
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8785.44106329,
+      "ok": true,
+      "duration_s": 0.44717685599971446
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_snapshot",
+      "started": 8796.847442017,
+      "ok": true,
+      "duration_s": 0.3452206109996041
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 8807.453873678,
+      "ok": true,
+      "duration_s": 0.38933666800039646
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 8807.844665455,
+      "ok": true,
+      "duration_s": 0.07000593500015384
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 8807.916033595,
+      "ok": true,
+      "duration_s": 0.06371519999993325
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 8807.981193856,
+      "ok": true,
+      "duration_s": 0.36544272100036324
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8808.348058214,
+      "ok": true,
+      "duration_s": 0.18017884400069306
+    },
+    {
+      "phase": "R4",
+      "tool": "activate_window",
+      "started": 8822.424292435,
+      "ok": true,
+      "duration_s": 0.16937854000025254
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 8822.595088944,
+      "ok": false,
+      "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+      "duration_s": 5.022762092999983
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8835.14294848,
+      "ok": true,
+      "duration_s": 0.1500885109999217
+    },
+    {
+      "phase": "R4",
+      "tool": "list_windows",
+      "started": 8835.294818005,
+      "ok": true,
+      "duration_s": 0.01584743700004765
+    },
+    {
+      "phase": "R4",
+      "tool": "activate_window",
+      "started": 8847.540986759,
+      "ok": true,
+      "duration_s": 0.17925166900022305
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 8847.721827019,
+      "ok": true,
+      "duration_s": 0.16465735000019777
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 8847.887932686,
+      "ok": true,
+      "duration_s": 0.05528337599935185
+    },
+    {
+      "phase": "R4",
+      "tool": "list_windows",
+      "started": 8847.944524475,
+      "ok": true,
+      "duration_s": 0.014445286999034579
+    },
+    {
+      "phase": "R4",
+      "tool": "list_windows",
+      "started": 8857.61410066,
+      "ok": true,
+      "duration_s": 0.013331110001672641
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8857.628947463,
+      "ok": true,
+      "duration_s": 0.45122906700089516
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 8883.258799681,
+      "ok": true,
+      "duration_s": 0.23292616499929863
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8883.493716483,
+      "ok": true,
+      "duration_s": 0.20593002799978422
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 8898.522892346,
+      "ok": true,
+      "duration_s": 0.10604400600095687
+    },
+    {
+      "phase": "R4",
+      "tool": "type_text",
+      "started": 8898.630585176,
+      "ok": true,
+      "duration_s": 4.1796223419987655
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8902.812095122,
+      "ok": true,
+      "duration_s": 0.23577314499925706
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 8916.696673601,
+      "ok": true,
+      "duration_s": 0.06841918700047245
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 8916.766583435,
+      "ok": true,
+      "duration_s": 3.4150614260015573
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8920.183620991,
+      "ok": true,
+      "duration_s": 0.17782941100085736
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 8938.87997466,
+      "ok": true,
+      "duration_s": 0.4290012540004682
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 8939.310450312,
+      "ok": true,
+      "duration_s": 0.10212185199998203
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 8939.414077239,
+      "ok": true,
+      "duration_s": 0.194456347000596
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_snapshot",
+      "started": 8985.515313343,
+      "ok": true,
+      "duration_s": 3.1333469670007617
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_snapshot",
+      "started": 9003.570504653,
+      "ok": true,
+      "duration_s": 3.3840042179999728
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_snapshot",
+      "started": 9019.651424351,
+      "ok": true,
+      "duration_s": 1.610827167000025
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_snapshot",
+      "started": 9038.334869027,
+      "ok": true,
+      "duration_s": 2.31834504499966
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9040.654739486,
+      "ok": true,
+      "duration_s": 0.26485019799838483
+    },
+    {
+      "phase": "R4",
+      "tool": "activate_window",
+      "started": 9040.921325764,
+      "ok": true,
+      "duration_s": 0.20734394499959308
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9041.130161139,
+      "ok": true,
+      "duration_s": 0.12179315999856044
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9041.253522343,
+      "ok": true,
+      "duration_s": 1.4181505340002332
+    },
+    {
+      "phase": "R4",
+      "tool": "window_manage",
+      "started": 9042.6736121,
+      "ok": true,
+      "duration_s": 0.3149316840008396
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 9042.990415791,
+      "ok": true,
+      "duration_s": 0.03243946099973982
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 9043.024758617,
+      "ok": true,
+      "duration_s": 0.17227758599983645
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 9066.656155534,
+      "ok": true,
+      "duration_s": 0.5464829160009685
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9067.204233736,
+      "ok": true,
+      "duration_s": 0.18076076699981058
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 9067.387587599,
+      "ok": true,
+      "duration_s": 0.04352313300114474
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9067.43448555,
+      "ok": true,
+      "duration_s": 0.7935424150000472
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9068.230060614,
+      "ok": true,
+      "duration_s": 0.10980156600089686
+    },
+    {
+      "phase": "R4",
+      "tool": "activate_window",
+      "started": 9068.341951777,
+      "ok": true,
+      "duration_s": 0.20851067600051465
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 9068.552266932,
+      "ok": true,
+      "duration_s": 0.46487939200051187
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9069.018752641,
+      "ok": true,
+      "duration_s": 0.06819418099985342
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 9069.088629152,
+      "ok": true,
+      "duration_s": 0.04773636100071599
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9069.138584183,
+      "ok": true,
+      "duration_s": 0.9322692429996096
+    },
+    {
+      "phase": "R4",
+      "tool": "launch_app",
+      "started": 9070.072662444,
+      "ok": true,
+      "duration_s": 1.154024962001131
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9071.228859568,
+      "ok": true,
+      "duration_s": 0.6764554530000169
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 9071.907511439,
+      "ok": true,
+      "duration_s": 0.11414807499932067
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9072.023966961,
+      "ok": true,
+      "duration_s": 0.08046656199985591
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9072.106300029,
+      "ok": true,
+      "duration_s": 0.6257319550004468
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 9072.733504217,
+      "ok": true,
+      "duration_s": 0.11523373000090942
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9072.850640592,
+      "ok": true,
+      "duration_s": 0.06822644200110517
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9072.920036858,
+      "ok": true,
+      "duration_s": 0.4417937409998558
+    },
+    {
+      "phase": "R4",
+      "tool": "activate_window",
+      "started": 9088.423251647,
+      "ok": true,
+      "duration_s": 0.2049208530006581
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9088.630843221,
+      "ok": true,
+      "duration_s": 1.3135548219997872
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 9089.947203529,
+      "ok": true,
+      "duration_s": 0.27168313699985447
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9090.222267986,
+      "ok": true,
+      "duration_s": 0.1596594249986083
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 9090.384399157,
+      "ok": true,
+      "duration_s": 0.5941755650001141
+    },
+    {
+      "phase": "R4",
+      "tool": "list_windows",
+      "started": 9090.981327608,
+      "ok": true,
+      "duration_s": 0.034463246000086656
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 9091.018123408,
+      "ok": true,
+      "duration_s": 0.2862637860016548
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 9112.066651982,
+      "ok": true,
+      "duration_s": 0.41922297999917646
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9112.487476228,
+      "ok": true,
+      "duration_s": 0.10004679000121541
+    },
+    {
+      "phase": "R4",
+      "tool": "type_text",
+      "started": 9112.589157417,
+      "ok": true,
+      "duration_s": 1.625573577999603
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 9114.216393216,
+      "ok": true,
+      "duration_s": 0.44679557400013437
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 9114.665608268,
+      "ok": true,
+      "duration_s": 0.043034542999521364
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9114.71035106,
+      "ok": true,
+      "duration_s": 1.17115035399911
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9115.88360626,
+      "ok": true,
+      "duration_s": 0.2154809869989549
+    },
+    {
+      "phase": "R4",
+      "tool": "activate_window",
+      "started": 9116.106050725,
+      "ok": true,
+      "duration_s": 0.2604625789990678
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9116.368677591,
+      "ok": true,
+      "duration_s": 0.213869382001576
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9116.587743082,
+      "ok": true,
+      "duration_s": 1.9291996129995823
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 9118.522234795,
+      "ok": true,
+      "duration_s": 0.14752857999883418
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_wait",
+      "started": 9118.671543118,
+      "ok": true,
+      "duration_s": 0.03412624100019457
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_action",
+      "started": 9118.707401913,
+      "ok": true,
+      "duration_s": 0.15738606200102367
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9118.866724874,
+      "ok": false,
+      "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+      "duration_s": 5.001322173000517
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 9132.991902171,
+      "ok": true,
+      "duration_s": 0.212443925000116
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 9169.446934338,
+      "ok": true,
+      "duration_s": 0.5721881819990813
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9170.020695945,
+      "ok": true,
+      "duration_s": 0.2529216120001365
+    },
+    {
+      "phase": "R4",
+      "tool": "pointer_click",
+      "started": 9170.275469105,
+      "ok": true,
+      "duration_s": 0.4407800910012156
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9170.718105323,
+      "ok": true,
+      "duration_s": 0.06334410499948717
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9170.783237286,
+      "ok": true,
+      "duration_s": 1.0709150200000295
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9171.856051444,
+      "ok": true,
+      "duration_s": 0.10565567599951464
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9171.96337421,
+      "ok": true,
+      "duration_s": 0.8969302879995666
+    },
+    {
+      "phase": "R4",
+      "tool": "press_keys",
+      "started": 9172.862206602,
+      "ok": true,
+      "duration_s": 0.06892015899938997
+    },
+    {
+      "phase": "R4",
+      "tool": "wait_for",
+      "started": 9172.933358776,
+      "ok": true,
+      "duration_s": 0.04288905900102691
+    },
+    {
+      "phase": "R4",
+      "tool": "ui_query",
+      "started": 9172.980665598,
+      "ok": true,
+      "duration_s": 0.828117701001247
+    },
+    {
+      "phase": "R4",
+      "tool": "screenshot",
+      "started": 9173.81058303,
+      "ok": true,
+      "duration_s": 0.18212913500065042
+    }
+  ],
+  "runs": [
+    {
+      "id": "R1",
+      "elapsed_s": 242.19402291200004,
+      "backend_s": 45.667689526004324,
+      "calls": 74,
+      "screenshots": 8,
+      "errors": [
+        {
+          "phase": "R1",
+          "tool": "wait_for",
+          "started": 8175.451977798,
+          "ok": false,
+          "error": "condition must be one of: clipboard_changed, elapsed, focus_changes, text_appears, widget_exists, window_exists, window_focused, window_gone",
+          "duration_s": 0.00018967899995914195
+        },
+        {
+          "phase": "R1",
+          "tool": "ui_query",
+          "started": 8283.87161745,
+          "ok": false,
+          "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+          "duration_s": 5.000311870999212
+        }
+      ],
+      "agent_batches": 16,
+      "gui_verified": true,
+      "helper_wait_failures": 2,
+      "total_failed_batches": 4,
+      "output_file": "/tmp/deskwright-natural-k1e2zj1o/R1/Reviewed/approved-travel.txt",
+      "disk_checks": {
+        "exact_output_bytes": true,
+        "source_unchanged": true,
+        "sha256": "7a65697f941d2fc1856ba7cf58e724f66a79406ac1fc553d6bb7618a15ce178a",
+        "bytes": 290
+      }
+    },
+    {
+      "id": "R2",
+      "elapsed_s": 152.35052088700104,
+      "backend_s": 24.20097341100154,
+      "calls": 57,
+      "screenshots": 6,
+      "errors": [
+        {
+          "phase": "R2",
+          "tool": "ui_query",
+          "started": 8496.470409329,
+          "ok": false,
+          "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+          "duration_s": 5.00212641699909
+        }
+      ],
+      "agent_batches": 9,
+      "gui_verified": true,
+      "output_file": "/tmp/deskwright-natural-k1e2zj1o/R2/Reviewed/workshop-reviewed.txt",
+      "total_failed_batches": 1,
+      "disk_checks": {
+        "exact_output_bytes": true,
+        "source_unchanged": true,
+        "sha256": "caa5a0a066de2e749f3ff6920baaf9ef5638176a19c78beeb15214cb4b33e310",
+        "bytes": 339
+      }
+    },
+    {
+      "id": "R3",
+      "elapsed_s": 148.83493714399992,
+      "backend_s": 34.82261618499797,
+      "calls": 61,
+      "screenshots": 8,
+      "errors": [],
+      "agent_batches": 9,
+      "gui_verified": true,
+      "output_file": "/tmp/deskwright-natural-k1e2zj1o/R3/Reviewed/purchase-approved.txt",
+      "helper_wait_failures": 1,
+      "total_failed_batches": 1,
+      "additional_recovery": "Ctrl+End did not navigate the PDF; observed thumbnails then clicked page 2",
+      "disk_checks": {
+        "exact_output_bytes": true,
+        "source_unchanged": true,
+        "sha256": "3f1f74279b4f68f8df7827406dae7e9a3dc9395f4c16cab858e9d6272a6151bc",
+        "bytes": 242
+      }
+    },
+    {
+      "id": "R4",
+      "elapsed_s": 410.1309379510003,
+      "backend_s": 60.87510587101133,
+      "calls": 102,
+      "screenshots": 14,
+      "errors": [
+        {
+          "phase": "R4",
+          "tool": "ui_query",
+          "started": 8822.595088944,
+          "ok": false,
+          "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+          "duration_s": 5.022762092999983
+        },
+        {
+          "phase": "R4",
+          "tool": "ui_query",
+          "started": 9118.866724874,
+          "ok": false,
+          "error": "UI query timed out (incomplete scan: time_budget); inspect or use a screenshot",
+          "duration_s": 5.001322173000517
+        }
+      ],
+      "agent_batches": 22,
+      "gui_verified": true,
+      "output_file": "/tmp/deskwright-natural-k1e2zj1o/R4/Reviewed/delivery-reviewed.txt",
+      "total_failed_batches": 3,
+      "approval_rejections": 1,
+      "additional_recovery": "Archive extraction used Home despite changing Location text; verified fixture contents and exact selected rows, then moved both extracted files into R4 via Files. Approval review and recovery time remain included. One oversized observation response also stopped a batch.",
+      "disk_checks": {
+        "exact_output_bytes": true,
+        "source_unchanged": true,
+        "sha256": "099a88c731f78b6704ef03b54b5216d3adb808f1da1804584c82779fd02e2c4f",
+        "bytes": 302
+      }
+    }
+  ],
+  "methodology": {
+    "mode": "agent-driven main desktop hybrid",
+    "code_frozen": true,
+    "scenarios": [
+      "travel budget",
+      "workshop notes and search",
+      "two-page PDF comparison",
+      "archive reconciliation"
+    ],
+    "timing": "first app action through reopened final GUI verification; includes model/transport/recovery; excludes fixture prep, disk oracle and cleanup",
+    "end_boundary": "exact reopened native text readback and final screenshot capture; before response transport and visual review of final capture",
+    "comparison_limit": "four different scenarios; mixed-workload average, not repeated-trial variance or a new visual-baseline comparison",
+    "included_costs": [
+      "all failed approaches and recoveries",
+      "approval rejection and identity checks in R4",
+      "model and bridge round trips"
+    ],
+    "no_workflow_filesystem_writes": true,
+    "note": "R4 recovery included read-only filesystem identity checks; all report edits, saves and file moves used desktop tools. R1 disk oracle ran between early R2 calls (~0.05 s included). Agent strategy adapted as controls were discovered; production code did not change."
+  },
+  "summary": {
+    "n": 4,
+    "mean_s": 238.37760472350033,
+    "median_s": 197.27227189950054,
+    "min_s": 148.83493714399992,
+    "max_s": 410.1309379510003,
+    "total_s": 953.5104188940013,
+    "all_four_exact": true,
+    "failed_tool_batches": 9,
+    "approval_blocks": 1,
+    "backend_mean_s": 41.39159624825379
+  },
+  "cleanup": {
+    "task_windows_closed": true,
+    "personal_editor_tabs_preserved": true,
+    "chrome_preserved": true,
+    "chatgpt_focused": true,
+    "accidental_home_extraction_fully_relocated": true,
+    "archive_payloads_match": true,
+    "preexisting_utility_not_targeted_absent_final": true,
+    "bridge_stopped_exit_code": 0,
+    "bridge_socket_removed": true
+  }
+}

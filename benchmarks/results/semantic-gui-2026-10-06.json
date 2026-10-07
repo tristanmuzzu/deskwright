@@ -1,0 +1,1215 @@
+{
+  "date": "2026-10-06",
+  "source_revision": "9624a33846d7d2b52599be67e5a06f4d8a30c5a6",
+  "kind": "Exploratory scripted private-GNOME trials; no model or Windows benchmark",
+  "snapshots": {
+    "editor": {
+      "app": "gnome-text-editor",
+      "samples": [
+        {
+          "trial": 0,
+          "mode": "raw",
+          "ms": 276.5303660000882,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 0,
+          "mode": "semantic",
+          "ms": 206.17386300000362,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 1,
+          "mode": "semantic",
+          "ms": 212.8679639999973,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 1,
+          "mode": "raw",
+          "ms": 249.8980149999852,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 2,
+          "mode": "raw",
+          "ms": 269.18560399997205,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 2,
+          "mode": "semantic",
+          "ms": 160.83584600005452,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 3,
+          "mode": "semantic",
+          "ms": 165.133921000006,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 3,
+          "mode": "raw",
+          "ms": 291.8066120000731,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 4,
+          "mode": "raw",
+          "ms": 292.60746800002835,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 4,
+          "mode": "semantic",
+          "ms": 221.1748180000086,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 5,
+          "mode": "semantic",
+          "ms": 222.25552299994433,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 5,
+          "mode": "raw",
+          "ms": 287.05160100003013,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 6,
+          "mode": "raw",
+          "ms": 310.74409700011074,
+          "utf8_bytes": 12655,
+          "visited": 84,
+          "incomplete": false
+        },
+        {
+          "trial": 6,
+          "mode": "semantic",
+          "ms": 236.1374289999958,
+          "utf8_bytes": 1048,
+          "visited": 84,
+          "incomplete": false
+        }
+      ],
+      "summary": {
+        "raw": {
+          "median_ms": 287.05160100003013,
+          "median_bytes": 12655
+        },
+        "semantic": {
+          "median_ms": 212.8679639999973,
+          "median_bytes": 1048
+        }
+      },
+      "semantic_controls": 15,
+      "gaps": []
+    },
+    "form": {
+      "app": "deskwright-contract-form",
+      "samples": [
+        {
+          "trial": 0,
+          "mode": "raw",
+          "ms": 36.044016000005286,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 0,
+          "mode": "semantic",
+          "ms": 37.21668499997577,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 1,
+          "mode": "semantic",
+          "ms": 23.210273000017878,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 1,
+          "mode": "raw",
+          "ms": 25.2750309999783,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 2,
+          "mode": "raw",
+          "ms": 35.277093999980025,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 2,
+          "mode": "semantic",
+          "ms": 37.38091599996096,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 3,
+          "mode": "semantic",
+          "ms": 28.004226999996717,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 3,
+          "mode": "raw",
+          "ms": 28.93262500003857,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 4,
+          "mode": "raw",
+          "ms": 37.80601999994815,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 4,
+          "mode": "semantic",
+          "ms": 36.90166900003078,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 5,
+          "mode": "semantic",
+          "ms": 36.967333000006874,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 5,
+          "mode": "raw",
+          "ms": 37.97609299999749,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 6,
+          "mode": "raw",
+          "ms": 37.73801099998764,
+          "utf8_bytes": 3920,
+          "visited": 28,
+          "incomplete": false
+        },
+        {
+          "trial": 6,
+          "mode": "semantic",
+          "ms": 36.51401499996609,
+          "utf8_bytes": 1202,
+          "visited": 28,
+          "incomplete": false
+        }
+      ],
+      "summary": {
+        "raw": {
+          "median_ms": 36.044016000005286,
+          "median_bytes": 3920
+        },
+        "semantic": {
+          "median_ms": 36.90166900003078,
+          "median_bytes": 1202
+        }
+      },
+      "semantic_controls": 19,
+      "gaps": []
+    },
+    "gimp": {
+      "app": "gimp",
+      "samples": [
+        {
+          "trial": 0,
+          "mode": "raw",
+          "ms": 471.671065999999,
+          "utf8_bytes": 55986,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 0,
+          "mode": "semantic",
+          "ms": 360.7950000000528,
+          "utf8_bytes": 31864,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 1,
+          "mode": "semantic",
+          "ms": 356.87800400000924,
+          "utf8_bytes": 31864,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 1,
+          "mode": "raw",
+          "ms": 500.6873720000158,
+          "utf8_bytes": 55986,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 2,
+          "mode": "raw",
+          "ms": 439.60575199992036,
+          "utf8_bytes": 55986,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 2,
+          "mode": "semantic",
+          "ms": 419.7544660000858,
+          "utf8_bytes": 31864,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 3,
+          "mode": "semantic",
+          "ms": 367.7373269999862,
+          "utf8_bytes": 31864,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 3,
+          "mode": "raw",
+          "ms": 459.3737630000305,
+          "utf8_bytes": 55986,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 4,
+          "mode": "raw",
+          "ms": 471.4495099999567,
+          "utf8_bytes": 55986,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 4,
+          "mode": "semantic",
+          "ms": 377.3301999999603,
+          "utf8_bytes": 31864,
+          "visited": 400,
+          "incomplete": true
+        }
+      ],
+      "summary": {
+        "raw": {
+          "median_ms": 471.4495099999567,
+          "median_bytes": 55986
+        },
+        "semantic": {
+          "median_ms": 367.7373269999862,
+          "median_bytes": 31864
+        }
+      },
+      "semantic_controls": 388,
+      "gaps": [
+        "child budget at gimp#17645/0/1/0/5/13",
+        "child budget at gimp#17645/0/1/0/5/14",
+        "child budget at gimp#17645/0/1/0/6",
+        "child budget at gimp#17645/0/1/0/7",
+        "child budget at gimp#17645/0/1/0/8",
+        "child budget at gimp#17645/0/1/0/9",
+        "child budget at gimp#17645/0/1/0/10",
+        "child budget at gimp#17645/0/1/1",
+        "child budget at gimp#17645/0/2",
+        "child budget at gimp#17645/0/3",
+        "child budget at gimp#17645/0/4",
+        "child budget at gimp#17645/0/5",
+        "child budget at gimp#17645/0/6",
+        "child budget at gimp#17645/0/7",
+        "child budget at gimp#17645/0/8"
+      ]
+    },
+    "libreoffice": {
+      "app": "soffice",
+      "samples": [
+        {
+          "trial": 0,
+          "mode": "raw",
+          "ms": 534.7536100000525,
+          "utf8_bytes": 65743,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 0,
+          "mode": "semantic",
+          "ms": 547.2081249999974,
+          "utf8_bytes": 40344,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 1,
+          "mode": "semantic",
+          "ms": 518.2527670000354,
+          "utf8_bytes": 40344,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 1,
+          "mode": "raw",
+          "ms": 612.285834999966,
+          "utf8_bytes": 65743,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 2,
+          "mode": "raw",
+          "ms": 591.9363570000087,
+          "utf8_bytes": 65743,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 2,
+          "mode": "semantic",
+          "ms": 528.8421509999353,
+          "utf8_bytes": 40344,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 3,
+          "mode": "semantic",
+          "ms": 462.9479940000465,
+          "utf8_bytes": 40344,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 3,
+          "mode": "raw",
+          "ms": 490.36245499996767,
+          "utf8_bytes": 65743,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 4,
+          "mode": "raw",
+          "ms": 526.5876629999866,
+          "utf8_bytes": 65743,
+          "visited": 400,
+          "incomplete": true
+        },
+        {
+          "trial": 4,
+          "mode": "semantic",
+          "ms": 522.6064670000596,
+          "utf8_bytes": 40344,
+          "visited": 400,
+          "incomplete": true
+        }
+      ],
+      "summary": {
+        "raw": {
+          "median_ms": 534.7536100000525,
+          "median_bytes": 65743
+        },
+        "semantic": {
+          "median_ms": 522.6064670000596,
+          "median_bytes": 40344
+        }
+      },
+      "semantic_controls": 383,
+      "gaps": [
+        "child budget at soffice#26160/0/1/0/1/0/0/3/7/3",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/7/4",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/7/5",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/7/6",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/7/7",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/14",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/23",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/25",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/26",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/29",
+        "child budget at soffice#26160/0/1/0/1/0/0/3/30",
+        "child budget at soffice#26160/0/1/0/1/0/0/4",
+        "child budget at soffice#26160/0/1/0/1/0/0/5",
+        "child budget at soffice#26160/0/1/0/1/0/0/6",
+        "child budget at soffice#26160/0/1/0/1/0/0/7",
+        "child budget at soffice#26160/0/1/0/1/0/0/8",
+        "child budget at soffice#26160/0/1/0/1/0/0/9",
+        "child budget at soffice#26160/0/1/0/1/0/0/10",
+        "child budget at soffice#26160/0/1/1",
+        "child budget at soffice#26160/0/2",
+        "child budget at soffice#26160/0/3",
+        "child budget at soffice#26160/0/4",
+        "child budget at soffice#26160/0/5",
+        "child budget at soffice#26160/0/6",
+        "child budget at soffice#26160/0/7",
+        "child budget at soffice#26160/0/8",
+        "child budget at soffice#26160/0/9",
+        "child budget at soffice#26160/0/10"
+      ]
+    }
+  },
+  "form-results": {
+    "kind": "scripted warm trials; excludes model/MCP transport latency",
+    "trials": [
+      {
+        "seconds": 2.2995480449999377,
+        "passed": true,
+        "guarded_primitives": 17,
+        "screenshots": 0
+      },
+      {
+        "seconds": 2.2822172170000385,
+        "passed": true,
+        "guarded_primitives": 17,
+        "screenshots": 0
+      },
+      {
+        "seconds": 2.2786658009999883,
+        "passed": true,
+        "guarded_primitives": 17,
+        "screenshots": 0
+      },
+      {
+        "seconds": 2.2758139719999235,
+        "passed": true,
+        "guarded_primitives": 17,
+        "screenshots": 0
+      },
+      {
+        "seconds": 2.2923722360000056,
+        "passed": true,
+        "guarded_primitives": 17,
+        "screenshots": 0
+      }
+    ],
+    "observations": [
+      {
+        "trial": 0,
+        "mode": "auto",
+        "ms": 1608.82202699986,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.86,
+          "moving_on_its_own": 238,
+          "changed": {
+            "percent": 0.824,
+            "strong_cells": 44,
+            "max_delta": 248,
+            "strong_cells_excluding_moving": 4
+          },
+          "visual_change_detected": true,
+          "verdict": "visual change detected; verify the intended result",
+          "changed_where": {
+            "box": {
+              "x": 603,
+              "y": 539,
+              "width": 75,
+              "height": 5
+            },
+            "cells": 4,
+            "windows": [
+              "deskwright-contract-form",
+              "google-chrome",
+              "org.gnome.TextEditor",
+              "libreoffice-writer",
+              "gimp"
+            ],
+            "detail": "the change is confined to a 75x5px area with its top-left at screen (603, 539), overlapping deskwright-contract-form, google-chrome, org.gnome.TextEditor, libreoffice-writer, gimp"
+          },
+          "changed_text": {
+            "text": "Saved",
+            "seconds": 0.2
+          },
+          "coordinate_note": "this image is 1:1 with the screen; pixel (px, py) is screen (px, py).",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306900.977.png"
+        }
+      },
+      {
+        "trial": 0,
+        "mode": "compact",
+        "ms": 19.641099999944345,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 1,
+        "mode": "compact",
+        "ms": 18.78224000006412,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 1,
+        "mode": "auto",
+        "ms": 1266.5339650000078,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.85,
+          "changed": {
+            "percent": 0.09,
+            "strong_cells": 4,
+            "max_delta": 77
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306902.671.png"
+        }
+      },
+      {
+        "trial": 2,
+        "mode": "auto",
+        "ms": 1267.3536899999363,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.85,
+          "changed": {
+            "percent": 0.09,
+            "strong_cells": 4,
+            "max_delta": 77
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306903.959.png"
+        }
+      },
+      {
+        "trial": 2,
+        "mode": "compact",
+        "ms": 20.332221999979083,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 3,
+        "mode": "compact",
+        "ms": 19.45343500005947,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 3,
+        "mode": "auto",
+        "ms": 1258.967617000053,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.85,
+          "changed": {
+            "percent": 0.09,
+            "strong_cells": 4,
+            "max_delta": 77
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306905.321.png"
+        }
+      },
+      {
+        "trial": 4,
+        "mode": "auto",
+        "ms": 1260.462134999898,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.86,
+          "changed": {
+            "percent": 0.09,
+            "strong_cells": 4,
+            "max_delta": 77
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306906.596.png"
+        }
+      },
+      {
+        "trial": 4,
+        "mode": "compact",
+        "ms": 20.555022000053214,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 5,
+        "mode": "compact",
+        "ms": 19.104096999853937,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 5,
+        "mode": "auto",
+        "ms": 1264.651466000032,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.86,
+          "changed": {
+            "percent": 0.09,
+            "strong_cells": 4,
+            "max_delta": 77
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306907.960.png"
+        }
+      },
+      {
+        "trial": 6,
+        "mode": "auto",
+        "ms": 1270.6282159999773,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.86,
+          "changed": {
+            "percent": 0.09,
+            "strong_cells": 4,
+            "max_delta": 77
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306909.244.png"
+        }
+      },
+      {
+        "trial": 6,
+        "mode": "compact",
+        "ms": 20.866069000021525,
+        "passed": true,
+        "look": null
+      }
+    ],
+    "median_task_seconds": 2.2822172170000385,
+    "median_save_ms": {
+      "auto": 1266.5339650000078,
+      "compact": 19.641099999944345
+    },
+    "initial_overview_observations": [
+      {
+        "trial": 0,
+        "mode": "auto",
+        "ms": 1428.7109230000397,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.89,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 6
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306519.131.png"
+        }
+      },
+      {
+        "trial": 0,
+        "mode": "compact",
+        "ms": 18.333295000047656,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 1,
+        "mode": "compact",
+        "ms": 19.329880999976012,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 1,
+        "mode": "auto",
+        "ms": 1305.6588289999809,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.88,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 1
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306520.545.png"
+        }
+      },
+      {
+        "trial": 2,
+        "mode": "auto",
+        "ms": 1296.3000499998998,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.88,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 1
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306521.860.png"
+        }
+      },
+      {
+        "trial": 2,
+        "mode": "compact",
+        "ms": 21.120752999991055,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 3,
+        "mode": "compact",
+        "ms": 19.1236130000334,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 3,
+        "mode": "auto",
+        "ms": 1287.552441999992,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.87,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 1
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306523.255.png"
+        }
+      },
+      {
+        "trial": 4,
+        "mode": "auto",
+        "ms": 1296.169893999945,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.88,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 1
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306524.559.png"
+        }
+      },
+      {
+        "trial": 4,
+        "mode": "compact",
+        "ms": 18.99845799994182,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 5,
+        "mode": "compact",
+        "ms": 19.250962999990406,
+        "passed": true,
+        "look": null
+      },
+      {
+        "trial": 5,
+        "mode": "auto",
+        "ms": 1293.7398200000416,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.88,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 1
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306525.949.png"
+        }
+      },
+      {
+        "trial": 6,
+        "mode": "auto",
+        "ms": 1305.5958710000368,
+        "passed": true,
+        "look": {
+          "of": "whole screen",
+          "settled": true,
+          "frames": 4,
+          "waited_seconds": 0.88,
+          "changed": {
+            "percent": 0.0,
+            "strong_cells": 0,
+            "max_delta": 1
+          },
+          "visual_change_detected": false,
+          "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
+          "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306527.275.png"
+        }
+      },
+      {
+        "trial": 6,
+        "mode": "compact",
+        "ms": 18.9895799999249,
+        "passed": true,
+        "look": null
+      }
+    ],
+    "conditions": "Task trials used semantic access while overview was visible. Final Save policy comparison repeated with overview dismissed and fixture focused.",
+    "final_policy_oracle": "Saved trial identifier. Separate five workflow trials verify every field and exact saved JSON."
+  },
+  "editor-proof": {
+    "disk_exact": true,
+    "reopened_widget_exact": true,
+    "reopened_characters": 105,
+    "expected_disk_characters": 106,
+    "save_policy": "editor writes a final newline, absent from its text buffer",
+    "initial_save_added_extra_newline": true,
+    "initial_stale_title_rejected": true
+  },
+  "events": [
+    {
+      "type": "object:text-changed:insert",
+      "name": "Name",
+      "detail1": 0,
+      "detail2": 11
+    }
+  ],
+  "chrome-proof": {
+    "saved_status_present": true,
+    "paint_label_in_tree": false,
+    "canvas_nodes": [
+      {
+        "path": "Google Chrome/0/0/0/5/2/0/1/3/6",
+        "role": "canvas",
+        "name": "",
+        "bounds": {
+          "x": 34,
+          "y": 308,
+          "w": 240,
+          "h": 81
+        },
+        "actions": [
+          "",
+          ""
+        ]
+      }
+    ],
+    "entry_interfaces": [
+      "Accessible",
+      "Action",
+      "Collection",
+      "Component",
+      "Document",
+      "Hyperlink",
+      "Text"
+    ],
+    "editable_text_error": "widget_missing: entry has no EditableText interface",
+    "tree_nodes": 260,
+    "tree_truncated": false,
+    "launch_recovery": "explicit --ozone-platform=wayland"
+  },
+  "collection": [
+    {
+      "app": "gnome-text-editor",
+      "error": "atspi_error: No such interface \u201corg.a11y.atspi.Collection\u201d on object at path /org/a11y/atspi/accessible/root (1)"
+    },
+    {
+      "app": "gimp",
+      "error": "atspi_error: timeout from dbind (1)"
+    }
+  ],
+  "collection-interfaces": [
+    {
+      "app": "gnome-text-editor",
+      "root_interfaces": [
+        "Accessible",
+        "Application"
+      ],
+      "frame_interfaces": [
+        "Accessible",
+        "Action",
+        "Component"
+      ]
+    },
+    {
+      "app": "gimp",
+      "root_interfaces": [
+        "Accessible",
+        "Application",
+        "Collection"
+      ],
+      "frame_interfaces": [
+        "Accessible",
+        "Collection",
+        "Component"
+      ]
+    },
+    {
+      "app": "deskwright-contract-form",
+      "root_interfaces": [
+        "Accessible",
+        "Application",
+        "Collection"
+      ],
+      "frame_interfaces": [
+        "Accessible",
+        "Collection",
+        "Component"
+      ]
+    },
+    {
+      "app": "soffice",
+      "root_interfaces": [
+        "Accessible",
+        "Application",
+        "Collection"
+      ],
+      "frame_interfaces": [
+        "Accessible",
+        "Collection",
+        "Component"
+      ]
+    }
+  ],
+  "collection-frame": [
+    {
+      "app": "deskwright-contract-form",
+      "scope": "first frame",
+      "ms": 0.31024399993384577,
+      "count": 3,
+      "examples": [
+        "Close",
+        "Save",
+        "Reopen"
+      ]
+    },
+    {
+      "app": "gimp",
+      "scope": "first frame",
+      "ms": 3.4985529999858045,
+      "count": 25,
+      "examples": [
+        "Close",
+        "",
+        "",
+        "",
+        ""
+      ]
+    },
+    {
+      "app": "soffice",
+      "scope": "first frame",
+      "ms": 3.1125259999953414,
+      "count": 25,
+      "examples": [
+        "Close",
+        "",
+        "Load URL",
+        "New",
+        "Templates"
+      ]
+    }
+  ],
+  "collection-form-samples": [
+    {
+      "ms": 1.004029000000628,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    },
+    {
+      "ms": 1.0459490000584992,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    },
+    {
+      "ms": 1.0450970000874804,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    },
+    {
+      "ms": 1.024487999984558,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    },
+    {
+      "ms": 1.0226050000028408,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    },
+    {
+      "ms": 1.034656999991057,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    },
+    {
+      "ms": 1.0210020000158693,
+      "names": [
+        "Close",
+        "Reopen",
+        "Save"
+      ]
+    }
+  ],
+  "modal_finding": {
+    "semantic_button_changed_page_with_keyring_prompt_visible": true,
+    "compositor_pick_returned_window": null,
+    "main_desktop_touched": false,
+    "recovery": "Cancelled private keyring dialog using observed coordinates; Escape dismissed overview. Final policy timings repeated on normally visible form."
+  },
+  "environment": {
+    "session": "headless:codex-ff65a861d744036cc404",
+    "python": "3.14.4",
+    "atspi_source": "/home/user/projects/deskwright/deskwright/atspi.py",
+    "atspi_sha256": "f388514d6b5a450b1ed94f79a1c0368a0c116ccd3867b455a4d168d872094b42",
+    "display_size": "1280x720",
+    "private_only": true
+  },
+  "prototype_sha256": "31ad8aa39a2289b9d20c8f68fb6f03d8432b367a4251c055c4c222b2b3ce5711",
+  "validation": {
+    "initial_full_pytest": {
+      "passed": 390,
+      "failed": 2,
+      "scope": "pre-existing guidance failures"
+    },
+    "changed_docs_pytest": {
+      "passed": 6
+    },
+    "prototype_ruff": "passed",
+    "full_ruff": "two existing import-order failures in private_server.py",
+    "all_owned_app_windows_closed": true,
+    "private_session_stopped": true
+  },
+  "modal_verification": {
+    "before_not_saved": true,
+    "after_saved_draft": true,
+    "modal_visually_confirmed_before_and_after": true,
+    "action": "ui_press Save project in owned local fixture",
+    "screenshots": [
+      "modal-before.png",
+      "modal-after.png"
+    ]
+  }
+}

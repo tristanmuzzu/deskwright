@@ -1,0 +1,806 @@
+[
+  {
+    "seconds": 8.132639620000191,
+    "calls": 64,
+    "events": [
+      {
+        "tool": "launch_app",
+        "seconds": 0.3471581970002262
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12741387300002316
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.2549396960002923
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.3261628059999566
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.007488848000321013
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03837290100000246
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.28057313999988764
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.004083658999661566
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.030100695999863092
+      },
+      {
+        "tool": "launch_app",
+        "seconds": 0.28776859499976126
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.014633927999966545
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12850428799993097
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.07997830700014674
+      },
+      {
+        "tool": "type_text",
+        "seconds": 0.7991193210000347
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.046877725000285864
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.2221548590000566
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04600256499998068
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.0460318800001005
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.008290289000342455
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.01339647499980856
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.12686773299992637
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0077653790003751055
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.00712952099956965
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03755232400044406
+      },
+      {
+        "tool": "launch_app",
+        "seconds": 0.28022112700000434
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12883098400016024
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.17765409599996929
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.003944094999951631
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.031091033999928186
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04600788400011879
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.059176339999794436
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12884271599978092
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.1170537120001427
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0075702419999288395
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.0395330080000349
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.11027694499989593
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.007896977000200422
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.017588266999609914
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.22794956400002775
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.008653513000353996
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0020376910001687065
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03133213799992518
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.1303903029997855
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.00120672499997454
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.025074209999729646
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.13037431300017488
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.0804855729998053
+      },
+      {
+        "tool": "type_text",
+        "seconds": 0.8499360519999755
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.046325423999860504
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.23228204200040636
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04671553900016079
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.049022508000234666
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.22684479099962118
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0064201629998024146
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03570353900022383
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04506929499984835
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.07978405999983806
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.5612574409997251
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04553970200004187
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04492971200033935
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.0075346150001678325
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.014484886999980517
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.17456350000020393
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.00950794499976837
+      }
+    ],
+    "exact": true,
+    "original_unchanged": true,
+    "directory": "/tmp/deskwright-hybrid-workflow-324xd5cb",
+    "scope": "Scripted known workflow with native observations and keyboard navigation; excludes model latency.",
+    "output_sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+    "original_sha256": "2c4e40027ae52e0843b259cf7f67b2cec662ac66da57d140d7c6437f39912b35"
+  },
+  {
+    "seconds": 7.74346651399992,
+    "calls": 64,
+    "events": [
+      {
+        "tool": "launch_app",
+        "seconds": 0.2847277519999807
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.01330229799987137
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.11338036600000123
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.32770190900009766
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0067477800002961885
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03725638700007039
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.26738221200002954
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.004467311999633239
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03158716799998729
+      },
+      {
+        "tool": "launch_app",
+        "seconds": 0.2826845409999805
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.013653088999944885
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.13118515299993305
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.0779872120001528
+      },
+      {
+        "tool": "type_text",
+        "seconds": 0.8079582850000406
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04538536199970622
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.21079489400017337
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04691846200012151
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04607131400007347
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.0067944900001748465
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.013424568000118597
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.1378997800002253
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.008047170999816444
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.009716598000068188
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.0384653360001721
+      },
+      {
+        "tool": "launch_app",
+        "seconds": 0.28111246700018455
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12710587099991244
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.2016593510002167
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.004578381999635894
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03192262099992149
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04541444599999522
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.056098587999713345
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.13049698399981935
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.12541455399968982
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.010123324999767647
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03780681300031574
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.11416346300029545
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.008556611000130943
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.008440411999799835
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.2691714359998514
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.008640237999770761
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0025991299999077455
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.0310277240000687
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.1074221540002327
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.0008024020003176702
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.024587072000031185
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.1304603059998044
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.08076318600024024
+      },
+      {
+        "tool": "type_text",
+        "seconds": 0.8307193539999389
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04600110199999108
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.23368046799987496
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.046443535999969754
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04816845800041847
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.23520443000006708
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0066598550001799595
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03801581800007625
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04754880999962552
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.07968302900007984
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.4468925780001882
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04700071599972944
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04514952599993194
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.009191036999709468
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.014340454999910435
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.18466643600004318
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0072568909999972675
+      }
+    ],
+    "exact": true,
+    "original_unchanged": true,
+    "directory": "/tmp/deskwright-hybrid-workflow-t8hzdrn2",
+    "scope": "Scripted known workflow with native observations and keyboard navigation; excludes model latency.",
+    "output_sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+    "original_sha256": "2c4e40027ae52e0843b259cf7f67b2cec662ac66da57d140d7c6437f39912b35"
+  },
+  {
+    "seconds": 7.733042702999683,
+    "calls": 64,
+    "events": [
+      {
+        "tool": "launch_app",
+        "seconds": 0.2831472230000145
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.01438710299999002
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.11047844499989878
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.2755107460002364
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.008746599000005517
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.033222632000160957
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.24327625800015085
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.006096603000059986
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.032858404999842605
+      },
+      {
+        "tool": "launch_app",
+        "seconds": 0.2836437789997035
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.013457689999995637
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12961395000002085
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.07874220599978798
+      },
+      {
+        "tool": "type_text",
+        "seconds": 0.8189741719997983
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04646940499969787
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.20515155400016738
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04721078200009288
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04685468099978607
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.008179780999853392
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.01416552499995305
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.12709007200010092
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.00974231600002895
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.007117126999673928
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.04217688300013833
+      },
+      {
+        "tool": "launch_app",
+        "seconds": 0.28180269899985433
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.13035222200005592
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.18092041299996708
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.004703235999841127
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03743034399985845
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.046829003000311786
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.06065877399987585
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.12784286099986275
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.11688105599978371
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.0073447469999337045
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03716828999995414
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.11398046800013617
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.0066257410003345285
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.0067379530000835075
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.21411490299988145
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.0072603069997967395
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.002131489000021247
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03749496599994018
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.11969747600005576
+      },
+      {
+        "tool": "ui_wait",
+        "seconds": 0.0007913110002846224
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.027678208999986964
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.13347717300030126
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.07881900099982886
+      },
+      {
+        "tool": "type_text",
+        "seconds": 0.8626015390000248
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04789600399999472
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.22663697899997715
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.047841302000051655
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.04629345300008936
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.24955500500027483
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.007201777000318543
+      },
+      {
+        "tool": "ui_action",
+        "seconds": 0.03899248900006569
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.0479668979996859
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.08272784900009356
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.5405823239998426
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.045507782000186126
+      },
+      {
+        "tool": "press_keys",
+        "seconds": 0.046967343000233086
+      },
+      {
+        "tool": "list_windows",
+        "seconds": 0.007593114999963291
+      },
+      {
+        "tool": "activate_window",
+        "seconds": 0.01375880799969309
+      },
+      {
+        "tool": "ui_snapshot",
+        "seconds": 0.17322429499972714
+      },
+      {
+        "tool": "ui_inspect",
+        "seconds": 0.006320746000255895
+      }
+    ],
+    "exact": true,
+    "original_unchanged": true,
+    "directory": "/tmp/deskwright-hybrid-workflow-9yj90gfc",
+    "scope": "Scripted known workflow with native observations and keyboard navigation; excludes model latency.",
+    "output_sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+    "original_sha256": "2c4e40027ae52e0843b259cf7f67b2cec662ac66da57d140d7c6437f39912b35"
+  }
+]

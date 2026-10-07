@@ -24,6 +24,7 @@ CODES = {
     "window_not_found":    "no window matches the target",
     "app_not_on_bus":      "application is not on the AT-SPI bus",
     "widget_missing":      "no widget at the path / matching the query",
+    "ambiguous_control":   "multiple controls match; narrow the selector before acting",
 
     # The world moved between look and act; re-look, then retry.
     "widget_moved":        "widget at the path no longer matches expect_name/expect_role",
@@ -67,10 +68,12 @@ CODES = {
 class ToolError(Exception):
     """A failure the model should see and can act on, not a crash."""
 
-    def __init__(self, message: str, *, code: str = "unclassified", action_status: str | None = None):
+    def __init__(self, message: str, *, code: str = "unclassified", action_status: str | None = None,
+                 details: dict | None = None):
         assert code in CODES, f"unknown error code {code!r}"
         super().__init__(message)
         self.code = code
+        self.details = details
         self.action_status = action_status or ("not_started" if code in {
             "bad_args", "no_expectation", "refused_combo", "window_not_found",
             "focus_not_acquired", "stale_observation"} else "unknown")

@@ -1,0 +1,1081 @@
+{
+  "extension_build": "2026-10-06.1",
+  "summaries": {
+    "A-semantic": {
+      "wall_seconds": 582.061137054,
+      "backend_seconds": 20.542369067000095,
+      "tool_calls": 94,
+      "counts": {
+        "launch_app": 2,
+        "window_layout": 3,
+        "activate_window": 5,
+        "ui_snapshot": 18,
+        "ui_action": 10,
+        "screenshot": 11,
+        "pointer_click": 9,
+        "list_windows": 11,
+        "ui_inspect": 10,
+        "type_text": 4,
+        "press_keys": 11
+      },
+      "errors": [
+        {
+          "condition": "A-semantic",
+          "tool": "pointer_click",
+          "ok": false,
+          "code": "occluded",
+          "seconds": 0.02740375899998071
+        },
+        {
+          "condition": "A-semantic",
+          "tool": "ui_inspect",
+          "ok": false,
+          "code": "stale_observation",
+          "seconds": 0.0066390910000109216
+        },
+        {
+          "condition": "A-semantic",
+          "tool": "type_text",
+          "ok": false,
+          "code": "verification_failed",
+          "seconds": 2.7700801430000297
+        },
+        {
+          "condition": "A-semantic",
+          "tool": "ui_action",
+          "ok": false,
+          "code": "widget_missing",
+          "seconds": 0.02173491799999283
+        }
+      ],
+      "original_unchanged": true,
+      "output_exact": true,
+      "sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+      "original_sha256": "2c4e40027ae52e0843b259cf7f67b2cec662ac66da57d140d7c6437f39912b35",
+      "launch_seconds": 1.4506816620000222,
+      "final_bytes": 147
+    },
+    "B-visual": {
+      "wall_seconds": 202.69156996499999,
+      "backend_seconds": 20.551714813000103,
+      "tool_calls": 53,
+      "counts": {
+        "launch_app": 2,
+        "window_layout": 2,
+        "activate_window": 6,
+        "screenshot": 15,
+        "press_keys": 13,
+        "type_text": 7,
+        "pointer_click": 6,
+        "list_windows": 2
+      },
+      "errors": [
+        {
+          "condition": "B-visual",
+          "tool": "type_text",
+          "ok": false,
+          "code": "verification_failed",
+          "seconds": 1.3054726299999402
+        },
+        {
+          "condition": "B-visual",
+          "tool": "type_text",
+          "ok": false,
+          "code": "verification_failed",
+          "seconds": 2.495746903000054
+        }
+      ],
+      "original_unchanged": true,
+      "output_exact": true,
+      "sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+      "original_sha256": "2c4e40027ae52e0843b259cf7f67b2cec662ac66da57d140d7c6437f39912b35",
+      "launch_seconds": 1.1067602840001882,
+      "final_bytes": 147
+    }
+  },
+  "fallbacks": [
+    {
+      "step": "New Folder menu",
+      "reason": "visible popup absent from complete window snapshot"
+    },
+    {
+      "step": "Folder Name embedded dialog",
+      "reason": "fresh reference rejected as changed windows"
+    },
+    {
+      "step": "Files open item",
+      "reason": "file row offers scroll-to but no open/select operation"
+    },
+    {
+      "step": "Save As and folder navigation",
+      "reason": "Shortcut and pointer fallback; slash in File Name was not a navigation operation."
+    },
+    {
+      "step": "Rename and Properties",
+      "reason": "Shortcuts and popup input; known popup coverage limitation."
+    }
+  ],
+  "events": [
+    {
+      "condition": "A-semantic",
+      "tool": "launch_app",
+      "ok": true,
+      "seconds": 0.9129755509999882
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "window_layout",
+      "ok": true,
+      "seconds": 0.30609547199998133
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.01576648899998645
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.35937777100002677
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.040591946000006374
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.3939076860000341
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.1976412050000249
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": false,
+      "code": "occluded",
+      "seconds": 0.02740375899998071
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.5121354930000166
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.007892082000012124
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.4029337000000055
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": false,
+      "code": "stale_observation",
+      "seconds": 0.0066390910000109216
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 0.7242630830000394
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.04631439700000328
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.11701980399999456
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.376820328000008
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.07957364699996106
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "type_text",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 2.7700801430000297
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.3076954939999723
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.007114532999992207
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.036791649999997844
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.007803254000009474
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.008337253999968652
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.16694800499999474
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.11928971300005742
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.451021012999945
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.0070333899999468485
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.006357618000038201
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "window_layout",
+      "ok": true,
+      "seconds": 0.2782325860000583
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.23319568399995205
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.00577472800000578
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.04285865100007413
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "launch_app",
+      "ok": true,
+      "seconds": 0.5377061110000341
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "window_layout",
+      "ok": true,
+      "seconds": 0.2835144940000873
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.014234020999992936
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.19219774600003348
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.17417622200002825
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.006218418000003112
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.03478764300007242
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.16017089299998588
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.028740168000013
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.16945941999995284
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.005472238999914225
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.004375517000084983
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.06877182699997775
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.19023309799990784
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.0048199159999740004
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.13377491400001418
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.24483768899995084
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.0072759260000339054
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.036335015000076964
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.23304571100004523
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.007370154000000184
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.008192477999955372
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.22992977700005213
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.11214123199999904
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.42254070199999205
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.006184095999969941
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.03594843399991987
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.3888648289999992
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": false,
+      "code": "widget_missing",
+      "seconds": 0.02173491799999283
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.07581157900006019
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.33913038200000756
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.03411339699994187
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.51816589200007
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.3484414250000327
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_action",
+      "ok": true,
+      "seconds": 0.037440697000079126
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.13675410600001214
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.19228221200000917
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 1.8927144110000427
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.04529299800003628
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10260774599998967
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.3815602959999751
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.04975735400000758
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10746957300000304
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.006399228000077528
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.104977458999997
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08170565499995064
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 0.9346338629999309
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.38063415800002076
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08045739900001081
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.009844770999961838
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.00690742799997679
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10515193899993847
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.3821836220000705
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08556566299989754
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.01035621899995931
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10657158499998332
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.4271484099999725
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.04574680799998987
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.454361411999912
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.01653839200002949
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_snapshot",
+      "ok": true,
+      "seconds": 0.29583616000002166
+    },
+    {
+      "condition": "A-semantic",
+      "tool": "ui_inspect",
+      "ok": true,
+      "seconds": 0.006867999999940366
+    },
+    {
+      "condition": "setup-between-runs",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.07918754000002082
+    },
+    {
+      "condition": "setup-between-runs",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.009424084999977822
+    },
+    {
+      "condition": "setup-between-runs",
+      "tool": "window_manage",
+      "ok": true,
+      "seconds": 0.28347151200000553
+    },
+    {
+      "condition": "setup-between-runs",
+      "tool": "window_manage",
+      "ok": true,
+      "seconds": 0.2785951590000195
+    },
+    {
+      "condition": "setup-between-runs",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.07879239199996846
+    },
+    {
+      "condition": "B-visual",
+      "tool": "launch_app",
+      "ok": true,
+      "seconds": 0.5639458960000638
+    },
+    {
+      "condition": "B-visual",
+      "tool": "window_layout",
+      "ok": true,
+      "seconds": 0.28198662399995555
+    },
+    {
+      "condition": "B-visual",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.014610394999976961
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10067332899996018
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.11518602900002861
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10827463600003284
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 0.6551888209999106
+    },
+    {
+      "condition": "B-visual",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.3823436140000922
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.11695189900001424
+    },
+    {
+      "condition": "B-visual",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.4549062370000456
+    },
+    {
+      "condition": "B-visual",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.018069155999910436
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.092573320999918
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.07909862199994677
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 3.6510985300001266
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.09559953899997709
+    },
+    {
+      "condition": "B-visual",
+      "tool": "launch_app",
+      "ok": true,
+      "seconds": 0.5428143880001244
+    },
+    {
+      "condition": "B-visual",
+      "tool": "window_layout",
+      "ok": true,
+      "seconds": 0.2847916829998667
+    },
+    {
+      "condition": "B-visual",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.014739745000042603
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.06401087000017469
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 1.3054726299999402
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.06140382200010208
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.05083707900007539
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.07580618099996173
+    },
+    {
+      "condition": "B-visual",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.13371292700003323
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.07932491900010064
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 3.709154718000036
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.11288447599986284
+    },
+    {
+      "condition": "B-visual",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.011082407000003514
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10299694399986947
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08213320599998042
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 0.7214095900001212
+    },
+    {
+      "condition": "B-visual",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.4521480450000581
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.07728894799993213
+    },
+    {
+      "condition": "B-visual",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.38090339799987305
+    },
+    {
+      "condition": "B-visual",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.1400201849999121
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08279598700005408
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 2.495746903000054
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10888913700000558
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.17229462999989664
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.11596365599984892
+    },
+    {
+      "condition": "B-visual",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.381628309000007
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.0476363999998739
+    },
+    {
+      "condition": "B-visual",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.009149640000032377
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.10593671699984952
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08183750400007739
+    },
+    {
+      "condition": "B-visual",
+      "tool": "type_text",
+      "ok": true,
+      "seconds": 0.9413474650000353
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.0541090480001003
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.08556832700014638
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.12243856800000685
+    },
+    {
+      "condition": "B-visual",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.045260774000098536
+    },
+    {
+      "condition": "B-visual",
+      "tool": "pointer_click",
+      "ok": true,
+      "seconds": 0.4549611749998803
+    },
+    {
+      "condition": "B-visual",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.018313967000040066
+    },
+    {
+      "condition": "B-visual",
+      "tool": "screenshot",
+      "ok": true,
+      "seconds": 0.09439379700006612
+    },
+    {
+      "condition": "cleanup",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.0813800529999753
+    },
+    {
+      "condition": "cleanup",
+      "tool": "list_windows",
+      "ok": true,
+      "seconds": 0.00838844899999458
+    },
+    {
+      "condition": "cleanup",
+      "tool": "window_manage",
+      "ok": true,
+      "seconds": 0.28261633099987193
+    },
+    {
+      "condition": "cleanup",
+      "tool": "window_manage",
+      "ok": true,
+      "seconds": 0.27801798599989525
+    },
+    {
+      "condition": "cleanup",
+      "tool": "press_keys",
+      "ok": true,
+      "seconds": 0.07893344399985835
+    },
+    {
+      "condition": "cleanup",
+      "tool": "activate_window",
+      "ok": true,
+      "seconds": 0.1354198809999616
+    }
+  ],
+  "notes": [
+    "One ordered live demonstration, not a controlled performance benchmark.",
+    "A includes first-run exploration; B benefits from task familiarity and a running editor.",
+    "Backend sums exclude MCP transport, agent reasoning, explicit sleeps and event-log writes.",
+    "B used no semantic observations or native semantic actions; legacy input guards may internally use accessibility.",
+    "All final documents reopened via GUI; independent disk verification outside interaction timing."
+  ]
+}

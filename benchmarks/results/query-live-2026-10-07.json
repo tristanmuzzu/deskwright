@@ -1,0 +1,74 @@
+[
+  {
+    "case": "create_folder",
+    "seconds": 2.8493158560004304,
+    "exact": true
+  },
+  {
+    "case": "create_folder",
+    "seconds": 2.7397898609997355,
+    "exact": true
+  },
+  {
+    "case": "create_folder",
+    "seconds": 2.6042082829999345,
+    "exact": true
+  },
+  {
+    "case": "filtered_snapshot",
+    "version": "old",
+    "seconds": 0.6861710330003916,
+    "complete": true,
+    "matches": 1
+  },
+  {
+    "case": "filtered_snapshot",
+    "version": "new",
+    "seconds": 0.49063022900008946,
+    "complete": true,
+    "matches": 1
+  },
+  {
+    "case": "filtered_snapshot",
+    "version": "new",
+    "seconds": 0.42584367400013434,
+    "complete": true,
+    "matches": 1
+  },
+  {
+    "case": "filtered_snapshot",
+    "version": "old",
+    "seconds": 0.7564932039995256,
+    "complete": true,
+    "matches": 1
+  },
+  {
+    "case": "filtered_snapshot",
+    "version": "old",
+    "seconds": 0.8702417800004696,
+    "complete": true,
+    "matches": 1
+  },
+  {
+    "case": "filtered_snapshot",
+    "version": "new",
+    "seconds": 0.4731666240004415,
+    "complete": true,
+    "matches": 1
+  },
+  {
+    "case": "calculator",
+    "seconds": 1.1354558209995957,
+    "exact": true
+  },
+  {
+    "case": "calculator",
+    "seconds": 1.0802039019999938,
+    "exact": true
+  },
+  {
+    "case": "calculator",
+    "seconds": 1.0506043759996828,
+    "exact": true
+  }
+]

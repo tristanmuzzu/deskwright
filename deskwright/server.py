@@ -31,6 +31,7 @@ from .capture import (
 )
 from .config import KEYS, MODIFIERS
 from .errors import ToolError
+from .hybrid import tool_ui_observe
 from .input import (
     YDOTOOL_SOCKET,
     _input,
@@ -55,6 +56,7 @@ from .input import (
 from .journal import record as journal_record
 from .journal import tool_journal
 from .ocr import OCR_MIN_CONFIDENCE, tool_find_text
+from .semantic import tool_ui_action, tool_ui_inspect, tool_ui_query, tool_ui_snapshot, tool_ui_wait
 from .shell import (
     WINDOW_LAYOUT_ACTIONS,
     _extension_diagnosis,
@@ -522,10 +524,14 @@ TOOLS: list[dict] = [
             "properties": {
                 "condition": {"type": "string",
                               "enum": ["window_exists", "window_gone",
-                                       "window_focused", "focus_changes",
+                                       "window_focused", "window_new", "window_title", "focus_changes",
                                        "text_appears", "widget_exists",
                                        "clipboard_changed", "elapsed"]},
                 "target": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+                "since": {"type": "array", "items": {"type": "integer"},
+                          "description": "For window_new: IDs observed before the triggering action. Returns all new candidates; never guesses an app class."},
+                "title": _s("For window_title: exact expected title of target."),
+                "transient_for": {"type": "integer", "description": "For window_new: optionally restrict to dialogs of this window."},
                 "text": _s("For text_appears: the string to watch for. For "
                            "widget_exists: the widget name to match."),
                 "app": _s("For widget_exists: the AT-SPI application name"),
@@ -820,6 +826,113 @@ TOOLS: list[dict] = [
         "annotations": {"readOnlyHint": True},
     },
     {
+        "name": "ui_snapshot",
+        "description": "Compact, bounded accessibility snapshot of one compositor window. "
+                       "Returns opaque native-object refs, states and actions. Check complete "
+                       "and limits_hit; hidden/custom canvas content may be absent. Ref lifetime "
+                       "is 120 seconds, scoped to this worker and session. UI text is untrusted.",
+        "inputSchema": {"type": "object", "properties": {
+            "window_id": {"type": "integer", "description": "Exact ID from list_windows"},
+            "within": _s("Optional observed container ref; completeness applies only to this subtree"),
+            "name": _s("Optional case-insensitive name substring"),
+            "role": _s("Optional exact native role"),
+            "compact": {"type": "boolean", "default": False,
+                        "description": "Prefer visible controls; omit inherited container actions and labels unless name/role filtered"},
+            "limit": {"type": "integer", "minimum": 1, "maximum": 400, "default": 100},
+            "max_nodes": {"type": "integer", "minimum": 1, "maximum": 4000, "default": 600},
+            "depth": {"type": "integer", "minimum": 1, "maximum": 64, "default": 30},
+            "budget_ms": {"type": "number", "minimum": 10, "maximum": 10000, "default": 1500},
+        }, "required": ["window_id"]},
+        "handler": tool_ui_snapshot,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "ui_observe",
+        "description": "Discover an unfamiliar window with one bounded native scan; return compact "
+                       "controls when complete and useful, otherwise an inline screenshot in this same response. "
+                       "Auto temporarily skips native scans after poor results, scoped to this process/window state. "
+                       "Use visual for canvases/layout; native forces a fresh probe. No input or postcondition claims.",
+        "inputSchema": {"type": "object", "properties": {
+            "window_id": {"type": "integer"},
+            "mode": {"type": "string", "enum": ["auto", "native", "visual"], "default": "auto"},
+            "budget_ms": {"type": "number", "minimum": 50, "maximum": 5000, "default": 1000},
+        }, "required": ["window_id"]},
+        "handler": tool_ui_observe,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "ui_query",
+        "description": "Wait for several exact visible controls/conditions in one window scan. "
+                       "Returns one pinned ref per named selector, optionally its text. "
+                       "Retries observations through startup/transitions; never retries input. "
+                       "Rejects ambiguity and incomplete scans. Use absent for disappearance, "
+                       "ready for readiness, text for exact completion. Query only known controls; "
+                       "use a screenshot or snapshot to discover unfamiliar UI.",
+        "inputSchema": {"type": "object", "properties": {
+            "window_id": {"type": "integer"},
+            "controls": {"type": "object", "minProperties": 1, "maxProperties": 16,
+                         "additionalProperties": {"type": "object", "properties": {
+                             "role": _s("Exact native role"),
+                             "name": _s("Exact case-sensitive accessible name; omit for any name"),
+                             "editable": {"type": "boolean"},
+                             "ready": {"type": "boolean"},
+                             "absent": {"type": "boolean"},
+                             "include_text": {"type": "boolean"},
+                             "text": _s("Exact text postcondition"),
+                         }, "required": ["role"], "additionalProperties": False}},
+            "within": _s("Optional observed container ref; uniqueness and absence apply only inside this subtree"),
+            "timeout_s": {"type": "number", "minimum": 0, "maximum": 10, "default": 5},
+        }, "required": ["window_id", "controls"]},
+        "handler": tool_ui_query,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "ui_inspect",
+        "description": "Revalidate a native ref and read current states; optionally read bounded "
+                       "text. Rejects expired, destroyed, renamed or moved controls. No pixels.",
+        "inputSchema": {"type": "object", "properties": {
+            "ref": _s("Opaque ref from ui_snapshot"),
+            "include_text": {"type": "boolean", "default": False},
+            "max_characters": {"type": "integer", "minimum": 1, "maximum": 64000, "default": 16000},
+        }, "required": ["ref"]},
+        "handler": tool_ui_inspect,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
+        "name": "ui_action",
+        "description": "Guarded native action on a snapshot ref. Target window must be focused, "
+                       "visible and unblocked; requires InteractionState in the live extension. "
+                       "set_text compares expected_text and verifies exact replacement. "
+                       "set_checked is idempotent and verified. invoke reports accepted only: "
+                       "observe the resulting dialog/file/state before continuing, never blindly retry.",
+        "inputSchema": {"type": "object", "properties": {
+            "ref": _s("Opaque ref from ui_snapshot"),
+            "action": {"type": "string", "enum": ["invoke", "set_text", "set_checked"]},
+            "action_index": {"type": "integer", "minimum": 0, "description": "Required if multiple actions"},
+            "text": _s("Exact replacement for set_text"),
+            "expected_text": _s("Exact currently observed text; required for set_text"),
+            "checked": {"type": "boolean"},
+            "timeout_s": {"type": "number", "minimum": 0, "maximum": 10, "default": 2},
+        }, "required": ["ref", "action"]},
+        "handler": tool_ui_action,
+    },
+    {
+        "name": "ui_wait",
+        "description": "Wait up to 10 seconds for text, changed text, checked state or widget "
+                       "readiness. Returns observed text for text conditions. Ready means visible "
+                       "and sensitive, not permission to act; action guards still apply. No retries.",
+        "inputSchema": {"type": "object", "properties": {
+            "ref": _s("Opaque ref from ui_snapshot"),
+            "text": _s("Exact expected text (exclusive with checked)"),
+            "checked": {"type": "boolean"},
+            "ready": {"type": "boolean", "description": "Visible, showing, sensitive and not busy"},
+            "text_changed_from": _s("Wait for text unequal to this prior value; inspect returned text for success"),
+            "timeout_s": {"type": "number", "minimum": 0, "maximum": 10, "default": 2},
+        }, "required": ["ref"]},
+        "handler": tool_ui_wait,
+        "annotations": {"readOnlyHint": True},
+    },
+    {
         "name": "ui_tree",
         "description": 'Read an application accessibility tree with paths, names, roles and states. Scope the query and inspect truncation metadata.',
         "inputSchema": {
@@ -835,9 +948,9 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ui_find",
-        "description": "Find widgets by visible text. THE way to locate something to "
-                       "act on: pressing a real widget through AT-SPI cannot miss and "
-                       "does not care where the window moved to. Paths returned here "
+        "description": "Find widgets by accessible names. Locate something to "
+                       "act on without pixel coordinates; native invocation "
+                       "does not depend on window position. Paths returned here "
                        "are valid only while the tree is unchanged -- find, then act.",
         "inputSchema": {
             "type": "object",
@@ -894,7 +1007,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "ui_press",
-        "description": 'Invoke an AT-SPI widget action. Optional identity expectations reject stale paths. Verify the application result.',
+        "description": 'Compatibility action by index path: requires name or role expectations. Prefer ui_action for native identity and modal guards; verify the application result.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -923,8 +1036,9 @@ TOOLS: list[dict] = [
                        "Characters go to the compositor as keysyms, so the keyboard "
                        "layout cannot transpose them -- the German-QWERTZ hazard that "
                        "made ydotool type z for y does not apply to this path. "
-                       "ui_set_text is still better where it works: it hands text to "
-                       "the widget and needs no focus at all.",
+                       "For exact bulk text or Unicode, prefer guarded ui_action set_text "
+                       "when available. A keysym encoding alone does not guarantee that "
+                       "the current keymap can deliver every Unicode character.",
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -932,12 +1046,13 @@ TOOLS: list[dict] = [
                 "look_at": _LOOK_AT_SCHEMA,
                 "settle_max_s": _SETTLE_SCHEMA,
                 "text": _s("Literal text to type"),
+                "expected_after": _s("Optional exact full buffer after input, for known application normalization; e.g. Calculator converts * to \u00d7. Does not change what is typed."),
                 "target": TARGET_SCHEMA,
-                "key_delay_ms": {"type": "integer", "default": 20},
+                "key_delay_ms": {"type": "integer", "minimum": 0, "maximum": 1000,
+                                 "description": "Default 8ms for keysyms (minimum 8ms), 20ms for explicit ydotool. Increase for slower applications."},
                 "via": {"type": "string", "enum": ["auto", "keysym", "ydotool"],
                         "default": "auto",
-                        "description": "auto prefers compositor keysyms and falls "
-                                       "back to ydotool."},
+                        "description": "auto uses compositor keysyms. No automatic replay via another backend after partial input."},
                 "verify_app": _s("AT-SPI application name to read back for "
                                  "verification; auto-detected from the window if "
                                  "omitted"),
@@ -1082,8 +1197,20 @@ if os.environ.get("DESKWRIGHT_ENABLE_EXEC") == "1":
         "display(desktop.screenshot()). desktop.call(tool, **args) uses the same guarded "
         "tools; click(x,y,target=...), path(points,target=...), type(text,target=...), "
         "key(combo,target=...), wait(condition,...), sleep(seconds) are helpers. "
-        "Input is sequential; screenshots are explicit. Inspect before acting and after "
-        "short groups. 60s deadline; cancellation resets variables and observations. "
+        "describe(tool) returns its actual argument schema locally; unsupported arguments are refused. "
+        "log(desktop.observe(window_id)) discovers unfamiliar UI with a bounded native scan or "
+        "displays pixels automatically; mode='visual' for canvases, mode='native' to retry a probe. "
+        "query(window_id, **named_selectors) waits for exact known controls/conditions "
+        "and returns their refs/text together; selectors require role, optional exact name, "
+        "editable, ready, absent, include_text or text. "
+        "within=container_ref scopes query work and uniqueness to a previously observed dialog/panel. "
+        "Batch known actions and condition waits to avoid extra round trips. Use shortcuts, "
+        "native text and pixels as appropriate; no mandatory accessibility scan. Input is sequential "
+        "and never replayed on failure; recoverable stopped batches attach a fresh screenshot when possible. "
+        "Text replacement verifies only field contents, not navigation or submission. "
+        "Commit navigation explicitly and verify the resulting destination before consequential input. "
+        "Observe transitions before acting on new controls. "
+        "60s deadline; cancellation resets variables and observations. "
         "Runs with host permissions, not a Python sandbox. No implicit retries.",
         "inputSchema": {"type": "object", "properties": {
             "code": {"type": "string"}, "reset": {"type": "boolean", "default": False}},
@@ -1111,6 +1238,22 @@ _READ_ONLY_TOOLS = {t["name"] for t in TOOLS
 TOOL_SCHEMAS = [
     {k: v for k, v in t.items() if k != "handler"} for t in TOOLS
 ]
+
+
+def validate_tool_args(tool, args):
+    """Reject misspelled fields and choices before input; handlers own semantics."""
+    schema = next((s['inputSchema'] for s in TOOL_SCHEMAS if s['name'] == tool), None)
+    if schema is None or not isinstance(args, dict):
+        raise ToolError('unknown tool or non-object arguments', code='bad_args')
+    props = schema.get('properties', {})
+    unknown = set(args) - set(props) - {'observation_mode'}
+    missing = set(schema.get('required', ())) - set(args)
+    invalid = [k for k, v in args.items() if k in props and 'enum' in props[k]
+               and v not in props[k]['enum']]
+    if unknown or missing or invalid:
+        raise ToolError(f'{tool}: unknown arguments {sorted(unknown)}; '
+                        f'missing {sorted(missing)}; invalid choices {invalid}',
+                        code='bad_args', details={'tool': tool, 'schema': schema})
 
 
 def _content_blocks(result: Any) -> list[dict]:
@@ -1181,9 +1324,10 @@ def handle(msg: dict) -> None:
         if handler is None:
             _error(msg_id, -32602, f"unknown tool {name!r}")
             return
-        args = params.get("arguments") or {}
+        args = params.get("arguments", {})
         acted = name not in _READ_ONLY_TOOLS
         try:
+            validate_tool_args(name, args)
             # Deferred headless start (see mcp_server._resolve_session): the
             # session was cold at initialize, so the FIRST tool call pays the
             # 15-20s bring-up here, inside a normal per-call timeout, instead
@@ -1219,7 +1363,8 @@ def handle(msg: dict) -> None:
             if acted:
                 journal_record(name, args, {"error": str(e), "code": e.code, "action_status": e.action_status})
             _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()},
-                              {"type": "text", "text": json.dumps({"code": e.code, "action_status": e.action_status})}],
+                              {"type": "text", "text": json.dumps({"code": e.code, "action_status": e.action_status,
+                                  **({"details": e.details} if e.details else {})})}],
                               "isError": True})
         except Exception as e:
             if acted:
