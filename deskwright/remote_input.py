@@ -107,8 +107,9 @@ def char_to_keysym(ch: str) -> int:
     """The X11 keysym for a character.
 
     Latin-1 is its own keysym range, and everything else is the codepoint with
-    0x01000000 added -- the rule from the X protocol, which is what lets this
-    type an em dash or an emoji without knowing anything about the layout.
+    0x01000000 added, following the X protocol. Encoding is not delivery:
+    a private GNOME keymap dropped accented/CJK/em-dash keysyms even at 20ms
+    on 2026-10-07. Keep readback and use native text for unsupported characters.
     """
     code = ord(ch)
     if code == 0x0A or code == 0x0D:

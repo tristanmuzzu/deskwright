@@ -8,6 +8,7 @@ from typing import Any
 
 from .capture import _look, _look_before
 from .errors import ToolError
+from .execution import check, clock, pause
 from .shell import list_windows
 
 MAX_TREE_NODES = 400          # keeps a tree dump inside a sane token budget
@@ -737,8 +738,7 @@ def tool_ui_set_text(a: dict) -> dict:
     replace = bool(a.get("replace", False))
 
     node, resolved = _locate_text_widget(app, path)
-    Atspi = _atspi()
-    text_iface, editable = _text_ifaces(node)
+    _text_iface, editable = _text_ifaces(node)
     if editable is None:
         raise ToolError(
             f"{node.get_role_name()} {node.get_name()!r} is not editable through "
@@ -747,36 +747,7 @@ def tool_ui_set_text(a: dict) -> dict:
             code="widget_missing",
         )
 
-    before = _read_text(node)
-    if replace and before:
-        Atspi.EditableText.delete_text(editable, 0, len(before))
-    offset = 0 if replace else Atspi.Text.get_character_count(text_iface)
-    # AT-SPI position is in characters, but length is UTF-8 bytes. A single
-    # em dash in the September 7 document pilot truncated the final two bytes
-    # when Python's character count was passed here.
-    if not node.insert_text(offset, text, len(text.encode("utf-8"))):
-        raise ToolError("insert_text returned false; nothing was written",
-                        code="atspi_write_failed")
-
-    time.sleep(0.2)
-    after = _read_text(node)
-    if text not in after:
-        raise ToolError(
-            "insert_text reported success but the text is not in the widget "
-            f"(now {len(after)} chars). Treat this as a failure, not a success.",
-            code="atspi_write_failed",
-        )
-    # With replace=True, `text in after` is too weak: a no-op delete_text leaves
-    # the old content, the new text is found anyway, and the tool would report
-    # verified:True on a widget that was never actually cleared.
-    if replace and after.strip() != text.strip():
-        raise ToolError(
-            f"replace=True did not clear the widget: it holds {len(after)} chars "
-            f"but {len(text)} were written. delete_text appears to be a no-op on "
-            f"this widget ({node.get_role_name()}); content now starts "
-            f"{after[:60]!r}.",
-            code="atspi_write_failed",
-        )
+    before, after = _write_text(node, text, replace=replace)
     return {"path": resolved, "role": node.get_role_name(),
             "focused": _is_focused(node), "wrote": len(text),
             "characters_before": len(before), "characters_after": len(after),
@@ -784,6 +755,49 @@ def tool_ui_set_text(a: dict) -> dict:
             "detail": (f"wrote {len(text)} chars and read them back out of the "
                        f"widget at {resolved}; pass that path to ui_read_text to "
                        "verify the SAME document later")}
+
+
+def _write_text(node, text, *, replace, timeout=2.0, expected_before=None):
+    """Write once, then wait for exact completion; never replay a partial write."""
+    Atspi = _atspi()
+    _text_iface, editable = _text_ifaces(node)
+    if editable is None:
+        raise ToolError("widget has no EditableText interface", code="widget_missing",
+                        action_status="not_started")
+    before = _read_text(node)
+    if expected_before is not None and before != expected_before:
+        raise ToolError("text changed before writing", code="stale_observation")
+    expected = text if replace else before + text
+    if before == expected:
+        return before, before
+    check()
+    changed = False
+    if replace and before:
+        if not Atspi.EditableText.delete_text(editable, 0, len(before)):
+            raise ToolError("delete_text returned false; insertion was not attempted",
+                            code="atspi_write_failed", action_status="unknown")
+        changed = True
+    offset = 0 if replace else len(before)
+    # AT-SPI position is in characters, but length is UTF-8 bytes. A single
+    # em dash in the September 7 document pilot truncated the final two bytes
+    # when Python's character count was passed here.
+    if text and not node.insert_text(offset, text, len(text.encode("utf-8"))):
+        raise ToolError("insert_text returned false; inspect partial content before retrying",
+                        code="atspi_write_failed",
+                        action_status="partial" if changed else "unknown")
+    # A no-op delete used to pass containment checks, and stripping both sides
+    # also hid whitespace corruption. Require the entire exact intended value.
+    deadline = clock() + timeout
+    while True:
+        check()
+        after = _read_text(node)
+        if after == expected:
+            return before, after
+        if clock() >= deadline:
+            raise ToolError("write was accepted but exact text did not appear; "
+                            "inspect partial content before retrying",
+                            code="atspi_write_failed", action_status="unknown")
+        pause(min(.02, max(0, deadline-clock())))
 
 
 # ---- launching applications ----------------------------------------------
@@ -969,14 +983,28 @@ def tool_launch_app(a: dict) -> dict:
     awaited = (f"a new window after launching {what}" if window_ids is not None
                else f"a new AT-SPI application after launching {what}")
     start = time.monotonic()
+    mapped = set()
     while time.monotonic() - start < timeout:
         if window_ids is not None:
             try:
+                candidates = []
                 for w in list_windows():
-                    if w["id"] not in window_ids:
+                    if w["id"] not in window_ids and w.get('type') not in {
+                        'SPLASHSCREEN', 'SPLASH_SCREEN', 'TOOLTIP', 'DROPDOWN_MENU',
+                        'POPUP_MENU', 'NOTIFICATION', 'DESKTOP', 'DOCK',
+                    } and w.get('width', 0) > 0 and w.get('height', 0) > 0:
+                        candidates.append(w)
+                for w in candidates:
+                    # Some apps label their splash NORMAL. Require mapping
+                    # in two consecutive polls to filter brief transients.
+                    # A longer startup window can still pass: arrival is not
+                    # document readiness (observed with GIMP and LibreOffice).
+                    if (w['id'], w.get('pid')) in mapped:
                         return {**launched, "confirmed": True,
                                 "confirmed_by": "window", "window": w,
+                                "note": "Window arrival only; inspect current windows and document readiness before input.",
                                 "waited_seconds": round(time.monotonic() - start, 2)}
+                mapped = {(w['id'], w.get('pid')) for w in candidates}
             except ToolError:
                 # The extension died mid-wait (a lock, most likely). Fall back
                 # to the AT-SPI diff rather than failing a launch that worked.
@@ -995,6 +1023,18 @@ def tool_launch_app(a: dict) -> dict:
                                          "to return")}
             except ToolError:
                 pass
+        if spawn_direct:
+            exit_code = proc.poll()
+            if exit_code not in (None, 0):
+                # A failed launcher cannot become successful by spending the
+                # remaining arrival timeout. A zero exit may be a normal
+                # handoff to an existing process, so keep observing that case.
+                raise ToolError(
+                    f'{what} exited with status {exit_code} before arrival was confirmed; '
+                    'inspect current windows before another launch',
+                    code='verification_failed', action_status='unknown',
+                    details={'pid': proc.pid, 'exit_code': exit_code,
+                             'arrival_confirmed': False})
         time.sleep(LAUNCH_POLL_S)
     raise ToolError(
         f"timed out after {timeout:.0f}s waiting for {awaited}. The launch "

@@ -1,5 +1,9 @@
 # Moat spikes, findings (2026-08-23)
 
+The 2026-10-06 [semantic GUI investigation](semantic-gui-research.md) measures
+accessibility execution, compact snapshots and observation cost, and proposes
+a Linux/Windows interface with explicit coverage and modal-safety limits.
+
 > **Update 2026-08-24:** Spike 1 is productized, `deskwright-headless` +
 > `DESKWRIGHT_SESSION=headless` (deskwright/headless.py, README § "The headless second
 > session"). The open input question resolved as predicted: RemoteDesktop

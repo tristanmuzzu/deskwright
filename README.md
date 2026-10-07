@@ -34,6 +34,26 @@ The part people tend to like most: `DESKWRIGHT_SESSION=headless` runs all of
 it on a virtual monitor that isn't on any of your screens. Your agent gets a real GNOME
 desktop to work on, and it never takes your focus.
 
+## Linux hybrid beta: 0.2.0b1
+
+The beta adds guarded native controls, exact multi-control queries, adaptive
+visual fallback and shorter verified execution batches. It supports GNOME
+Wayland; Windows is not implemented. See the [interaction guide](docs/semantic-interaction.md)
+and [measurements and limits](docs/semantic-real-app-comparison.md).
+
+For a new installation:
+
+```bash
+pipx install --system-site-packages 'deskwright==0.2.0b1'
+deskwright-setup
+```
+
+For an existing pipx installation, `pipx upgrade --pip-args='--pre' deskwright`
+keeps its existing system-site-packages setting. Run `deskwright-setup` to copy
+the updated extension, then log out and back in if setup reports a changed
+extension. Restart the MCP connection to load the updated Python tools.
+A connection restart alone cannot reload GNOME Shell's extension.
+
 ## Why this exists
 
 Wayland deliberately stops an application from seeing or touching any other
@@ -166,15 +186,17 @@ now and what each of them will actually do.
 
 ## What it can do
 
-35 tools. Each returns enough that you do not need a second call to work
+41 tools. Each returns enough that you do not need a second call to work
 out what happened. The order below is the order an agent should reach for them.
-Accessibility tree first, pixels last.
+Use native controls and exact queries where useful, with screenshots and
+ordinary input for visual work or incomplete accessibility.
 
 | Tool | What it's for |
 |---|---|
 | `ui_apps`, `ui_tree`, `ui_find` | Find things. `ui_find` searches 30 levels deep by default, because GTK4 nests far deeper than you'd expect. |
-| `ui_press` | **The good one.** Invokes the widget's own action, so it can't miss. Wants `expect_name` or `expect_role`, which is the identity check, not ceremony. |
-| `ui_set_text` | **The good one for typing.** Writes straight into the widget with no focus and no keyboard, then reads it back to prove the write landed. |
+| `ui_press` | Compatibility API for invoking a widget by index path. Requires `expect_name` or `expect_role`; inspect the resulting state. Prefer `ui_action` for native identity and modal guards. |
+| `ui_observe`, `ui_snapshot`, `ui_query`, `ui_inspect`, `ui_action`, `ui_wait` | Bounded native references, guarded actions and exact completion checks. See [semantic interaction](docs/semantic-interaction.md). |
+| `ui_set_text` | Compatibility API for writing by index path, with exact readback. Prefer `ui_action` for native references, current-value comparison and modal guards. |
 | `ui_read_text` | Read a widget's contents. This is how you verify something worked. |
 | `launch_app` | Start an app by desktop id and wait for its window, inside one call. |
 | `screen_map` | Where everything is, in pixels: windows top of stack first, plus every pressable widget of the focused app with the point to click it at. Each carries a `ref: N` you pass straight to `ui_press` or `pointer_click`. No coordinates to copy, identity re-checked on use. |
@@ -199,7 +221,7 @@ Accessibility tree first, pixels last.
 An agent that needs your screen is only half useful. `deskwright-headless` starts a
 separate GNOME session on a virtual monitor, with its own session bus, its own
 `gnome-shell --headless` and its own runtime directory. A server pinned to it
-drives that desktop with the same 35 tools while you keep the physical one.
+drives that desktop with the same 41 tools while you keep the physical one.
 
 ```bash
 deskwright-headless start                    # about 200 MB of gnome-shell, idempotent

@@ -1,0 +1,12 @@
+{
+  "tests_passed": 437,
+  "known_preexisting_test_failures": 2,
+  "private_selftest": "18/18",
+  "changed_python_ruff": "passed",
+  "whole_tree_ruff_preexisting_import_order_findings": 2,
+  "extension_gjs_parser": "passed",
+  "installed_extension_staged": true,
+  "physical_shell_restarted": false,
+  "backup": "/tmp/deskwright-extension-before-semantic-20261006.js",
+  "benchmark_source_matches_final": true
+}

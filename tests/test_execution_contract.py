@@ -109,6 +109,20 @@ def test_code_state_survives_exception_and_reset():
     assert 'value' not in GLOBALS
 
 
+def test_query_helper_failure_stops_before_input(monkeypatch):
+    calls = []
+    def query(args):
+        calls.append(args)
+        raise ToolError('ambiguous target', code='ambiguous_control', action_status='not_started')
+    monkeypatch.setitem(server.HANDLERS, 'ui_query', query)
+    monkeypatch.setitem(server.HANDLERS, 'press_keys', lambda a: pytest.fail('input after failed query'))
+    out = tool_desktop_exec({'reset': True, 'code':
+        "desktop.query(42, save={'role':'button','name':'Save'})\n"
+        "desktop.key('Enter', target=42)"})
+    assert out['error']['code'] == 'ambiguous_control'
+    assert len(calls) == 1 and calls[0]['controls']['save']['name'] == 'Save'
+
+
 def test_code_calls_use_shared_executor():
     with patch('deskwright.code_runtime.execute', return_value={'ok': True}) as run:
         assert tool_desktop_exec({'code': 'desktop.key("Return", target=42)'})['all_ok']

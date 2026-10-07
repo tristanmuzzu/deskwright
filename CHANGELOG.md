@@ -1,5 +1,39 @@
 # Changelog
 
+## 0.2.0b1, Linux hybrid beta (2026-10-07)
+
+Agents can combine native controls, exact completion queries and visual input
+inside short guarded batches. Native discovery falls back to screenshots when
+it is incomplete or unproductive; visual work still requires image inspection.
+
+- Add `ui_observe`, `ui_snapshot`, `ui_query`, `ui_inspect`, `ui_action` and
+  `ui_wait`, with expiring window/process-bound references, refreshed ancestry,
+  ambiguity rejection, and compositor modal/lock/halt checks.
+- Optimize scoped queries and supported provider-side searches, retaining a
+  bounded traversal fallback for large or unsupported accessibility trees.
+- Improve exact Unicode text verification, selected-text replacement, typing
+  latency, window arrival checks and failed-launch reporting.
+- Report partial execution and fresh recovery observations without replaying
+  input. Preserve cancellation, stale-frame and held-input release guards.
+- Include the previously unreleased persistent Python interface, continuous
+  pointer paths, image-coordinate observations and restricted `window_layout`.
+
+Validation before release: the local suite, extension syntax checks, package
+build/installation checks and GitHub CI. Earlier live validation passed 12
+receiver-contract checks and 18 private-desktop self-test checks. The measured
+three-application workflow averaged 92.64 seconds hybrid versus 179.03 seconds
+visual (two runs each). A separate four-per-version Writer comparison reduced
+worker-local time by 46.1%; it excludes model and transport time. See
+[full evidence and limitations](docs/semantic-real-app-comparison.md).
+
+This is a GNOME Wayland beta. Windows is not implemented. Accessibility provider
+calls can exceed cooperative scan budgets; application arrival and field text
+readback do not prove that a document is ready or an application action completed.
+Legacy compatibility aliases remain available in this beta.
+
+Upgrades from 0.1.1 require `deskwright-setup`, a GNOME logout/login to load the
+updated extension, and an MCP connection restart. Never log a user out automatically.
+
 ## 0.1.1
 
 Adds the `mcp-name: io.github.tristanmuzzu/deskwright` line to the README. The MCP registry reads the README that

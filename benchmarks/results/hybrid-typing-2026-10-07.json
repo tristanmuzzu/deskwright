@@ -1,0 +1,48 @@
+[
+  {
+    "delay_ms": 20,
+    "seconds": 3.427204092000011,
+    "characters": 138,
+    "exact": true,
+    "verified": true
+  },
+  {
+    "delay_ms": 8,
+    "seconds": 1.6116725009997026,
+    "characters": 138,
+    "exact": true,
+    "verified": true
+  },
+  {
+    "delay_ms": 8,
+    "seconds": 1.6271106899998813,
+    "characters": 138,
+    "exact": true,
+    "verified": true
+  },
+  {
+    "delay_ms": 20,
+    "seconds": 3.272972837999987,
+    "characters": 138,
+    "exact": true,
+    "verified": true
+  },
+  {
+    "delay_ms": 20,
+    "seconds": 3.2653416140001355,
+    "characters": 138,
+    "exact": true,
+    "verified": true
+  },
+  {
+    "delay_ms": 8,
+    "seconds": 1.5663746519999222,
+    "characters": 138,
+    "exact": true,
+    "verified": true
+  },
+  {
+    "case": "native_unicode",
+    "exact": true
+  }
+]

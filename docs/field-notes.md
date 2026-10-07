@@ -348,3 +348,210 @@ The new restricted window_layout tool inherits that same implementation. This
 latency issue was left unchanged in both conditions to isolate scoped approval
 changes. A follow-up should validate the requested geometry and state before
 waiting, while retaining verification for actual moves and asynchronous mapping.
+
+## Semantic GUI research findings (2026-10-06)
+
+The [research report](semantic-gui-research.md) and its raw samples document
+successful semantic document/form work and current limits. Two points affect
+future implementation: GTK4 editor controls reported ENABLED=false while
+SENSITIVE=true and usable; a Chrome semantic action ran while a GNOME keyring
+prompt covered the private desktop. Compositor hit-testing identified no app
+receiver at the prompt. Native accessibility identity is not proof of physical
+reachability or permission to act through a modal. No credentials were entered.
+
+Unrelated verification failures present in the starting dirty worktree were
+left for the guidance change that owns them: `tests/test_prose.py` rejected a
+curly apostrophe in `skills/deskwright-codex/SKILL.md:26` and still expected the
+old inline runbook commands in `AGENTS.md`; Ruff flagged import ordering at
+lines 10 and 34 of `skills/deskwright-codex/scripts/private_server.py`. The
+research run had 390 passing tests and those two failures. No production
+runtime code was modified by this investigation.
+
+
+## Semantic interaction hardening (2026-10-06)
+
+The follow-up implementation adds `ui_snapshot`, `ui_inspect`, `ui_action` and
+`ui_wait`; see [the execution contract and live evidence](semantic-interaction.md).
+It resolves the researched shell-modal gap for the new action API by requiring
+GNOME `InteractionState` (extension build `2026-10-06.1`). In a private live
+session, an actual Run dialog held a modal grab while the underlying form still
+reported focused. Invocation refused with `occluded` / `not_started`; exact form
+readback confirmed no change. Legacy tools retain compatibility behavior.
+
+Two provider details were discovered during hardening. GTK4 frame nodes expose
+more than 32 actions, so rejecting a large action table incorrectly hid their
+otherwise useful descendants. Snapshots now cap the listed actions per node and
+report truncation while continuing the traversal. Editing also adds undo actions
+and shifts action indices: invocation rechecks the action table, while text
+readback validates native object/name/role independently of those indices.
+
+The visible main-desktop demo filled 14 fields and three options in 3.160 seconds;
+its clear/reopen/exact verification phase took 0.408 seconds. Five final private
+runs through the hardened API all passed, with a median 0.665-second fill phase
+and 1.434-second complete workflow, including readback and deliberate refusals.
+These are worker-local timings on a controlled form, not a model benchmark or
+an end-to-end speed ratio. An initially premature disk read after Save confirmed
+that native acceptance must be followed by an application completion predicate.
+
+Final verification: 437 tests passed, with the same two pre-existing guidance
+failures listed above; the private real-session self-test passed 18/18. Changed
+Python files passed Ruff; whole-tree Ruff still reports only the two pre-existing
+launcher import-order findings. The edited extension passed the GJS parser and
+was loaded only into a newly started private desktop. The tested extension file was staged in the installed directory with a backup;
+main-desktop activation still requires the next normal login and an MCP reconnect.
+No user logout was done. Both owned main-demo windows were closed, and the owned
+private desktop was stopped after verification.
+
+## Main-desktop real-application comparison (2026-10-07)
+
+After the user's logout/login, extension build 2026-10-06.1 and all four semantic
+tools were live on the main desktop. The [real-app comparison](semantic-real-app-comparison.md)
+completed Files → Text Editor → Calculator → Files with identical verified files
+in both conditions. Semantic-first with fallbacks took 582.06 seconds; ordinary
+screenshot/input took 202.69 seconds. Backend totals were about 20.55 seconds each.
+This single ordered trial includes discovery and warm-start bias, not evidence of
+a semantic speedup. No production code was changed between conditions.
+
+Confirmed follow-ups: fresh references inside Files' embedded New Folder dialog
+fail the outer-frame versus nearest-dialog identity comparison; unnamed popups
+are missing from the parent snapshot; file rows lack open/select operations;
+inherited actions flood broad snapshots. Calculator also showed that accepted
+invocation needs a later completion check. Legacy type_text verification rejected
+successful shared-prefix path replacement and Calculator's `*` → `×` conversion.
+The comparison report records the recovery and remaining work. Preserve guards
+while fixing these cases; do not turn false refusals into unverified success.
+
+## Hybrid speed and reliability follow-up (2026-10-07)
+
+The [semantic contract](semantic-interaction.md#hybrid-improvements-and-verification-2026-10-07)
+records the measured fixes: selection-aware typing, pinned-object verification,
+8 ms keysym default, optional compact snapshots, GTK4 embedded-dialog and GTK3
+portal-root identity, and readiness/changed-text waits. Three prepared real-app
+workflows passed exactly in 8.133/7.743/7.733 seconds, excluding model decisions.
+No extension changes or user-desktop input were needed in this follow-up.
+
+GTK's text selection must use `Atspi.Text.get_selection(node, index)`:
+`Accessible.get_selection()` names the different selection interface and takes
+no index. Unit fakes initially hid that mismatch; the live Files test caught it.
+
+The private compositor dropped accented, CJK and em-dash keysyms at the original
+20 ms typing delay. Faster typing did not cause that failure. Exact native
+Unicode replacement passed. Preserve the failure and use the native route;
+do not silently substitute or replay input. This underlying keymap/input issue
+remains outside the implemented verification fix.
+
+Only comparison-owned processes/windows were cleaned up. Two retained private
+editor processes stopped responding to close after save-dialog/restore state and
+were terminated by their exact owned PIDs; no main-desktop process was touched. Future
+benchmark repetitions use explicit new-window launch and verify window closure.
+
+## 2026-10-07: exact queries and end-to-end batching
+
+The [final query comparison](semantic-real-app-comparison.md#exact-queries-and-shorter-agent-batches-2026-10-07)
+used complete, unambiguous multi-control observations and disappearance predicates
+inside short agent batches. Both final main-desktop pairs completed about 48%
+faster than the visual baseline, with exact artifacts and no tool exceptions.
+Backend operations themselves were slightly slower; model/transport round trips
+dominated. Keep backend timings separate from full agent completion time.
+
+A query must use its remaining timeout as the scan budget. A separate 1.5-second
+cap discarded partial scans on a busy real desktop, causing avoidable timeouts.
+The five-second default remains a maximum, not a fixed wait. Incomplete traversal
+still cannot prove uniqueness or disappearance.
+
+Confirmed setup defect, outside this change: a long private session name can
+make the combined Wayland socket path exceed Linux's 108-byte Unix socket limit.
+The failed test name `deskwright-query-live-_fg4lmp6` produced this exact Mutter
+error. A shorter unique name started successfully. No setup-code change was made.
+
+## 2026-10-07: varied hybrid tasks expose navigation and targeting costs
+
+The [four varied tasks](semantic-real-app-comparison.md#four-varied-hybrid-tasks-2026-10-07)
+all produced exact outputs, but averaged 238.38 seconds with a 148.83–410.13 second
+range. Nine interrupted tool batches and one recovered approval block remain in
+the measurements. This does not support a broad, consistently large speedup claim.
+
+Confirmed application behavior: Archive Manager's Extract chooser accepted and
+read back a changed Location string, but Extract still used Home without
+committed navigation. The two synthetic archive files were identified by exact
+archive bytes and selected native rows, then moved through Files to the fixture;
+none remained in Home. Native text replacement is not a navigation-completion
+contract. A destination check is needed before submitting this dialog.
+
+Other observed costs: the save button reads Replace while the name already
+exists; Papers uses window class `papers`; full paths in Nautilus' File Name
+field did not complete a save in this trial. Four complete-tree query attempts
+timed out, including a disappearance check after successful folder creation.
+Use the recorded actual controls and bounded fallback; do not infer failed input
+from a failed observation. These are recorded follow-ups, not fixes verified in
+this turn. Production code stayed frozen for all four runs.
+
+## 2026-10-07: general hybrid cost routing and recovery
+
+See the [component measurements and live limits](semantic-real-app-comparison.md#general-hybrid-routing-and-recovery-2026-10-07).
+Observed subtree queries reduced median backend lookup time by 88.3% on a dense
+fixture. Skipping repeated unproductive 200 ms probes reduced warm observation
+cost by 51.7%. These exclude model time and do not establish end-to-end superiority.
+Only route costs are cached; controls and postcondition success are never cached.
+
+Newly announced windows can have zero geometry. An attempted zero-size crop
+failed twice; `ui_observe` now captures the full desktop during mapping. Its native
+traversal budget remains cooperative: a cold AT-SPI handshake took 5.70 seconds.
+Do not describe the scan budget as a hard per-call latency guarantee.
+
+Loupe exposes native toolbar controls without exposing its displayed image as a
+drawing area. Explicit visual observation remains necessary for image/layout
+work. GNOME Text Editor's native buffer omits its implicit final newline; saved
+artifact bytes and native text need separate explicit expectations.
+
+Papers exited with status 1 and `Failed to open display` in the private test
+session while the other apps worked. General direct-launch polling now reports
+an unsuccessful exit early, with PID/status and no replay. This reduced that
+failed call from 15.75 to 1.57 seconds including capture, but the application-level
+display failure remains unresolved and no claim of private Papers coverage is made.
+
+Existing verification failures outside these changes: `tests/test_prose.py`
+rejects a curly apostrophe in the already modified private-desktop skill and still
+expects setup commands inline in AGENTS.md after their move to the linked runbook.
+Repository-wide Ruff reports two import-order violations in the existing
+`skills/deskwright-codex/scripts/private_server.py`. These unrelated files were
+preserved; changed implementation and test files pass Ruff.
+
+## 2026-10-07: autonomous provider, document and recovery cycle
+
+The earlier prose and import-order failures are now repaired narrowly: the prose
+test follows the linked setup runbook, the skill uses an ASCII apostrophe, and
+the private launcher imports are sorted. Full suite: 527 passed; Ruff is clean.
+
+Native Collection queries greatly reduced Writer lookup work, but their first
+implementation stalled on Calc's virtual cell tree. A small result limit bounds
+matching results, not work spent searching for rare roles. A capped all-node
+probe now rejects oversized scopes before role filtering. Calc remains a visual
+or narrowly scoped workflow; a whole-window native query does not establish
+completeness. Do not infer a missing button from its timeout.
+
+Refreshing only the target widget was insufficient: a cached ancestor could
+still point to its former window. A reproduced mock accepted one action before
+the fix and zero afterward. Roots and ancestor relationships now refresh before
+identity and scope checks. No unsafe state/result cache was introduced.
+
+Long normal-type startup windows still occur after the two-poll mapping check.
+GIMP's first ID was replaced; LibreOffice's document populated under a temporary
+title. Fresh window discovery and document postconditions handled both. Arrival
+is not readiness, and adding an application-name sleep would not solve that.
+
+Papers' private-display failure is an AppArmor restriction: its connection to the
+custom private Wayland socket returned EACCES, while its installed policy allows
+the usual wayland-[0-9] socket paths. Policy was not weakened or bypassed.
+
+See the [autonomous comparison](semantic-real-app-comparison.md#autonomous-improvement-cycle-2026-10-07)
+for final repeated timings, exact artifact checks, canvas recovery and limits.
+
+## 2026-10-07: beta release validation
+
+The isolated 0.2.0b1 release excludes unrelated local setup-runbook and private
+launcher changes. Its 525-test suite and 18-check private-desktop self-test passed.
+The initial no-PyGObject CI matrix exposed an existing keyboard-warmup test that
+imports the GLib-dependent backend without declaring the requirement. That test
+now skips only when PyGObject is absent, matching the portal tests; the distro CI
+job still runs it and rejects any skips. No input behavior changed for this fix.

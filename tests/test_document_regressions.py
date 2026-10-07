@@ -25,6 +25,7 @@ def test_unicode_write_preserves_tail_and_character_offset(monkeypatch, replace)
 
     def delete(buffer, start, end):
         buffer.value = buffer.value[:start] + buffer.value[end:]
+        return True
 
     api = SimpleNamespace(
         Text=SimpleNamespace(get_character_count=lambda n: len(n.value)),

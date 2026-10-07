@@ -1,0 +1,27 @@
+{
+  "date": "2026-10-07",
+  "scope": "Python-only hybrid improvements; live tests on owned private desktop",
+  "pytest": {
+    "passed": 457,
+    "preexisting_failures": [
+      "test_no_smart_quotes[skills/deskwright-codex/SKILL.md]",
+      "test_the_agent_runbook_exists_and_is_linked"
+    ]
+  },
+  "focused_tests": 65,
+  "changed_files_ruff": "pass",
+  "whole_tree_ruff": "two pre-existing import-order findings in skills/deskwright-codex/scripts/private_server.py",
+  "private_self_test": "18/18 passed",
+  "complete_workflow_runs": "3/3 exact; originals unchanged",
+  "cleanup": "zero windows confirmed; two owned private editor processes terminated by exact PID after failed close",
+  "activation": "fresh MCP server tested; existing client-held servers need restart; no extension change or logout",
+  "source_sha256": {
+    "deskwright/input.py": "7fc4c23a5159b35e3edb41eca33fc32d44c46a128c57ae989e9e0366fe59a2b5",
+    "deskwright/semantic.py": "b100a92e6a7ab77133adf2d76a91744202bb5f248941e268737c45eb974ca238",
+    "deskwright/server.py": "7efe18585ca52ecf6ad5a74eed2215b6f33bc57bef6fac8fa9871ea75ae3466b",
+    "deskwright/remote_input.py": "8b549bc58d5633420adc631131b65480c0d23feff1172678182a8ec740108161",
+    "tests/test_typing_verification.py": "b8f97a4894457308dbd0e6a51f2ddabd289ad39dac00491d055d410b059676d5",
+    "tests/test_semantic.py": "aeef6218be63b13127bcfe88ef74354025f8cc02bb0f227d230fab70ec3d173d",
+    "benchmarks/hybrid_regressions.py": "04201d82f816304a9628f34a7c24ce50d95728fc1574e77a64882b126113e9fc"
+  }
+}

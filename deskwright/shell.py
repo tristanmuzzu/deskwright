@@ -176,6 +176,21 @@ def _unwrap_gvariant_string(raw: str) -> str:
     return value[0]
 
 
+def interaction_state() -> dict:
+    """Fail closed when the live compositor cannot report semantic blockers."""
+    if "InteractionState" not in extension_methods():
+        raise ToolError(_needs_relogin("InteractionState"), code="needs_relogin",
+                        action_status="not_started")
+    state = json.loads(_unwrap_gvariant_string(_gdbus("InteractionState")))
+    if (not isinstance(state, dict) or type(state.get("locked")) is not bool
+            or type(state.get("overview")) is not bool
+            or type(state.get("modal_count")) is not int
+            or not isinstance(state.get("windows"), list)):
+        raise ToolError("compositor interaction state is incomplete",
+                        code="extension_unavailable", action_status="not_started")
+    return state
+
+
 def list_windows() -> list[dict]:
     """Every window, bottom of the stack first -- the order gnome-shell keeps
     them in, which is what makes the last match at a point the topmost one."""
@@ -481,6 +496,7 @@ def tool_window_at(a: dict) -> dict:
 
 
 WAIT_CONDITIONS = {"window_focused", "window_exists", "window_gone",
+                   "window_new", "window_title",
                    "focus_changes", "text_appears", "widget_exists",
                    "clipboard_changed", "elapsed"}
 
@@ -570,8 +586,17 @@ def tool_wait_for(a: dict) -> dict:
         return out
 
     if condition in ("window_focused", "window_exists", "window_gone",
-                     "text_appears") and target is None:
+                     "window_title", "text_appears") and target is None:
         raise ToolError(f"{condition} needs a target window", code="bad_args")
+    if condition == "window_title" and not isinstance(a.get("title"), str):
+        raise ToolError("window_title needs an exact title string", code="bad_args")
+    if condition == "window_new":
+        since = a.get("since")
+        if (not isinstance(since, list) or len(since) > 1000
+                or any(type(i) is not int or i < 1 for i in since)):
+            raise ToolError("window_new needs since: window IDs observed before the action", code="bad_args")
+        if "transient_for" in a and (type(a['transient_for']) is not int or a['transient_for'] < 1):
+            raise ToolError("transient_for must be a window id", code="bad_args")
     if condition == "text_appears" and not a.get("text"):
         raise ToolError("text_appears needs text to look for", code="bad_args")
     if condition == "widget_exists" and not a.get("app"):
@@ -630,10 +655,16 @@ def tool_wait_for(a: dict) -> dict:
         check()
         windows = list_windows()
         hits = [w for w in windows if matches(w)] if target is not None else []
+        if condition == "window_new":
+            hits = [w for w in windows if w['id'] not in since
+                    and (target is None or matches(w))
+                    and ('transient_for' not in a or w.get('transient_for') == a['transient_for'])]
         focused = [w for w in windows if w.get("focused")]
         now = focused[0]["id"] if focused else None
         met = (
             (condition == "window_exists" and hits)
+            or (condition == "window_new" and hits)
+            or (condition == "window_title" and any(w.get('title') == a['title'] for w in hits))
             or (condition == "window_gone" and not hits)
             or (condition == "window_focused" and any(w.get("focused") for w in hits))
             or (condition == "focus_changes" and now != was)
@@ -644,10 +675,13 @@ def tool_wait_for(a: dict) -> dict:
                     "focused": (focused[0]["wm_class"] if focused else None),
                     "matched": [{"id": w["id"], "wm_class": w["wm_class"],
                                  "title": w["title"]} for w in hits[:5]],
+                    "matched_count": len(hits),
+                    "matches_truncated": len(hits) > 5,
                     **clamp_note}
         if waited >= timeout:
             return {"condition": condition, "met": False, "waited_seconds": waited,
                     "focused": (focused[0]["wm_class"] if focused else None),
+                    "windows": [{k: w[k] for k in ('id', 'wm_class', 'title')} for w in windows[:20]],
                     "detail": "timed out; nothing was changed by waiting",
                     **clamp_note}
         pause(0.15)
