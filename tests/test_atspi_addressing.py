@@ -380,3 +380,151 @@ def test_launch_waits_through_zero_geometry_and_mislabelled_splash(monkeypatch):
     monkeypatch.setattr(atspi.time, 'sleep', lambda _: None)
     result = atspi.tool_launch_app({'command': ['some-editor'], 'timeout': 2})
     assert result['window']['id'] == 2
+# =========================================================================
+# issue #10: activation of an already-running single-instance app
+# =========================================================================
+DBUS_DESKTOP = ("[Desktop Entry]\nType=Application\nName=x\n"
+                "Exec=deskwright-test-bin %U\nDBusActivatable=true\n")
+
+
+def _dbus_app(tmp_path, monkeypatch):
+    apps = tmp_path / "applications"
+    apps.mkdir(exist_ok=True)
+    (apps / "deskwright-dbus-app.desktop").write_text(DBUS_DESKTOP)
+    monkeypatch.setenv("XDG_DATA_HOME", str(tmp_path))
+    monkeypatch.delenv("DESKWRIGHT_HEADLESS", raising=False)
+    monkeypatch.setattr(atspi, "subprocess", fake_subprocess())
+
+
+def test_running_dbus_app_returns_activation_not_launch(tmp_path, monkeypatch) -> None:
+    """Issue #10 Arm A/B: an app with a window up is 'already there'.
+
+    Dispatch gio even for an existing window; do not claim verified arrival.
+    """
+    _dbus_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(atspi, "list_windows", lambda: [
+        {"id": 1, "wm_class": "org.example.Unrelated", "title": "other"},
+        {"id": 2, "wm_class": "Deskwright-test-bin", "title": "the app", "width": 400, "height": 300},
+    ])
+    monkeypatch.setattr(atspi, "list_atspi_apps", lambda: [])
+    out = atspi.tool_launch_app({"desktop_id": "deskwright-dbus-app",
+                                 "timeout": 2})
+    assert out["activation_requested"] is True and out["already_running"] is True
+    assert out["confirmed"] is False
+    assert out["via"] == "gio launch"
+    assert [w["id"] for w in out["windows"]] == [2]  # only the app's window
+    assert len(atspi.subprocess.run_calls) == 1
+
+
+def test_windowless_service_still_launches_and_waits(tmp_path, monkeypatch) -> None:
+    """A lingering --gapplication-service owns no window: launch normally.
+
+    This is the empty-editor state from issue #10 where activation DID open
+    a window (session restore); the wait must still run and still confirm.
+    """
+    _dbus_app(tmp_path, monkeypatch)
+    # before: no window of ours; after the launch: one, with matching wm_class
+    state = {"windows": [{"id": 9, "wm_class": "org.gnome.Other", "title": "x"}]}
+    monkeypatch.setattr(atspi, "list_windows",
+                        lambda: list(state["windows"]))
+    monkeypatch.setattr(atspi, "list_atspi_apps", lambda: [])
+    out = {}
+
+    def spawn_later(argv, **kw):
+        # the fake gio launch "opens" a new window of the right app
+        state["windows"].append({"id": 10, "wm_class": "deskwright-test-bin",
+                                 "title": "arrived", "width": 400, "height": 300})
+        return types.SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    sub = fake_subprocess()
+    sub.run = spawn_later
+    monkeypatch.setattr(atspi, "subprocess", sub)
+    out = atspi.tool_launch_app({"desktop_id": "deskwright-dbus-app",
+                                 "timeout": 5})
+    assert out["confirmed"] is True
+    assert out["confirmed_by"] == "window"
+    assert out["window"]["id"] == 10
+
+
+def test_confirm_requires_matching_wm_class(tmp_path, monkeypatch) -> None:
+    """Bystander windows no longer confirm a launch (issue #10 hole 2)."""
+    _dbus_app(tmp_path, monkeypatch)
+    state = {"windows": []}
+    monkeypatch.setattr(atspi, "list_windows", lambda: list(state["windows"]))
+    monkeypatch.setattr(atspi, "list_atspi_apps", lambda: [])
+
+    def spawn_opens_bystander(argv, **kw):
+        state["windows"].append({"id": 77, "wm_class": "com.other.Thing",
+                                 "title": "unrelated", "width": 400, "height": 300})
+        return types.SimpleNamespace(returncode=0, stderr="", stdout="")
+
+    sub = fake_subprocess()
+    sub.run = spawn_opens_bystander
+    monkeypatch.setattr(atspi, "subprocess", sub)
+    monkeypatch.setattr(atspi.time, "sleep", lambda s: None)
+    monkeypatch.setattr(atspi.time, "monotonic",
+                        lambda: (t := vars(atspi.time).setdefault("_t", [0.0]),
+                                 t.__setitem__(0, t[0] + 1.0), t[0])[2])
+    e = err(atspi.tool_launch_app,
+            {"desktop_id": "deskwright-dbus-app", "timeout": 3})
+    assert e.code == "timeout"
+    assert "new window" in str(e)
+
+
+def test_running_app_file_request_is_dispatched(tmp_path, monkeypatch):
+    _dbus_app(tmp_path, monkeypatch)
+    win = {"id": 2, "wm_class": "deskwright-test-bin", "width": 400, "height": 300}
+    monkeypatch.setattr(atspi, "list_windows", lambda: [win])
+    monkeypatch.setattr(atspi, "list_atspi_apps", list)
+    out = atspi.tool_launch_app({"desktop_id": "deskwright-dbus-app", "file": "/a file.txt"})
+    assert atspi.subprocess.run_calls[0][-1] == "/a file.txt"
+    assert out["file"] == "/a file.txt"
+    assert out["activation_requested"] and not out["confirmed"]
+    assert "readiness" in out["detail"]
+
+
+def test_running_app_does_not_hide_launcher_failure(tmp_path, monkeypatch):
+    _dbus_app(tmp_path, monkeypatch)
+    monkeypatch.setattr(atspi, "list_windows", lambda: [
+        {"id": 2, "wm_class": "deskwright-test-bin", "width": 400, "height": 300}])
+    monkeypatch.setattr(atspi, "list_atspi_apps", list)
+    # Unlike the old shortcut, an existing window cannot mask gio's error.
+    sub = fake_subprocess(types.SimpleNamespace(returncode=1, stderr="activation failed"))
+    monkeypatch.setattr(atspi, "subprocess", sub)
+    e = err(atspi.tool_launch_app, {"desktop_id": "deskwright-dbus-app"})
+    assert e.code == "bad_args"
+    assert len(sub.run_calls) == 1
+
+
+def test_new_window_takes_precedence_over_existing_activation(tmp_path, monkeypatch):
+    _dbus_app(tmp_path, monkeypatch)
+    old = {"id": 1, "wm_class": "deskwright-test-bin", "width": 400, "height": 300}
+    new = {**old, "id": 2}
+    samples = iter([[old], [old, new], [old, new]])
+    monkeypatch.setattr(atspi, "list_windows", lambda: next(samples))
+    monkeypatch.setattr(atspi, "list_atspi_apps", list)
+    out = atspi.tool_launch_app({"desktop_id": "deskwright-dbus-app"})
+    assert out["confirmed"] and out["window"]["id"] == 2
+
+
+def test_desktop_identity_parses_quoted_exec_and_ignores_actions(tmp_path):
+    path = tmp_path / "org.example.Editor.desktop"
+    path.write_text('[Desktop Entry]\nExec="/opt/editor suite/editor" %U\n'
+                    'StartupWMClass=ExampleEditor\n[Desktop Action other]\n'
+                    'Exec=wrong\nStartupWMClass=Wrong\n')
+    facts = atspi._desktop_facts(path)
+    assert facts["exec_base"] == "editor"
+    assert facts["startup_wm_class"] == "ExampleEditor"
+
+
+def test_identity_never_accepts_partial_or_empty_matches():
+    assert not atspi._wm_class_matches("other-editor", {"editor"})
+    assert not atspi._wm_class_matches("editor", {"other-editor"})
+    assert not atspi._wm_class_matches("editor", {"---"})
+    assert atspi._wm_class_matches("Org.Example.Editor", {"org.example.Editor"})
+
+
+def test_desktop_identity_does_not_match_shared_wrapper(tmp_path):
+    path = tmp_path / "org.example.Editor.desktop"
+    path.write_text('[Desktop Entry]\nExec=flatpak run org.example.Editor\n')
+    assert atspi._desktop_facts(path)["exec_base"] is None

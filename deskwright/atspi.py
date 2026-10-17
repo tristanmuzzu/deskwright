@@ -884,17 +884,88 @@ def _exec_argv(desktop_path: Path) -> list[str]:
     return argv
 
 
+def _desktop_facts(desktop_path: Path) -> dict:
+    """Identity facts from the [Desktop Entry] section of a .desktop file.
+
+    Only what launch_app needs to reason about an app it is about to start:
+    whether activation (not spawning) is what `gio launch` will do, the Exec
+    binary to match live windows against, and StartupWMClass when the app
+    declares it (Exec basename and wm_class diverge more often than not --
+    `gnome-text-editor` vs `org.gnome.TextEditor`).
+    """
+    import shlex
+    facts: dict = {"dbus_activatable": False, "exec_base": None,
+                   "startup_wm_class": None}
+    try:
+        with open(desktop_path) as f:
+            in_entry = False
+            for line in f:
+                line = line.strip()
+                if line.startswith("["):
+                    # Desktop Action sections have their own Exec lines; the
+                    # identity of the entry is the [Desktop Entry] one.
+                    in_entry = line == "[Desktop Entry]"
+                elif in_entry and line.startswith("DBusActivatable="):
+                    facts["dbus_activatable"] = line.split("=", 1)[1].strip().lower() == "true"
+                elif in_entry and line.startswith("Exec="):
+                    if facts["exec_base"] is None:
+                        try:
+                            argv = shlex.split(line[5:])
+                        except ValueError:
+                            argv = []  # gio reports malformed launch entries
+                        if argv and not argv[0].startswith("%"):
+                            first = Path(argv[0]).name
+                            if first not in {"env", "flatpak", "snap", "sh", "bash"}:
+                                facts["exec_base"] = first
+                elif in_entry and line.startswith("StartupWMClass="):
+                    facts["startup_wm_class"] = line.split("=", 1)[1].strip()
+    except OSError as e:
+        raise ToolError(f"could not read {desktop_path}: {e}",
+                        code="bad_args") from None
+    return facts
+
+
+def _norm_class(s: str) -> str:
+    """Compare app-identity strings across the Exec/wm_class spelling gap.
+
+    Normalize spelling only; reverse-DNS identity comes from the desktop id,
+    not substring guesses ("editor" must not match "other-editor").
+    """
+    return s.replace("-", "").replace("_", "").replace(".", "").lower()
+
+
+def _wm_class_matches(wm_class: str, candidates: set[str]) -> bool:
+    """Does a live window's wm_class belong to the app we are launching?
+
+    Reverse-DNS wm classes ('org.gnome.TextEditor') carry vendor prefixes the
+    Exec binary never has. Include the desktop id as a candidate instead of
+    accepting arbitrary substring matches.
+    """
+    if not wm_class or not candidates:
+        return False
+    wm = _norm_class(wm_class)
+    for cand in candidates:
+        c = _norm_class(cand)
+        if c and wm == c:
+            return True
+    return False
+
+
 def tool_launch_app(a: dict) -> dict:
     """Launch an application and CONFIRM it arrived, instead of assuming.
 
     Confirmation is a diff, not a guess: window ids are snapshotted before the
-    launch and a NEW id is what counts as arrival -- an app that was already
-    running cannot satisfy it by accident. When the shell extension cannot
+    launch and a NEW id is what counts as arrival. Dispatch to a running
+    D-Bus app is reported separately, without claiming document readiness.
+    When the shell extension cannot
     enumerate windows (locked screen), the same diff runs against the AT-SPI
     bus instead, and the result names which mechanism confirmed.
     """
     desktop_id = a.get("desktop_id")
     command = a.get("command")
+    facts: dict | None = None
+    identity: set[str] | None = None
+    existing: set = set()
     if (desktop_id is None) == (command is None):
         raise ToolError(
             "give exactly one of desktop_id (a .desktop id for `gio launch`) or "
@@ -921,6 +992,9 @@ def tool_launch_app(a: dict) -> dict:
     else:
         desktop_path = _resolve_desktop_file(str(desktop_id))
         what = desktop_path.name
+        facts = _desktop_facts(desktop_path)
+        identity = ({facts["startup_wm_class"]} if facts["startup_wm_class"] else
+                    {c for c in (desktop_path.stem, facts["exec_base"]) if c})
         if os.environ.get("DESKWRIGHT_HEADLESS"):
             argv = _exec_argv(desktop_path) + ([file] if file else [])
             spawn_direct, via = True, "exec (headless)"
@@ -928,13 +1002,17 @@ def tool_launch_app(a: dict) -> dict:
             argv = ["gio", "launch", str(desktop_path)] + ([file] if file else [])
             spawn_direct, via = False, "gio launch"
 
-    # Snapshots BEFORE the launch, so "new" means new. Either mechanism may be
+    # Snapshot BEFORE the launch, so "new" means new. Either mechanism may be
     # down; which one answered is part of the result.
     window_ids: set | None = None
     atspi_before: set | None = None
     if wait_window:
         try:
-            window_ids = {w["id"] for w in list_windows()}
+            before_windows = list_windows()
+            window_ids = {w["id"] for w in before_windows}
+            if facts and facts["dbus_activatable"] and not spawn_direct:
+                existing = {w["id"] for w in before_windows
+                            if _wm_class_matches(w.get("wm_class", ""), identity)}
         except ToolError:
             window_ids = None
         try:
@@ -982,6 +1060,11 @@ def tool_launch_app(a: dict) -> dict:
 
     awaited = (f"a new window after launching {what}" if window_ids is not None
                else f"a new AT-SPI application after launching {what}")
+    # The confirming window must belong to the launched app. Confirming off
+    # ANY new window id let an unrelated window opened during the wait count
+    # as this launch's arrival (issue #10). Identity for desktop_id launches
+    # is the Exec basename / StartupWMClass; a raw `command` launch has no
+    # desktop identity to match, so it keeps the old any-new-window rule.
     start = time.monotonic()
     mapped = set()
     while time.monotonic() - start < timeout:
@@ -989,7 +1072,10 @@ def tool_launch_app(a: dict) -> dict:
             try:
                 candidates = []
                 for w in list_windows():
-                    if w["id"] not in window_ids and w.get('type') not in {
+                    if identity is not None and not _wm_class_matches(
+                            w.get("wm_class", ""), identity):
+                        continue
+                    if (w["id"] not in window_ids or w["id"] in existing) and w.get('type') not in {
                         'SPLASHSCREEN', 'SPLASH_SCREEN', 'TOOLTIP', 'DROPDOWN_MENU',
                         'POPUP_MENU', 'NOTIFICATION', 'DESKTOP', 'DOCK',
                     } and w.get('width', 0) > 0 and w.get('height', 0) > 0:
@@ -999,11 +1085,22 @@ def tool_launch_app(a: dict) -> dict:
                     # in two consecutive polls to filter brief transients.
                     # A longer startup window can still pass: arrival is not
                     # document readiness (observed with GIMP and LibreOffice).
-                    if (w['id'], w.get('pid')) in mapped:
+                    if w["id"] not in window_ids and (w['id'], w.get('pid')) in mapped:
                         return {**launched, "confirmed": True,
                                 "confirmed_by": "window", "window": w,
                                 "note": "Window arrival only; inspect current windows and document readiness before input.",
                                 "waited_seconds": round(time.monotonic() - start, 2)}
+                # Issue #10: existing windows are not new-window evidence.
+                # Always dispatch gio first, including file requests. Neither
+                # exit 0 nor a surviving window proves presentation or file load.
+                running = [w for w in candidates if w["id"] in existing
+                           and (w['id'], w.get('pid')) in mapped]
+                if running:
+                    return {**launched, "confirmed": False,
+                            "activation_requested": True, "already_running": True,
+                            "windows": running,
+                            "detail": "gio accepted the request for a running app; "
+                                      "presentation and document readiness are not verified"}
                 mapped = {(w['id'], w.get('pid')) for w in candidates}
             except ToolError:
                 # The extension died mid-wait (a lock, most likely). Fall back
@@ -1013,6 +1110,8 @@ def tool_launch_app(a: dict) -> dict:
         if window_ids is None and atspi_before is not None:
             try:
                 for app in list_atspi_apps():
+                    if identity is not None and not _wm_class_matches(app["name"], identity):
+                        continue
                     if (app["name"], app["pid"]) not in atspi_before:
                         return {**launched, "confirmed": True,
                                 "confirmed_by": "atspi_bus", "app": app,
