@@ -1,7 +1,7 @@
 {
   "name": "deskwright",
   "displayName": "Deskwright",
-  "version": "0.1.1",
+  "version": "0.2.0b1",
   "description": "Operate GNOME Wayland applications through guarded accessibility and pointer input, screenshots, and optional persistent Python on physical or private desktops.",
   "author": {
     "name": "Tristan Rafe Muzzu",

@@ -74,7 +74,8 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, sys, time, urllib.parse, urllib.request
-          name = json.load(open("server.json"))["name"]
+          doc = json.load(open("server.json"))
+          name, version = doc["name"], doc["version"]
           url = ("https://registry.modelcontextprotocol.io/v0/servers?search="
                  + urllib.parse.quote(name))
           for attempt in range(6):
@@ -82,9 +83,9 @@ jobs:
               hits = data.get("servers") or data.get("data") or []
               for hit in hits:
                   server = hit.get("server", hit)
-                  if server.get("name") == name:
+                  if server.get("name") == name and server.get("version") == version:
                       print(f"{name} {server.get('version')} is listed")
                       sys.exit(0)
               time.sleep(10)
-          sys.exit(f"{name} is not in the registry after publishing")
+          sys.exit(f"{name} {version} is not in the registry after publishing")
           PY

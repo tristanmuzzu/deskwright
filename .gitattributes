@@ -1,0 +1,2 @@
+# Retained unified diffs contain significant blank context lines.
+benchmarks/results/*.patch -whitespace

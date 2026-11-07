@@ -577,7 +577,7 @@
             "seconds": 0.2
           },
           "coordinate_note": "this image is 1:1 with the screen; pixel (px, py) is screen (px, py).",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306900.977.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306900.977.png"
         }
       },
       {
@@ -612,7 +612,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306902.671.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306902.671.png"
         }
       },
       {
@@ -633,7 +633,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306903.959.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306903.959.png"
         }
       },
       {
@@ -668,7 +668,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306905.321.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306905.321.png"
         }
       },
       {
@@ -689,7 +689,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306906.596.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306906.596.png"
         }
       },
       {
@@ -724,7 +724,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306907.960.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306907.960.png"
         }
       },
       {
@@ -745,7 +745,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306909.244.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306909.244.png"
         }
       },
       {
@@ -780,7 +780,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306519.131.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306519.131.png"
         }
       },
       {
@@ -815,7 +815,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306520.545.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306520.545.png"
         }
       },
       {
@@ -836,7 +836,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306521.860.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306521.860.png"
         }
       },
       {
@@ -871,7 +871,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306523.255.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306523.255.png"
         }
       },
       {
@@ -892,7 +892,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306524.559.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306524.559.png"
         }
       },
       {
@@ -927,7 +927,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306525.949.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306525.949.png"
         }
       },
       {
@@ -948,7 +948,7 @@
           "visual_change_detected": false,
           "verdict": "no visual change above the comparison threshold; small edits may still have succeeded. Read back the app state before retrying",
           "image": "not attached in auto mode: change was below the comparison threshold; use screenshot or explicit look for visual inspection",
-          "path": "/home/tristan/.cache/deskwright/shots/shot-1791306527.275.png"
+          "path": "/home/user/.cache/deskwright/shots/shot-1791306527.275.png"
         }
       },
       {
@@ -1182,7 +1182,7 @@
   "environment": {
     "session": "headless:codex-ff65a861d744036cc404",
     "python": "3.14.4",
-    "atspi_source": "/home/tristan/projects/deskwright/deskwright/atspi.py",
+    "atspi_source": "/home/user/projects/deskwright/deskwright/atspi.py",
     "atspi_sha256": "f388514d6b5a450b1ed94f79a1c0368a0c116ccd3867b455a4d168d872094b42",
     "display_size": "1280x720",
     "private_only": true

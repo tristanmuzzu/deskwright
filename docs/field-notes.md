@@ -546,3 +546,12 @@ the usual wayland-[0-9] socket paths. Policy was not weakened or bypassed.
 
 See the [autonomous comparison](semantic-real-app-comparison.md#autonomous-improvement-cycle-2026-10-07)
 for final repeated timings, exact artifact checks, canvas recovery and limits.
+
+## 2026-10-07: beta release validation
+
+The isolated 0.2.0b1 release excludes unrelated local setup-runbook and private
+launcher changes. Its 525-test suite and 18-check private-desktop self-test passed.
+The initial no-PyGObject CI matrix exposed an existing keyboard-warmup test that
+imports the GLib-dependent backend without declaring the requirement. That test
+now skips only when PyGObject is absent, matching the portal tests; the distro CI
+job still runs it and rejects any skips. No input behavior changed for this fix.
