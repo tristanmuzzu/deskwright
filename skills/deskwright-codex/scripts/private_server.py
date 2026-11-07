@@ -18,9 +18,9 @@ import uuid
 from pathlib import Path
 
 
-def allocation(task_id, connection_id, data_root):
+def allocation(task_id, connection_id, data_root, prefix='codex'):
     identity = 'task:' + task_id if task_id else 'connection:' + connection_id
-    name = 'codex-' + hashlib.sha256(identity.encode()).hexdigest()[:20]
+    name = prefix + '-' + hashlib.sha256(identity.encode()).hexdigest()[:20]
     return {'session': 'headless:' + name, 'name': name,
             'private_home': str(data_root / name),
             'ownership': 'task' if task_id else 'connection'}
@@ -56,9 +56,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--checkout', type=Path, required=True)
     parser.add_argument('--describe', action='store_true')
+    parser.add_argument('--prefix', default='codex',
+                        help='desktop name prefix, so each host labels its own desktops')
     args = parser.parse_args()
     plan = allocation(os.environ.get('CODEX_THREAD_ID'), uuid.uuid4().hex,
-                      Path.home() / '.local/share/deskwright/codex-desktops')
+                      Path.home() / '.local/share/deskwright' / (args.prefix + '-desktops'), args.prefix)
     if args.describe:
         print(json.dumps(dict(plan, diagnostic_only=True, note='Preview allocation only; this does not identify an existing server.')))
         return
