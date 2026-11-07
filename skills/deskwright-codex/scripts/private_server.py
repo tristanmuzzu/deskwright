@@ -20,7 +20,9 @@ from pathlib import Path
 
 def allocation(task_id, connection_id, data_root, prefix='codex'):
     identity = 'task:' + task_id if task_id else 'connection:' + connection_id
-    name = prefix + '-' + hashlib.sha256(identity.encode()).hexdigest()[:20]
+    # The Wayland socket path repeats the name twice and must stay under the
+    # 107-byte UNIX socket limit, so names are capped at 26 characters.
+    name = prefix + '-' + hashlib.sha256(identity.encode()).hexdigest()[:max(8, 25 - len(prefix))]
     return {'session': 'headless:' + name, 'name': name,
             'private_home': str(data_root / name),
             'ownership': 'task' if task_id else 'connection'}
