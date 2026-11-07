@@ -1,0 +1,298 @@
+{
+  "fixture_root": "/tmp/dw-general-fixtures-fsdj2try",
+  "observations": [
+    {
+      "app": "Files",
+      "phase": "warm_forced",
+      "elapsed_s": 0.6165508739995857,
+      "mode": "native",
+      "reason": null,
+      "native_scan": null
+    },
+    {
+      "app": "Custom canvas",
+      "phase": "first",
+      "mode": "visual",
+      "reason": "visual_content",
+      "elapsed_s": 0.28635000000000005
+    },
+    {
+      "app": "Calculator",
+      "probe": "first",
+      "mode": "native",
+      "reason": null,
+      "elapsed_s": 0.36931729999923846
+    },
+    {
+      "app": "Text Editor",
+      "probe": "first",
+      "mode": "native",
+      "reason": null,
+      "elapsed_s": 0.2578751689998171
+    },
+    {
+      "app": "Loupe",
+      "probe": "auto",
+      "mode": "native",
+      "reason": null,
+      "elapsed_s": 0.20775548399979016
+    },
+    {
+      "app": "Loupe",
+      "probe": "explicit_visual_for_image_content",
+      "mode": "visual",
+      "reason": "requested_visual",
+      "elapsed_s": 0.12650827699872025
+    },
+    {
+      "app": "Archive Manager",
+      "probe": "first",
+      "mode": "native",
+      "reason": null,
+      "elapsed_s": 0.30107787199995073
+    }
+  ],
+  "checks": [
+    {
+      "case": "field_assignment_vs_application_commit",
+      "passed": true,
+      "application_specific_production_code": false
+    },
+    {
+      "case": "new_window_discovery_without_class_guess",
+      "passed": true
+    },
+    {
+      "case": "calculator_expression",
+      "passed": true,
+      "answer": "252"
+    },
+    {
+      "case": "text_editor_edit_save",
+      "passed": true,
+      "disk_text": "Shared hybrid validation\nOriginal contentVerified total: 252\n\n",
+      "native_buffer": "Shared hybrid validation\nOriginal contentVerified total: 252\n"
+    },
+    {
+      "case": "text_editor_reopen",
+      "passed": true
+    },
+    {
+      "case": "archive_modal_discovery_cancel",
+      "passed": true
+    },
+    {
+      "case": "renamed_control_rejected_no_replay",
+      "passed": true,
+      "batch_action_status": "partial",
+      "error_action_status": "not_started",
+      "recovery_screenshots": 1
+    }
+  ],
+  "cold_start_pilot": {
+    "elapsed_ms": 5699.61,
+    "reason": "AT-SPI provider unavailable during unmapped window startup; mapping shortcut added afterward"
+  },
+  "scope_comparison": [
+    {
+      "method": "old",
+      "seconds": 0.41729237900108274,
+      "text": "Original",
+      "met": true
+    },
+    {
+      "method": "scoped",
+      "seconds": 0.0474379939987557,
+      "text": "Original",
+      "met": true
+    },
+    {
+      "method": "scoped",
+      "seconds": 0.05270708300122351,
+      "text": "Original",
+      "met": true
+    },
+    {
+      "method": "old",
+      "seconds": 0.42171910899924114,
+      "text": "Original",
+      "met": true
+    },
+    {
+      "method": "old",
+      "seconds": 0.4417616549999366,
+      "text": "Original",
+      "met": true
+    },
+    {
+      "method": "scoped",
+      "seconds": 0.04931443999885232,
+      "text": "Original",
+      "met": true
+    }
+  ],
+  "incidents": [
+    {
+      "case": "text_editor_save",
+      "issue": "Disk oracle initially expected native buffer bytes; editor writes an additional implicit final newline",
+      "attempts": 2,
+      "recovery": "Verify explicit saved bytes and reopened native buffer separately; no input replay"
+    },
+    {
+      "case": "Papers_launch",
+      "issue": "Desktop-id launch timed out without a new window",
+      "recovery": "Automatic fresh screenshot and exact window inventory in the failed response; no launch replay",
+      "diagnosis": "Separate diagnostic process exited 1: Gtk-WARNING Failed to open display; no Papers process/window remained"
+    },
+    {
+      "case": "unmapped_modal_observation",
+      "issue": "Initial zero-size crop failed during mapping",
+      "fix": "Observe full desktop while mapping; no input replay or fixed sleep"
+    },
+    {
+      "case": "short_full_tree_query",
+      "issue": "A 300ms query budget was below the measured whole-tree cost; selector also used an unobserved push-button role (actual role was button)",
+      "recovery": "Fresh screenshot attached automatically; rediscover panel then query within its verified scope"
+    }
+  ],
+  "cooldown_seed": {
+    "elapsed_s": 0.4380352380012482,
+    "mode": "visual",
+    "reason": "incomplete_native_scan: time_budget"
+  },
+  "cooldown_comparison": [
+    {
+      "method": "previous",
+      "elapsed_s": 0.34206230499876256,
+      "reason": "time_budget"
+    },
+    {
+      "method": "adaptive",
+      "elapsed_s": 0.15943564899862395,
+      "reason": "native_probe_cooldown: incomplete_native_scan: time_budget"
+    },
+    {
+      "method": "adaptive",
+      "elapsed_s": 0.1984647480003332,
+      "reason": "native_probe_cooldown: incomplete_native_scan: time_budget"
+    },
+    {
+      "method": "previous",
+      "elapsed_s": 0.38445049400070275,
+      "reason": "time_budget"
+    },
+    {
+      "method": "previous",
+      "elapsed_s": 0.3522431579986005,
+      "reason": "time_budget"
+    },
+    {
+      "method": "adaptive",
+      "elapsed_s": 0.1702711960006127,
+      "reason": "native_probe_cooldown: incomplete_native_scan: time_budget"
+    }
+  ],
+  "startup_modal_checks": [
+    {
+      "elapsed_s": 0.47086740100166935,
+      "mode": "native",
+      "reason": null,
+      "screenshot_region": null
+    },
+    {
+      "elapsed_s": 0.7071388740005204,
+      "mode": "native",
+      "reason": null,
+      "screenshot_region": null
+    },
+    {
+      "elapsed_s": 0.5936879590008175,
+      "mode": "native",
+      "reason": null,
+      "screenshot_region": null
+    }
+  ],
+  "methodology": {
+    "scope": "Backend component timings on an owned private GNOME desktop, not end-to-end agent completion or a visual-only comparison",
+    "scope_fixture": "400 unrelated rows, 4-node named editor panel; observed container discovery excluded from repeated query timing",
+    "scope_order": [
+      "old",
+      "scoped",
+      "scoped",
+      "old",
+      "old",
+      "scoped"
+    ],
+    "cooldown_budget_ms": 200,
+    "cooldown_note": "Deliberately constrained stress probe; first probe included separately, warm samples within cooldown; baseline performs identical-budget native probe then captures",
+    "baseline_semantic_sha256": "5daca60324cb1cb50381d85a4cb034d84c429cd6fe88170583628c78e533925b"
+  },
+  "summary": {
+    "scope": {
+      "median_s": {
+        "old": 0.42171910899924114,
+        "scoped": 0.04931443999885232
+      },
+      "reduction_percent": 88.30633022158332
+    },
+    "cooldown": {
+      "median_s": {
+        "previous": 0.3522431579986005,
+        "adaptive": 0.1702711960006127
+      },
+      "reduction_percent": 51.660893296530915
+    }
+  },
+  "implementation_sha256": {
+    "deskwright/hybrid.py": "e2a02abbf2985b24d9da0dfb7950702918de3af6530e76407333216cf6e4924e",
+    "deskwright/semantic.py": "2c1bebe738fbf1049fb208bbb88b7ff6fb5772550515e8ad2a7a2363cd73c130",
+    "deskwright/code_runtime.py": "c5e531c3a0df3d6539f14c1014eb3c6e947690912c2c8fdbe55a04c7a820294c",
+    "deskwright/server.py": "6eb9a430498ac82d9085301e5627295a6cc9dfeb2e291f23709dd7a83fe82530",
+    "deskwright/shell.py": "702c0f5504536d21565c552697e81b1771e55e6fa646b2c57add684b98af0c1d",
+    "deskwright/atspi.py": "485881b5c4e51b2b3c2341333d277c1680df58d746e8eff24ceaad71b3c4073e"
+  },
+  "cleanup": {
+    "owned_window_count_remaining": 0,
+    "windows_after_launch_retest": [],
+    "session": {
+      "stopped": true,
+      "name": "gen-b4ul2z4d",
+      "ended": [
+        "gnome-shell",
+        "dbus-daemon"
+      ],
+      "detail": "headless session 'gen-b4ul2z4d' ended"
+    }
+  },
+  "failed_launch_retest": {
+    "all_ok": false,
+    "error": {
+      "code": "verification_failed",
+      "message": "org.gnome.Papers.desktop exited with status 1 before arrival was confirmed; inspect current windows before another launch",
+      "type": "ToolError",
+      "action_status": "unknown",
+      "details": {
+        "pid": 144861,
+        "exit_code": 1,
+        "arrival_confirmed": false
+      }
+    },
+    "action_status": "partial",
+    "_elapsed": 1.5709179879995645,
+    "_images": 1
+  },
+  "verification": {
+    "focused_tests_passed": 134,
+    "full_suite_passed": 505,
+    "full_suite_failed": 2,
+    "existing_failures": [
+      "tests/test_prose.py::test_no_smart_quotes[skills/deskwright-codex/SKILL.md]",
+      "tests/test_prose.py::test_the_agent_runbook_exists_and_is_linked"
+    ],
+    "private_self_test_passed": 18,
+    "private_self_test_failed": 0,
+    "changed_files_ruff": "passed",
+    "diff_check": "passed",
+    "existing_repo_ruff_findings": 2
+  }
+}

@@ -1,0 +1,20 @@
+PASS  health                   {"verdict": "READY on the codex-4960d4797f7b5cdcc91e desktop: screenshots, window control, pointer input and the accessibility tree all work.", "imple
+PASS  list_windows             1 windows
+PASS  ui_apps                  4 apps on the bus
+PASS  ui_tree(gnome-shell)     123 nodes
+PASS  screenshot               {"path": "/tmp/deskwright-selftest.png", "bytes": 68526, "dimensions": "1280x720", "shown": {"media_type": "image/png", "dimensions": "1280x720", "byt
+PASS  ui_find(actionable)      299 actionable widgets
+PASS  KEYS table loaded        97 keys, 10 modifiers
+PASS  VT-switch guard          ctrl+alt+f2 refused as switch-to-session
+PASS  logout-combo guard       ctrl+alt+delete refused as logout
+PASS  focus guard              type_text without target refused
+PASS  identity guard           ui_press without expectation refused
+PASS  pointer space            desktop is 1280x720 at (0, 0)
+PASS  pointer position         {"x": 967, "y": 137, "source": "compositor"}
+PASS  window_at centre         {"window": {"id": 1052590308, "pid": 43871, "wm_class": "org.gnome.TextEditor", "title": "approved-estimate.txt (/tmp/deskwright-hybrid-workflow-a1wg3
+PASS  off-screen click refused a click outside the desktop is refused
+PASS  expect_window guard      a click naming the wrong window is refused
+PASS  keysym table             97 keysyms, 'y' is 0x79
+PASS  extension methods        ActivateWindow, ClearHalt, ClearIndicator, Close, Get, GetAll, GetClipboardText, GetMachineId, Halt, HaltActive, IndicatorActive, InteractionState, In
+
+18/18 passed

@@ -126,6 +126,12 @@ Allow rules accept a wildcard in the tool position after a literal
       "mcp__deskwright__ui_read_text",
       "mcp__deskwright__ui_set_text",
       "mcp__deskwright__ui_tree",
+      "mcp__deskwright__ui_observe",
+      "mcp__deskwright__ui_snapshot",
+      "mcp__deskwright__ui_query",
+      "mcp__deskwright__ui_inspect",
+      "mcp__deskwright__ui_action",
+      "mcp__deskwright__ui_wait",
       "mcp__deskwright__wait_for",
       "mcp__deskwright__window_at",
       "mcp__deskwright__window_layout",
@@ -180,6 +186,12 @@ one is:
       "mcp__deskwright__ui_read_text",
       "mcp__deskwright__ui_set_text",
       "mcp__deskwright__ui_tree",
+      "mcp__deskwright__ui_observe",
+      "mcp__deskwright__ui_snapshot",
+      "mcp__deskwright__ui_query",
+      "mcp__deskwright__ui_inspect",
+      "mcp__deskwright__ui_action",
+      "mcp__deskwright__ui_wait",
       "mcp__deskwright__wait_for",
       "mcp__deskwright__window_at"
     ]
@@ -187,15 +199,15 @@ one is:
 }
 ```
 
-That is all 35 tools the server serves. `tools/list` is the authority;
+That is all 41 tools the server serves. `tools/list` is the authority;
 CI fails if this list and the server's disagree. To check a running server
 yourself: `./tests/mcpdrv.py tools` from a checkout.
 
 ## The cautious variant
 
 If you would rather approve the calls that touch the machine, the split falls
-along the tools the server itself treats as acting -- the same 16 it
-journals and the same 16 the halt switch gates:
+along the tools the server itself treats as acting -- the same 17 it
+journals and the same 17 the halt switch gates:
 
 - `activate_window`
 - `clipboard_write`
@@ -210,12 +222,13 @@ journals and the same 16 the halt switch gates:
 - `press_keys`
 - `type_text`
 - `ui_press`
+- `ui_action`
 - `ui_set_text`
 - `window_manage`
 - `window_layout`
 
 `do_steps` is on that list because it runs a sequence of the others in one
-call. Leave the allowlist above in place and add those 16 to
+call. Leave the allowlist above in place and add those 17 to
 `permissions.ask` -- `ask` is evaluated ahead of `allow`, from any scope, so
 nothing needs removing from the allow list to make it take effect.
 
@@ -237,6 +250,11 @@ session -- the looking -- unprompted:
 - `ui_apps`
 - `ui_find`
 - `ui_read_text`
+- `ui_observe`
+- `ui_snapshot`
+- `ui_query`
+- `ui_inspect`
+- `ui_wait`
 - `ui_tree`
 - `wait_for`
 - `window_at`

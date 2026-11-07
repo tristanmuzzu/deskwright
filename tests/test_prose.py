@@ -70,9 +70,13 @@ def test_the_agent_runbook_exists_and_is_linked():
     agents = ROOT / "AGENTS.md"
     assert agents.is_file()
     body = agents.read_text()
+    runbook = ROOT / 'docs' / 'agent-setup-runbook.md'
+    assert str(runbook.relative_to(ROOT)) in body
+    assert runbook.is_file()
+    setup = runbook.read_text()
     for command in ("pipx install --system-site-packages deskwright",
                     "deskwright-setup --check",
                     "claude mcp add deskwright",
                     "DESKWRIGHT_SESSION=headless deskwright --self-test"):
-        assert command in body, f"AGENTS.md never tells the agent to run: {command}"
+        assert command in body or command in setup, f"Agent setup guidance is missing: {command}"
     assert "AGENTS.md" in (ROOT / "README.md").read_text()

@@ -7,18 +7,16 @@ Register a checkout (replace the path):
 
 ```bash
 codex mcp add deskwright --env DESKWRIGHT_IMAGE_PROFILE=original -- python3 /absolute/checkout/mcp_server.py
-codex mcp add deskwright_private --env DESKWRIGHT_SESSION=headless:codex --env DESKWRIGHT_HEADLESS_HOME=/absolute/private-home --env DESKWRIGHT_IMAGE_PROFILE=original -- python3 /absolute/checkout/mcp_server.py
+codex mcp add deskwright_private --env DESKWRIGHT_IMAGE_PROFILE=original -- python3 /absolute/checkout/skills/deskwright-codex/scripts/private_server.py --checkout /absolute/checkout
 ```
 
 Use `startup_timeout_sec = 60` and `tool_timeout_sec = 180` for each server in `~/.codex/config.toml`, to allow
 cold private-session startup and bounded waits. The supervised execution deadline is 60 seconds.
 See [execution and observations](execution-contract.md) for cancellation, image-coordinate
-input, compact results and the opt-in persistent Python interface. Start a private session with an
-isolated home before first use if restored personal app state is unwanted:
-
-```bash
-python3 -m deskwright.headless start --name codex --home /absolute/private-home
-```
+input, compact results and the opt-in persistent Python interface. The private
+launcher allocates a unique named session and private app home per MCP connection;
+startup remains deferred until a tool actually needs the desktop. Do not forward
+a shared DESKWRIGHT_SESSION or DESKWRIGHT_HEADLESS_HOME to this launcher.
 
 Install `skills/deskwright-codex/` in the Codex user skills directory. Reload MCP
 servers/start a fresh Codex session if the current session's tool catalog does
@@ -47,9 +45,15 @@ declares them non-destructive, not read-only. General `window_manage`, keyboard,
 pointer, application launch, batches and Python execution are not exempted.
 Refresh existing MCP connections after changing source or registration.
 
-Use a separately named headless desktop for concurrent benchmark runs. A single
-private registration can be shared by several tasks; its windows are not isolated
-per task. Never move or close another task's application to make a benchmark pass.
+The private launcher isolates connections instead of sharing the old fixed-name
+desktop. Current Codex MCP children do not receive a task ID, so reconnecting
+normally creates a fresh desktop. Save final files outside the private app home
+and close this task's windows. On normal disconnect, the launcher stops only its
+empty connection-owned desktop; open windows and uncertain state are retained
+for recovery. Inspect the named session before cleaning up an interrupted task.
+Never stop another task's session or raise resource caps merely to make room.
+Use the existing named-session CLI deliberately for a task about an existing
+private desktop. The physical registration remains for the user's open windows.
 
 See [Codex MCP configuration](https://learn.chatgpt.com/docs/extend/mcp) and
 [approval rules](https://learn.chatgpt.com/docs/agent-approvals-security).

@@ -1,0 +1,10 @@
+{
+  "fill_seconds": 3.1602861769997617,
+  "clear_reopen_verify_seconds": 0.40845132899994496,
+  "main_desktop": true,
+  "no_pointer_or_keyboard_input": true,
+  "fields": 14,
+  "options": 3,
+  "exact": true,
+  "repair": "Save acknowledgment preceded file creation; waited for completion, did not resubmit Save."
+}

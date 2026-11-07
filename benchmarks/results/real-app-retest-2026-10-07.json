@@ -1,0 +1,1739 @@
+{
+  "fixture_root": "/tmp/deskwright-retest-g6sd4l9k",
+  "events": [
+    {
+      "phase": "setup",
+      "tool": "list_windows",
+      "started": 4302.267932385,
+      "ok": true,
+      "duration_s": 0.007940213000438234
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "launch_app",
+      "started": 4316.361322713,
+      "ok": true,
+      "duration_s": 0.6484148640001877
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "window_layout",
+      "started": 4317.009984843,
+      "ok": true,
+      "duration_s": 0.28807744500045374
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4317.298377963,
+      "ok": true,
+      "duration_s": 0.2917293669997889
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4317.590366268,
+      "ok": false,
+      "error": "no application '' with pid 60346 on the AT-SPI bus. Check list_windows -- it reports the pid of every window.",
+      "duration_s": 0.019302785999570915
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4327.275328468,
+      "ok": true,
+      "duration_s": 0.4488275599996996
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4340.84117322,
+      "ok": true,
+      "duration_s": 0.11309220299972367
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4340.954685444,
+      "ok": true,
+      "duration_s": 0.5114057200007665
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4353.560091754,
+      "ok": true,
+      "duration_s": 0.0370836350002719
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_wait",
+      "started": 4353.597362662,
+      "ok": true,
+      "duration_s": 0.004901586999949359
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4353.602464356,
+      "ok": true,
+      "duration_s": 0.033349206999446324
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "screenshot",
+      "started": 4353.6359976,
+      "ok": true,
+      "duration_s": 0.12076152600002388
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "screenshot",
+      "started": 4364.698184903,
+      "ok": true,
+      "duration_s": 0.08951285800048936
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "pointer_click",
+      "started": 4377.036973755,
+      "ok": true,
+      "duration_s": 0.5316057560003173
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "wait_for",
+      "started": 4377.569082118,
+      "ok": true,
+      "duration_s": 0.013744181000220124
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4377.583087812,
+      "ok": true,
+      "duration_s": 0.2471694240002762
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_inspect",
+      "started": 4390.459269778,
+      "ok": true,
+      "duration_s": 0.008893791000446072
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "launch_app",
+      "started": 4390.468430331,
+      "ok": true,
+      "duration_s": 0.5426006970001254
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "window_layout",
+      "started": 4391.011255691,
+      "ok": true,
+      "duration_s": 0.2868417669997143
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4391.298487943,
+      "ok": true,
+      "duration_s": 0.20431737900071312
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4406.66460107,
+      "ok": false,
+      "error": "set_text requires text and expected_text (current exact value)",
+      "duration_s": 0.007482030000574014
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4420.184396149,
+      "ok": true,
+      "duration_s": 0.03441810099957365
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4420.219069401,
+      "ok": true,
+      "duration_s": 0.16788622300009592
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_wait",
+      "started": 4420.387226444,
+      "ok": true,
+      "duration_s": 0.05435645600027783
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "activate_window",
+      "started": 4434.280725316,
+      "ok": true,
+      "duration_s": 0.13142457100002503
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4434.412370012,
+      "ok": true,
+      "duration_s": 0.04144051500043133
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4434.45407761,
+      "ok": true,
+      "duration_s": 0.11061025700018945
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "list_windows",
+      "started": 4434.865222868,
+      "ok": true,
+      "duration_s": 0.007516073999795481
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "window_layout",
+      "started": 4444.941727764,
+      "ok": true,
+      "duration_s": 0.28184158300064155
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4445.223809149,
+      "ok": true,
+      "duration_s": 0.5311207029999423
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "screenshot",
+      "started": 4445.755379459,
+      "ok": true,
+      "duration_s": 0.06915762799962977
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4461.32811064,
+      "ok": true,
+      "duration_s": 0.04499699700045312
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "pointer_click",
+      "started": 4461.373610945,
+      "ok": true,
+      "duration_s": 0.5287669370000003
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4462.152713432,
+      "ok": true,
+      "duration_s": 0.49572579999949085
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4478.042721324,
+      "ok": true,
+      "duration_s": 0.037687431999984256
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "wait_for",
+      "started": 4478.080706207,
+      "ok": true,
+      "duration_s": 0.3340706790004333
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "activate_window",
+      "started": 4478.415170077,
+      "ok": true,
+      "duration_s": 0.1425425630004611
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4478.558031261,
+      "ok": true,
+      "duration_s": 0.19516631300029985
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "type_text",
+      "started": 4478.753659494,
+      "ok": true,
+      "duration_s": 0.9450647639996532
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4479.699096971,
+      "ok": true,
+      "duration_s": 0.04969138400065276
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "screenshot",
+      "started": 4479.999292763,
+      "ok": true,
+      "duration_s": 0.11086703000000853
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "pointer_click",
+      "started": 4491.810996689,
+      "ok": true,
+      "duration_s": 0.3798651200004315
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4492.191213401,
+      "ok": true,
+      "duration_s": 0.047903796000355214
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4492.439736927,
+      "ok": true,
+      "duration_s": 0.4838954050001121
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4504.854923552,
+      "ok": true,
+      "duration_s": 0.043739957999605394
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4504.8990297,
+      "ok": true,
+      "duration_s": 0.5264725229999385
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_action",
+      "started": 4516.714862918,
+      "ok": true,
+      "duration_s": 0.043359401999623515
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4516.958639778,
+      "ok": true,
+      "duration_s": 0.08343565599989233
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4517.242509534,
+      "ok": true,
+      "duration_s": 0.5367752879992622
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4529.091251208,
+      "ok": true,
+      "duration_s": 0.5900019749997227
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "screenshot",
+      "started": 4529.681719362,
+      "ok": true,
+      "duration_s": 0.11893835000046238
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4539.217121133,
+      "ok": true,
+      "duration_s": 0.08573180300027161
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4539.603597352,
+      "ok": true,
+      "duration_s": 0.947173317999841
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4552.48011488,
+      "ok": true,
+      "duration_s": 0.05000878200007719
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "press_keys",
+      "started": 4552.530699638,
+      "ok": true,
+      "duration_s": 0.05681938699945022
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "wait_for",
+      "started": 4552.588029867,
+      "ok": true,
+      "duration_s": 0.023588803999700758
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_snapshot",
+      "started": 4552.611989019,
+      "ok": true,
+      "duration_s": 0.4683104750001803
+    },
+    {
+      "phase": "A1-hybrid",
+      "tool": "ui_inspect",
+      "started": 4553.080674541,
+      "ok": true,
+      "duration_s": 0.012261105999641586
+    },
+    {
+      "phase": "cleanup-A1",
+      "tool": "press_keys",
+      "started": 4553.093839571,
+      "ok": true,
+      "duration_s": 0.08468866600014735
+    },
+    {
+      "phase": "cleanup-A1",
+      "tool": "list_windows",
+      "started": 4553.179201276,
+      "ok": true,
+      "duration_s": 0.009566899000674312
+    },
+    {
+      "phase": "cleanup-A1",
+      "tool": "press_keys",
+      "started": 4567.121150902,
+      "ok": true,
+      "duration_s": 0.0825079669994011
+    },
+    {
+      "phase": "cleanup-A1",
+      "tool": "window_manage",
+      "started": 4567.204338941,
+      "ok": true,
+      "duration_s": 0.2838199309999254
+    },
+    {
+      "phase": "cleanup-A1",
+      "tool": "window_manage",
+      "started": 4567.488600495,
+      "ok": true,
+      "duration_s": 0.28483107699958055
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "launch_app",
+      "started": 4567.773809313,
+      "ok": true,
+      "duration_s": 0.29546327400021255
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "window_layout",
+      "started": 4568.069735149,
+      "ok": true,
+      "duration_s": 0.29014176500004396
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4568.76038744,
+      "ok": true,
+      "duration_s": 0.11691291399984038
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4569.077883144,
+      "ok": true,
+      "duration_s": 0.11838155099940195
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "type_text",
+      "started": 4579.187918479,
+      "ok": true,
+      "duration_s": 0.6371177850005552
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "pointer_click",
+      "started": 4580.125597655,
+      "ok": true,
+      "duration_s": 0.3883571830001529
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4580.814427191,
+      "ok": true,
+      "duration_s": 0.12114360600025975
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "pointer_click",
+      "started": 4595.387271605,
+      "ok": true,
+      "duration_s": 0.46232858300027146
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "wait_for",
+      "started": 4595.850298193,
+      "ok": true,
+      "duration_s": 0.017823769000642642
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4595.868697617,
+      "ok": true,
+      "duration_s": 0.09977236199938488
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "launch_app",
+      "started": 4607.666865876,
+      "ok": true,
+      "duration_s": 0.5544918249997863
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "window_layout",
+      "started": 4608.221764007,
+      "ok": true,
+      "duration_s": 0.2916904029998477
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4608.813938646,
+      "ok": true,
+      "duration_s": 0.06883917800041672
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "type_text",
+      "started": 4619.692570699,
+      "ok": true,
+      "duration_s": 0.3895613120002963
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4620.082563164,
+      "ok": true,
+      "duration_s": 0.05093704099999741
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4620.334429078,
+      "ok": true,
+      "duration_s": 0.0649030300000959
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "activate_window",
+      "started": 4633.657624545,
+      "ok": true,
+      "duration_s": 0.1373228669999662
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4633.795288514,
+      "ok": true,
+      "duration_s": 0.08466669599965826
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "type_text",
+      "started": 4633.880705594,
+      "ok": true,
+      "duration_s": 2.63281905400072
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4636.513897992,
+      "ok": true,
+      "duration_s": 0.11271233699972072
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "list_windows",
+      "started": 4636.927142686,
+      "ok": true,
+      "duration_s": 0.008384350000596896
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "window_layout",
+      "started": 4636.935978096,
+      "ok": true,
+      "duration_s": 0.28234982100002526
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4637.218659732,
+      "ok": true,
+      "duration_s": 0.07402118400023028
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4652.97977779,
+      "ok": true,
+      "duration_s": 0.08167593899997883
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "type_text",
+      "started": 4653.062148208,
+      "ok": true,
+      "duration_s": 0.5924385060006898
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "pointer_click",
+      "started": 4653.654963074,
+      "ok": true,
+      "duration_s": 0.45665287700012414
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4654.412066042,
+      "ok": true,
+      "duration_s": 0.06808360400009406
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "pointer_click",
+      "started": 4670.376044481,
+      "ok": true,
+      "duration_s": 0.37974132700037444
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "wait_for",
+      "started": 4670.756428008,
+      "ok": true,
+      "duration_s": 0.01567315600004804
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "activate_window",
+      "started": 4670.772478966,
+      "ok": true,
+      "duration_s": 0.13313654700050392
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4670.905986412,
+      "ok": true,
+      "duration_s": 0.08528466000007029
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "type_text",
+      "started": 4670.991646029,
+      "ok": true,
+      "duration_s": 0.9047511620001387
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4671.89679437,
+      "ok": true,
+      "duration_s": 0.049777035000261094
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4672.247690026,
+      "ok": true,
+      "duration_s": 0.09554868299983355
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "pointer_click",
+      "started": 4686.045991376,
+      "ok": true,
+      "duration_s": 0.38020816600055696
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4686.426777241,
+      "ok": true,
+      "duration_s": 0.047691814999780036
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4686.675344859,
+      "ok": true,
+      "duration_s": 0.10226773400063394
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4700.985397729,
+      "ok": true,
+      "duration_s": 0.08041270899957453
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "type_text",
+      "started": 4701.066287347,
+      "ok": true,
+      "duration_s": 0.64601293800024
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4702.112776065,
+      "ok": true,
+      "duration_s": 0.04961350800022046
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4702.563323176,
+      "ok": true,
+      "duration_s": 0.09939297699929739
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4715.877499397,
+      "ok": true,
+      "duration_s": 0.081203048000134
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4716.259573529,
+      "ok": true,
+      "duration_s": 0.10963931700007379
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4733.015846477,
+      "ok": true,
+      "duration_s": 0.15822757099977025
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "press_keys",
+      "started": 4733.178178353,
+      "ok": true,
+      "duration_s": 0.16510908899999777
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "wait_for",
+      "started": 4733.347820565,
+      "ok": true,
+      "duration_s": 0.1349168719998488
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4733.486138707,
+      "ok": true,
+      "duration_s": 0.7312884110006053
+    },
+    {
+      "phase": "B1-visual",
+      "tool": "screenshot",
+      "started": 4748.719158506,
+      "ok": true,
+      "duration_s": 0.07943120900017675
+    },
+    {
+      "phase": "cleanup-B1",
+      "tool": "press_keys",
+      "started": 4762.933557121,
+      "ok": true,
+      "duration_s": 0.20052830799977528
+    },
+    {
+      "phase": "cleanup-B1",
+      "tool": "list_windows",
+      "started": 4763.134866811,
+      "ok": true,
+      "duration_s": 0.007986039999195782
+    },
+    {
+      "phase": "cleanup-B1",
+      "tool": "press_keys",
+      "started": 4784.062561435,
+      "ok": true,
+      "duration_s": 0.081415597999694
+    },
+    {
+      "phase": "cleanup-B1",
+      "tool": "window_manage",
+      "started": 4784.14452698,
+      "ok": true,
+      "duration_s": 0.2853893090004931
+    },
+    {
+      "phase": "cleanup-B1",
+      "tool": "window_manage",
+      "started": 4784.430449193,
+      "ok": true,
+      "duration_s": 0.2840083170003709
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "launch_app",
+      "started": 4784.715033034,
+      "ok": true,
+      "duration_s": 0.2882641070000318
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "window_layout",
+      "started": 4785.00372628,
+      "ok": true,
+      "duration_s": 0.2818474840005365
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4785.686055005,
+      "ok": true,
+      "duration_s": 0.11249860500083741
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4786.099445534,
+      "ok": true,
+      "duration_s": 0.09584137399997417
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "type_text",
+      "started": 4815.137299846,
+      "ok": true,
+      "duration_s": 0.620918466999683
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "pointer_click",
+      "started": 4816.058733908,
+      "ok": true,
+      "duration_s": 0.38457394399938494
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4816.744114154,
+      "ok": true,
+      "duration_s": 0.9973658059998343
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "pointer_click",
+      "started": 4834.716856881,
+      "ok": true,
+      "duration_s": 0.4567197429996668
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "wait_for",
+      "started": 4835.173991947,
+      "ok": true,
+      "duration_s": 0.014323802999570034
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4835.389057941,
+      "ok": true,
+      "duration_s": 0.7230793999997331
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "launch_app",
+      "started": 4851.746672312,
+      "ok": true,
+      "duration_s": 0.555616425000153
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "window_layout",
+      "started": 4852.303198461,
+      "ok": true,
+      "duration_s": 0.4512527900005807
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4853.060271102,
+      "ok": true,
+      "duration_s": 0.499849431000257
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "type_text",
+      "started": 4865.856105893,
+      "ok": true,
+      "duration_s": 2.5267082780001147
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4868.383584813,
+      "ok": true,
+      "duration_s": 0.0527407099998527
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4868.637376356,
+      "ok": true,
+      "duration_s": 0.0780379730003915
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "activate_window",
+      "started": 4885.782236399,
+      "ok": true,
+      "duration_s": 0.13387742299983074
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4885.916515499,
+      "ok": true,
+      "duration_s": 0.08307959500052675
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "type_text",
+      "started": 4886.000306034,
+      "ok": true,
+      "duration_s": 2.632167696000579
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4888.633133203,
+      "ok": true,
+      "duration_s": 0.11406375499973365
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "list_windows",
+      "started": 4889.048297605,
+      "ok": true,
+      "duration_s": 0.009073639000234834
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "window_layout",
+      "started": 4889.058285998,
+      "ok": true,
+      "duration_s": 0.2846076859996174
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4889.343368058,
+      "ok": true,
+      "duration_s": 0.06959636499959743
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4902.154870174,
+      "ok": true,
+      "duration_s": 0.08610095899985026
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "type_text",
+      "started": 4902.241578617,
+      "ok": true,
+      "duration_s": 0.5645681649994003
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "pointer_click",
+      "started": 4902.806612169,
+      "ok": true,
+      "duration_s": 0.45279179099998146
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4903.559924304,
+      "ok": true,
+      "duration_s": 0.06698332100040716
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "pointer_click",
+      "started": 4918.275681358,
+      "ok": true,
+      "duration_s": 0.379067476000273
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "wait_for",
+      "started": 4918.655211897,
+      "ok": true,
+      "duration_s": 0.014512448999994376
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "activate_window",
+      "started": 4918.670236631,
+      "ok": true,
+      "duration_s": 0.13366444199982652
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4918.804420462,
+      "ok": true,
+      "duration_s": 0.08133581800029788
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "type_text",
+      "started": 4918.886481858,
+      "ok": true,
+      "duration_s": 0.9007350840001891
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4919.787813777,
+      "ok": true,
+      "duration_s": 0.048152112999559904
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4920.136932635,
+      "ok": true,
+      "duration_s": 0.0934164239997699
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "pointer_click",
+      "started": 4937.026069646,
+      "ok": true,
+      "duration_s": 0.4000969070002611
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4937.426646236,
+      "ok": true,
+      "duration_s": 0.04737630199997511
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4937.675051749,
+      "ok": true,
+      "duration_s": 0.10247655799958011
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4950.250817879,
+      "ok": true,
+      "duration_s": 0.08363810699938767
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "type_text",
+      "started": 4950.335468534,
+      "ok": true,
+      "duration_s": 0.6890947159999996
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4951.425217096,
+      "ok": true,
+      "duration_s": 0.05076009799995518
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4951.877085316,
+      "ok": true,
+      "duration_s": 0.11035547599931306
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4964.113938681,
+      "ok": true,
+      "duration_s": 0.09429947799981164
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4964.509254358,
+      "ok": true,
+      "duration_s": 0.10704952499963838
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4977.787816493,
+      "ok": true,
+      "duration_s": 0.04985566400046082
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "press_keys",
+      "started": 4977.838592832,
+      "ok": true,
+      "duration_s": 0.04988672199942812
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "wait_for",
+      "started": 4977.889601789,
+      "ok": true,
+      "duration_s": 0.023739666999972542
+    },
+    {
+      "phase": "B2-visual",
+      "tool": "screenshot",
+      "started": 4978.314028645,
+      "ok": true,
+      "duration_s": 0.09033556900067197
+    },
+    {
+      "phase": "cleanup-B2",
+      "tool": "press_keys",
+      "started": 4991.38291803,
+      "ok": true,
+      "duration_s": 0.07888176400047087
+    },
+    {
+      "phase": "cleanup-B2",
+      "tool": "list_windows",
+      "started": 4991.462860673,
+      "ok": true,
+      "duration_s": 0.00811819899990951
+    },
+    {
+      "phase": "cleanup-B2",
+      "tool": "press_keys",
+      "started": 5006.834965642,
+      "ok": true,
+      "duration_s": 0.08069534100013698
+    },
+    {
+      "phase": "cleanup-B2",
+      "tool": "window_manage",
+      "started": 5006.916157338,
+      "ok": true,
+      "duration_s": 0.2827212310003233
+    },
+    {
+      "phase": "cleanup-B2",
+      "tool": "window_manage",
+      "started": 5007.199501984,
+      "ok": true,
+      "duration_s": 0.28004407600019476
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "launch_app",
+      "started": 5007.480040872,
+      "ok": true,
+      "duration_s": 0.29072493399962696
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "window_layout",
+      "started": 5007.771429006,
+      "ok": true,
+      "duration_s": 0.28381394099960744
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5008.455940896,
+      "ok": true,
+      "duration_s": 0.11624920299982477
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5008.873178534,
+      "ok": true,
+      "duration_s": 0.5783321530007015
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5026.863683936,
+      "ok": true,
+      "duration_s": 0.04047604800052795
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5026.905110896,
+      "ok": true,
+      "duration_s": 0.47232009199979075
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_wait",
+      "started": 5027.378268055,
+      "ok": true,
+      "duration_s": 0.006695006999507314
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5027.385445872,
+      "ok": true,
+      "duration_s": 0.034615532999850984
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "screenshot",
+      "started": 5027.720690414,
+      "ok": true,
+      "duration_s": 0.08837649599990982
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "screenshot",
+      "started": 5043.463582192,
+      "ok": true,
+      "duration_s": 0.09197329499966145
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "pointer_click",
+      "started": 5058.221183543,
+      "ok": true,
+      "duration_s": 0.9015171880000707
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "wait_for",
+      "started": 5059.129104469,
+      "ok": true,
+      "duration_s": 0.15003777800029638
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5059.284109037,
+      "ok": true,
+      "duration_s": 1.443865428999743
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_inspect",
+      "started": 5060.728592621,
+      "ok": true,
+      "duration_s": 0.011202771000171197
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "launch_app",
+      "started": 5060.74038308,
+      "ok": true,
+      "duration_s": 0.9188489699999991
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "window_layout",
+      "started": 5061.664802498,
+      "ok": true,
+      "duration_s": 0.6501017329992465
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5062.619961244,
+      "ok": true,
+      "duration_s": 1.4621429940007147
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5080.555129403,
+      "ok": true,
+      "duration_s": 0.03902027399999497
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5080.594944815,
+      "ok": true,
+      "duration_s": 0.15942219299995486
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_wait",
+      "started": 5080.75501533,
+      "ok": true,
+      "duration_s": 0.05597387299985712
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "activate_window",
+      "started": 5080.811605665,
+      "ok": true,
+      "duration_s": 0.1337869020007929
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5080.946381832,
+      "ok": true,
+      "duration_s": 0.05075176199989073
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5080.997906891,
+      "ok": true,
+      "duration_s": 0.11381406400050764
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "list_windows",
+      "started": 5081.412780645,
+      "ok": true,
+      "duration_s": 0.007658793000700825
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "window_layout",
+      "started": 5081.421337671,
+      "ok": true,
+      "duration_s": 0.2828523479993237
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5081.704746047,
+      "ok": true,
+      "duration_s": 0.6504675629994381
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "screenshot",
+      "started": 5082.355822477,
+      "ok": true,
+      "duration_s": 0.06990140999914729
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5100.479698696,
+      "ok": true,
+      "duration_s": 0.05195058200024505
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "pointer_click",
+      "started": 5100.533068963,
+      "ok": true,
+      "duration_s": 0.46565151499999047
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5101.299974174,
+      "ok": true,
+      "duration_s": 0.48214292299962835
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_wait",
+      "started": 5101.783044946,
+      "ok": true,
+      "duration_s": 0.00939807099985046
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5101.793415589,
+      "ok": true,
+      "duration_s": 0.03987459400013904
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "wait_for",
+      "started": 5101.833918688,
+      "ok": true,
+      "duration_s": 0.3330231449999701
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "activate_window",
+      "started": 5102.167802856,
+      "ok": true,
+      "duration_s": 0.13494983399959892
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5102.303492464,
+      "ok": true,
+      "duration_s": 0.0814574480000374
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "type_text",
+      "started": 5102.386185751,
+      "ok": true,
+      "duration_s": 1.0208841559997381
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5103.40769758,
+      "ok": true,
+      "duration_s": 0.04911149100007606
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "screenshot",
+      "started": 5103.758443765,
+      "ok": true,
+      "duration_s": 0.10159261199987668
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "pointer_click",
+      "started": 5120.073018387,
+      "ok": true,
+      "duration_s": 0.38482164000015473
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5120.458488059,
+      "ok": true,
+      "duration_s": 0.05058549899968057
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5120.710212646,
+      "ok": true,
+      "duration_s": 0.5728866909994395
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5121.283793946,
+      "ok": true,
+      "duration_s": 0.049845585000184656
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5121.334282843,
+      "ok": true,
+      "duration_s": 0.5724900529994557
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_wait",
+      "started": 5121.907734328,
+      "ok": true,
+      "duration_s": 0.011968274000537349
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_action",
+      "started": 5121.920669585,
+      "ok": true,
+      "duration_s": 0.04360296000049857
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5122.465077126,
+      "ok": true,
+      "duration_s": 0.08283180799935508
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5122.848783645,
+      "ok": true,
+      "duration_s": 0.7558252809994883
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5135.677319141,
+      "ok": true,
+      "duration_s": 0.04796691399951669
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "press_keys",
+      "started": 5135.726107463,
+      "ok": true,
+      "duration_s": 0.052210281000043324
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "wait_for",
+      "started": 5135.779566307,
+      "ok": true,
+      "duration_s": 0.027243560999522742
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_snapshot",
+      "started": 5136.107639705,
+      "ok": true,
+      "duration_s": 0.4003753010001674
+    },
+    {
+      "phase": "A2-hybrid",
+      "tool": "ui_inspect",
+      "started": 5136.508861211,
+      "ok": true,
+      "duration_s": 0.011835603999315936
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "press_keys",
+      "started": 5136.522430161,
+      "ok": true,
+      "duration_s": 0.08263997600079165
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "list_windows",
+      "started": 5136.605802858,
+      "ok": true,
+      "duration_s": 0.008275766000224394
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "press_keys",
+      "started": 5162.506950754,
+      "ok": true,
+      "duration_s": 0.20645820299978368
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "window_manage",
+      "started": 5162.714899736,
+      "ok": true,
+      "duration_s": 0.28666003400030604
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "window_manage",
+      "started": 5163.002444688,
+      "ok": true,
+      "duration_s": 0.28577428400058125
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "wait_for",
+      "started": 5163.288867524,
+      "ok": true,
+      "duration_s": 0.01729508300013549
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "wait_for",
+      "started": 5163.307125261,
+      "ok": true,
+      "duration_s": 0.015366628999800014
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "activate_window",
+      "started": 5163.323193251,
+      "ok": true,
+      "duration_s": 0.13902737900025386
+    },
+    {
+      "phase": "cleanup-A2",
+      "tool": "list_windows",
+      "started": 5163.465189715,
+      "ok": true,
+      "duration_s": 0.009258218000468332
+    }
+  ],
+  "runs": [
+    {
+      "condition": "A1-hybrid",
+      "elapsed_s": 236.73220599199976,
+      "gui_verified": true,
+      "exact_output": true,
+      "original_unchanged": true,
+      "bytes": 147,
+      "sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+      "backend_s": 13.261746941003366,
+      "calls": 57,
+      "tool_counts": {
+        "launch_app": 2,
+        "window_layout": 3,
+        "press_keys": 11,
+        "ui_snapshot": 13,
+        "ui_action": 9,
+        "ui_wait": 2,
+        "screenshot": 5,
+        "pointer_click": 3,
+        "wait_for": 3,
+        "ui_inspect": 2,
+        "activate_window": 2,
+        "list_windows": 1,
+        "type_text": 1
+      },
+      "errors": 2
+    },
+    {
+      "condition": "B1-visual",
+      "elapsed_s": 195.15936499599957,
+      "gui_verified": true,
+      "exact_output": true,
+      "original_unchanged": true,
+      "bytes": 147,
+      "sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+      "backend_s": 13.02832075000515,
+      "calls": 48,
+      "tool_counts": {
+        "launch_app": 2,
+        "window_layout": 3,
+        "press_keys": 13,
+        "screenshot": 13,
+        "type_text": 6,
+        "pointer_click": 5,
+        "wait_for": 3,
+        "activate_window": 2,
+        "list_windows": 1
+      },
+      "errors": 0
+    },
+    {
+      "condition": "B2-visual",
+      "elapsed_s": 206.6670071819999,
+      "gui_verified": true,
+      "exact_output": true,
+      "original_unchanged": true,
+      "bytes": 147,
+      "sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+      "backend_s": 16.186397329998726,
+      "calls": 47,
+      "tool_counts": {
+        "launch_app": 2,
+        "window_layout": 3,
+        "press_keys": 13,
+        "screenshot": 12,
+        "type_text": 6,
+        "pointer_click": 5,
+        "wait_for": 3,
+        "activate_window": 2,
+        "list_windows": 1
+      },
+      "errors": 0
+    },
+    {
+      "condition": "A2-hybrid",
+      "elapsed_s": 129.04171425599998,
+      "gui_verified": true,
+      "exact_output": true,
+      "original_unchanged": true,
+      "bytes": 147,
+      "sha256": "5e3f7e9cd9b2621a44ab35002a6095893779ef12856f42f33b0d0bf0f10d876a",
+      "backend_s": 14.93946856999537,
+      "calls": 52,
+      "tool_counts": {
+        "launch_app": 2,
+        "window_layout": 3,
+        "press_keys": 9,
+        "ui_snapshot": 10,
+        "ui_action": 8,
+        "ui_wait": 4,
+        "screenshot": 4,
+        "pointer_click": 3,
+        "wait_for": 3,
+        "ui_inspect": 2,
+        "activate_window": 2,
+        "list_windows": 1,
+        "type_text": 1
+      },
+      "errors": 0
+    }
+  ],
+  "methodology": {
+    "order": [
+      "A1-hybrid",
+      "B1-visual",
+      "B2-visual",
+      "A2-hybrid"
+    ],
+    "interaction": "agent-driven visible main desktop",
+    "timer": "launch through final GUI verification; includes agent and transport gaps; excludes bridge setup, fixture preparation, cleanup and independent disk checks",
+    "backend_timer": "desktop.call only; excludes explicit sleeps and event serialization",
+    "code": "same fresh current-checkout MCP process for all runs; client-held connection was stale",
+    "limitations": [
+      "two observations per method",
+      "agent learned and changed short-batch grouping between runs",
+      "ordinary workstation load and model/transport latency uncontrolled",
+      "no production code changes between runs"
+    ]
+  },
+  "summary": {
+    "hybrid_mean_s": 182.88696012399987,
+    "visual_mean_s": 200.91318608899974,
+    "hybrid_mean_time_reduction_percent": 8.972146784340318,
+    "all_four_exact": true,
+    "task_windows_closed": true,
+    "personal_editor_tabs_preserved": true,
+    "fresh_bridge_stopped": true
+  }
+}

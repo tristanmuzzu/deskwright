@@ -1,0 +1,13 @@
+{
+  "private_session": {
+    "stopped": true,
+    "name": "semantic-impl-20261006",
+    "ended": [
+      "gnome-shell",
+      "dbus-daemon"
+    ],
+    "detail": "headless session 'semantic-impl-20261006' ended"
+  },
+  "private_running": false,
+  "owned_main_windows_remaining": []
+}

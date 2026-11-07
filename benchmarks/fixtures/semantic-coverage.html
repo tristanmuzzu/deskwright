@@ -1,0 +1,12 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><title>Semantic coverage fixture</title>
+<body><h1>Semantic coverage fixture</h1>
+<label for="name">Project name</label><input id="name" value="Draft">
+<button id="save">Save project</button><p id="status" role="status">Not saved</p>
+<h2>Custom canvas control</h2><canvas id="canvas" width="240" height="80"></canvas>
+<p id="canvas-status">Canvas untouched</p>
+<script>
+document.querySelector('#save').onclick=()=>document.querySelector('#status').textContent='Saved: '+document.querySelector('#name').value;
+const c=document.querySelector('#canvas'),ctx=c.getContext('2d');
+ctx.fillStyle='#173c65';ctx.fillRect(5,5,220,60);ctx.fillStyle='white';ctx.font='20px sans-serif';ctx.fillText('Paint a star',50,43);
+c.onclick=()=>document.querySelector('#canvas-status').textContent='Canvas activated';
+</script></body></html>

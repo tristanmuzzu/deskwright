@@ -1,0 +1,79 @@
+{
+  "backend": "linux-atspi",
+  "samples": [
+    {
+      "trial": 0,
+      "snapshot_ms": 229.22,
+      "fill_14_fields_3_options_seconds": 0.6593954289996873,
+      "clear_reopen_verify_seconds": 0.2587080209996202,
+      "workflow_seconds": 1.5174787529999776,
+      "modal_refusal": "focus_not_acquired",
+      "stale_dialog_refusal": "stale_observation",
+      "exact": true,
+      "screenshots": 0
+    },
+    {
+      "trial": 1,
+      "snapshot_ms": 120.53,
+      "fill_14_fields_3_options_seconds": 0.6661249349999707,
+      "clear_reopen_verify_seconds": 0.28332989999989877,
+      "workflow_seconds": 1.429547052000089,
+      "modal_refusal": "focus_not_acquired",
+      "stale_dialog_refusal": "stale_observation",
+      "exact": true,
+      "screenshots": 0
+    },
+    {
+      "trial": 2,
+      "snapshot_ms": 118.04,
+      "fill_14_fields_3_options_seconds": 0.6879491439999583,
+      "clear_reopen_verify_seconds": 0.2893853260002288,
+      "workflow_seconds": 1.4546284469997772,
+      "modal_refusal": "occluded",
+      "stale_dialog_refusal": "stale_observation",
+      "exact": true,
+      "screenshots": 0
+    },
+    {
+      "trial": 3,
+      "snapshot_ms": 123.16,
+      "fill_14_fields_3_options_seconds": 0.6648069220000252,
+      "clear_reopen_verify_seconds": 0.2797336259995973,
+      "workflow_seconds": 1.4341701899998043,
+      "modal_refusal": "focus_not_acquired",
+      "stale_dialog_refusal": "stale_observation",
+      "exact": true,
+      "screenshots": 0
+    },
+    {
+      "trial": 4,
+      "snapshot_ms": 120.07,
+      "fill_14_fields_3_options_seconds": 0.658856945000025,
+      "clear_reopen_verify_seconds": 0.2868398310001794,
+      "workflow_seconds": 1.4216753850000714,
+      "modal_refusal": "focus_not_acquired",
+      "stale_dialog_refusal": "stale_observation",
+      "exact": true,
+      "screenshots": 0
+    }
+  ],
+  "description": "Worker-local time, includes guards and exact readback; excludes model latency.",
+  "gtk4_editor": {
+    "native_editor_exact_write": true,
+    "gtk4_sensitive_without_enabled": true,
+    "snapshot_complete": true
+  },
+  "shell_modal": {
+    "shell_modal_refused": "occluded",
+    "action_status": "not_started",
+    "underlying_window_still_focused": true,
+    "original_form_unchanged": true
+  },
+  "extension_build": "2026-10-06.1",
+  "semantic_source_sha256": "eb1a0b114a3ce7b40e5bcb1ef2c54789569d268077b77c8d7ef90bcce77991f6",
+  "median_seconds": {
+    "fill_14_fields_3_options_seconds": 0.6648069220000252,
+    "clear_reopen_verify_seconds": 0.28332989999989877,
+    "workflow_seconds": 1.4341701899998043
+  }
+}

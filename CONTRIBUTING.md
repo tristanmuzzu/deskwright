@@ -12,6 +12,9 @@ The MCP server lives in `deskwright/`; `mcp_server.py` is the thin entry point.
 |---|---|
 | `deskwright/server.py` | The `TOOLS` registry, JSON-RPC dispatch, `--self-test`, and the halt gate (state-changing tools refuse while the human halt switch is engaged; reading tools keep working). |
 | `deskwright/shell.py` | Everything answered by the bundled GNOME Shell extension over D-Bus: window list/geometry/focus, `window_manage`, `wait_for`, `assert_state`, the halt probe. |
+| `deskwright/semantic.py` | Window-scoped native references, bounded snapshots, guarded semantic actions and exact condition waits. |
+| `deskwright/hybrid.py` | Read-only native/visual observation routing and bounded per-window probe cooldowns; no input retries or application workflows. |
+| `deskwright/code_runtime.py` | Optional persistent Python helpers, concise output, stopped-batch evidence and read-only recovery screenshots. |
 | `deskwright/atspi.py` | The accessibility tree: `ui_apps` / `ui_tree` / `ui_find` / `ui_press` / `ui_read_text` / `ui_set_text`, `launch_app`, widget-identity re-checks. |
 | `deskwright/input.py` | Pointer and keyboard injection (Mutter RemoteDesktop keysyms first, ydotool fallback), `screen_map`, clipboard, `hold_key`, drag verification, the refused-combination guards. |
 | `deskwright/capture.py` | `screenshot`, `zoom`, `screencast`, `frames`, `region_changed`, and the before/after "look" machinery every acting tool reports through. |
@@ -48,6 +51,9 @@ Every test file states its own requirements in its docstring; the split today:
   no desktop.
 - `tests/test_atspi_addressing.py`: `launch_app` and document addressing;
   in-process.
+
+- `tests/test_semantic.py`: reference identity and lifetime, traversal bounds, modal/lock/halt guards, idempotent checkbox assignment, exact text and partial failures; fake providers, no desktop.
+- `tests/test_hybrid.py`: adaptive fallback, route invalidation, argument rejection before input, new-window discovery and stopped-batch recovery without replay; fake providers, no desktop.
 
 **Need a live GNOME Wayland session (and mostly the loaded extension):**
 

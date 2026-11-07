@@ -1,0 +1,657 @@
+{
+  "fixtures": "/tmp/dw-auto-fixtures-g3tp149s",
+  "query_comparison": [
+    {
+      "case": "dense",
+      "version": "old",
+      "elapsed_s": 0.4244097709997732,
+      "backend": "tree",
+      "met": true,
+      "name": "Destination"
+    },
+    {
+      "case": "dense",
+      "version": "new",
+      "elapsed_s": 0.04059577000225545,
+      "backend": "collection",
+      "met": true,
+      "name": "Destination"
+    },
+    {
+      "case": "dense",
+      "version": "new",
+      "elapsed_s": 0.04045814100027201,
+      "backend": "collection",
+      "met": true,
+      "name": "Destination"
+    },
+    {
+      "case": "dense",
+      "version": "old",
+      "elapsed_s": 0.18494227200062596,
+      "backend": "tree",
+      "met": true,
+      "name": "Destination"
+    },
+    {
+      "case": "dense",
+      "version": "old",
+      "elapsed_s": 0.17803402099889354,
+      "backend": "tree",
+      "met": true,
+      "name": "Destination"
+    },
+    {
+      "case": "dense",
+      "version": "new",
+      "elapsed_s": 0.03543674600223312,
+      "backend": "collection",
+      "met": true,
+      "name": "Destination"
+    },
+    {
+      "case": "writer",
+      "version": "old",
+      "elapsed_s": 0.6381488529987109,
+      "backend": "tree",
+      "met": true,
+      "name": "Save"
+    },
+    {
+      "case": "writer",
+      "version": "new",
+      "elapsed_s": 0.039764503002515994,
+      "backend": "collection",
+      "met": true,
+      "name": "Save"
+    },
+    {
+      "case": "writer",
+      "version": "new",
+      "elapsed_s": 0.03873308899710537,
+      "backend": "collection",
+      "met": true,
+      "name": "Save"
+    },
+    {
+      "case": "writer",
+      "version": "old",
+      "elapsed_s": 0.586717267997301,
+      "backend": "tree",
+      "met": true,
+      "name": "Save"
+    },
+    {
+      "case": "writer",
+      "version": "old",
+      "elapsed_s": 0.552817399999185,
+      "backend": "tree",
+      "met": true,
+      "name": "Save"
+    },
+    {
+      "case": "writer",
+      "version": "new",
+      "elapsed_s": 0.038388700002542464,
+      "backend": "collection",
+      "met": true,
+      "name": "Save"
+    },
+    {
+      "case": "gtk4_editor",
+      "version": "old",
+      "elapsed_s": 0.09011138300047605,
+      "backend": "tree",
+      "met": true,
+      "name": ""
+    },
+    {
+      "case": "gtk4_editor",
+      "version": "new",
+      "elapsed_s": 0.09239460700337077,
+      "backend": "tree",
+      "met": true,
+      "name": ""
+    },
+    {
+      "case": "gtk4_editor",
+      "version": "new",
+      "elapsed_s": 0.09128826099913567,
+      "backend": "tree",
+      "met": true,
+      "name": ""
+    },
+    {
+      "case": "gtk4_editor",
+      "version": "old",
+      "elapsed_s": 0.08651292099966668,
+      "backend": "tree",
+      "met": true,
+      "name": ""
+    },
+    {
+      "case": "gtk4_editor",
+      "version": "old",
+      "elapsed_s": 0.09343457700015279,
+      "backend": "tree",
+      "met": true,
+      "name": ""
+    },
+    {
+      "case": "gtk4_editor",
+      "version": "new",
+      "elapsed_s": 0.09058868300053291,
+      "backend": "tree",
+      "met": true,
+      "name": ""
+    }
+  ],
+  "checks": [
+    {
+      "case": "writer_formatted_unicode",
+      "passed": true,
+      "heading": "Supplier review",
+      "paragraphs": [
+        "Comparison for Montr\u00e9al delivery",
+        "Supplier A: \u20ac222 delivered",
+        "Supplier B: \u20ac213 delivered",
+        "Recommendation: choose supplier B and confirm Friday delivery."
+      ]
+    },
+    {
+      "case": "writer_saved_odt",
+      "passed": true,
+      "text": [
+        "Supplier review",
+        "Comparison for Montr\u00e9al delivery",
+        "Supplier A: \u20ac222 delivered",
+        "Supplier B: \u20ac213 delivered",
+        "Recommendation: choose supplier B and confirm Friday delivery."
+      ],
+      "path": "/tmp/dw-auto-fixtures-g3tp149s/supplier-review.odt",
+      "exploration_elapsed_s": 126.47960876200159
+    },
+    {
+      "case": "writer_export_pdf",
+      "passed": true,
+      "path": "/tmp/dw-auto-fixtures-g3tp149s/supplier-review.pdf",
+      "paragraph_count": 5
+    },
+    {
+      "case": "pdf_open_draw",
+      "passed": true,
+      "window_id": 794615208
+    },
+    {
+      "case": "writer_reopen_odt",
+      "passed": true
+    },
+    {
+      "case": "writer_scoped_replace_and_save",
+      "passed": true,
+      "expected": [
+        "Supplier review",
+        "Comparison for Montr\u00e9al delivery",
+        "Supplier A: \u20ac222 delivered",
+        "Supplier B: \u20ac213 delivered",
+        "Recommendation: choose supplier B and confirm Wednesday delivery."
+      ]
+    },
+    {
+      "case": "ancestry_cache_unit_before_after",
+      "passed": true,
+      "baseline_mock_presses": 1,
+      "current_mock_presses": 0
+    }
+  ],
+  "incidents": [
+    {
+      "case": "writer_oracle",
+      "issue": "Heading has role heading, not paragraph; corrected read-only oracle without replaying paste"
+    },
+    {
+      "case": "writer_launch_splash",
+      "issue": "Splash initially reports NORMAL with zero geometry, then remains NORMAL when mapped; type filter alone insufficient",
+      "fix": "Positive geometry and two consecutive polls filter brief transients. Three Writer document postconditions passed; long normal-type GIMP startup still required fresh window discovery. Arrival is explicitly not readiness."
+    },
+    {
+      "case": "save_action_choices",
+      "issue": "Writer toolbar Save exposes press and push with empty descriptions",
+      "recovery": "Use known Ctrl+S shortcut; error now returns choices without replay"
+    },
+    {
+      "case": "calc_virtual_tree",
+      "issue": "Initial role-filtered Collection query stalled despite small result count; one stopped batch including recovery took 10.069 seconds. Subsequent mapping diagnostics failed while provider was occupied.",
+      "fix": "Capped unfiltered size probe before selective query; oversized scopes use bounded tree fallback. Broad Calc queries remain incomplete; keyboard and native import/save dialogs completed the task."
+    },
+    {
+      "case": "papers_apparmor",
+      "issue": "strace confirmed EACCES connecting to custom private Wayland socket; installed AppArmor profile allows usual wayland-[0-9] paths.",
+      "resolution": "Platform restriction left intact; no bypass. PDF text verified independently and opened with Draw."
+    },
+    {
+      "case": "harness_api_mistakes",
+      "issue": "During exploration describe was called with helper names instead of tool names; window_title omitted target once; display wrapped observe despite automatic image attachment.",
+      "resolution": "Errors inspected, actual schemas used; prior input was not repeated."
+    }
+  ],
+  "startup_window_history": [
+    {
+      "at": 17821.77870243,
+      "windows": []
+    },
+    {
+      "at": 17821.886508649,
+      "windows": []
+    },
+    {
+      "at": 17821.994129649,
+      "windows": []
+    },
+    {
+      "at": 17822.102327155,
+      "windows": []
+    },
+    {
+      "at": 17822.208228067,
+      "windows": []
+    },
+    {
+      "at": 17822.315566736,
+      "windows": [
+        {
+          "id": 794615212,
+          "type": "NORMAL",
+          "title": "LibreOffice 26.2",
+          "width": 0,
+          "height": 0
+        }
+      ]
+    },
+    {
+      "at": 17822.422049353,
+      "windows": [
+        {
+          "id": 794615212,
+          "type": "NORMAL",
+          "title": "LibreOffice 26.2",
+          "width": 644,
+          "height": 236
+        }
+      ]
+    },
+    {
+      "at": 17822.530059335,
+      "windows": []
+    },
+    {
+      "at": 17822.639357944,
+      "windows": []
+    },
+    {
+      "at": 17822.746303974,
+      "windows": []
+    },
+    {
+      "at": 17822.852754199,
+      "windows": []
+    },
+    {
+      "at": 17822.959954888,
+      "windows": []
+    },
+    {
+      "at": 17823.066890528,
+      "windows": []
+    },
+    {
+      "at": 17823.174052054,
+      "windows": []
+    },
+    {
+      "at": 17823.280732463,
+      "windows": []
+    },
+    {
+      "at": 17823.387753834,
+      "windows": []
+    },
+    {
+      "at": 17823.495370717,
+      "windows": []
+    },
+    {
+      "at": 17823.60246732,
+      "windows": [
+        {
+          "id": 794615213,
+          "type": "NORMAL",
+          "title": "supplier-review.odt \u2014 LibreOffice Writer",
+          "width": 1280,
+          "height": 688
+        }
+      ]
+    },
+    {
+      "at": 17823.709096723,
+      "windows": [
+        {
+          "id": 794615213,
+          "type": "NORMAL",
+          "title": "supplier-review.odt \u2014 LibreOffice Writer",
+          "width": 1280,
+          "height": 688
+        }
+      ]
+    },
+    {
+      "at": 17823.818116397,
+      "windows": [
+        {
+          "id": 794615213,
+          "type": "NORMAL",
+          "title": "supplier-review.odt \u2014 LibreOffice Writer",
+          "width": 1280,
+          "height": 688
+        }
+      ]
+    }
+  ],
+  "cold_start_retests": [
+    {
+      "elapsed_s": 2.668353502998798,
+      "window": "LibreOffice 26.2",
+      "verified": true
+    },
+    {
+      "elapsed_s": 2.705065424001077,
+      "window": "LibreOffice 26.2",
+      "verified": true
+    },
+    {
+      "elapsed_s": 2.655037421001907,
+      "window": "LibreOffice 26.2",
+      "verified": true
+    }
+  ],
+  "writer_workflow_comparison": [
+    {
+      "method": "previous",
+      "seconds": 1.98893031300031,
+      "replacement": "Thursday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69964
+    },
+    {
+      "method": "new",
+      "seconds": 1.003521896996972,
+      "replacement": "Monday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69265
+    },
+    {
+      "method": "new",
+      "seconds": 0.9375751859988668,
+      "replacement": "Tuesday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69328
+    },
+    {
+      "method": "previous",
+      "seconds": 1.8838278990006074,
+      "replacement": "Friday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69632
+    },
+    {
+      "method": "new",
+      "seconds": 0.9891193699986616,
+      "replacement": "Monday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69233
+    },
+    {
+      "method": "previous",
+      "seconds": 1.7313222779994248,
+      "replacement": "Thursday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69980
+    },
+    {
+      "method": "previous",
+      "seconds": 1.798790304997965,
+      "replacement": "Friday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69639
+    },
+    {
+      "method": "new",
+      "seconds": 0.9879740719989059,
+      "replacement": "Wednesday",
+      "exact_artifact": true,
+      "screenshot_bytes": 70374
+    }
+  ],
+  "writer_workflow_final": [
+    {
+      "method": "previous",
+      "seconds": 2.0920360569980403,
+      "replacement": "Thursday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69778
+    },
+    {
+      "method": "new",
+      "seconds": 1.015623120998498,
+      "replacement": "Monday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69037
+    },
+    {
+      "method": "new",
+      "seconds": 1.027474563998112,
+      "replacement": "Tuesday",
+      "exact_artifact": true,
+      "screenshot_bytes": 68985
+    },
+    {
+      "method": "previous",
+      "seconds": 1.9004180379997706,
+      "replacement": "Friday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69456
+    },
+    {
+      "method": "new",
+      "seconds": 0.9915173660010623,
+      "replacement": "Monday",
+      "exact_artifact": true,
+      "screenshot_bytes": 68915
+    },
+    {
+      "method": "previous",
+      "seconds": 1.80739787100174,
+      "replacement": "Thursday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69793
+    },
+    {
+      "method": "previous",
+      "seconds": 1.769347043999005,
+      "replacement": "Friday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69457
+    },
+    {
+      "method": "new",
+      "seconds": 1.0486358080015634,
+      "replacement": "Wednesday",
+      "exact_artifact": true,
+      "screenshot_bytes": 70174
+    }
+  ],
+  "workflow_summary": {
+    "previous": {
+      "mean_seconds": 1.892299752499639,
+      "median_seconds": 1.8539079545007553
+    },
+    "new": {
+      "mean_seconds": 1.020812714749809,
+      "median_seconds": 1.021548842498305
+    }
+  },
+  "baseline_semantic_sha256": "2c1bebe738fbf1049fb208bbb88b7ff6fb5772550515e8ad2a7a2363cd73c130",
+  "current_semantic_sha256": "0952b39d70c8b0b8fdb5c0ede44ef938c3a4b292eecd81194748af24559f51e0",
+  "calc": {
+    "artifact": "/tmp/dw-auto-fixtures-g3tp149s/supplies.ods",
+    "formulas": [
+      [
+        "of:=[.B2]*[.C2]",
+        "42"
+      ],
+      [
+        "of:=[.B3]*[.C3]",
+        "24"
+      ],
+      [
+        "of:=[.B4]*[.C4]",
+        "12"
+      ],
+      [
+        "of:=SUM([.D2:.D4])",
+        "78"
+      ]
+    ],
+    "exact_values": true,
+    "import_modal_native_action": true,
+    "query_stall_reproduced": true,
+    "provider_size_probe": {
+      "writer_nodes": 2114,
+      "writer_seconds": 0.007,
+      "calc_nodes_capped": 4001,
+      "calc_seconds": 0.187
+    },
+    "bounded_query_comparison": [
+      {
+        "method": "previous",
+        "seconds": 1.5167721759971755,
+        "outcome": "timeout: UI query timed out (incomplete scan: node_limit, time_budget); inspect or use a screenshot"
+      },
+      {
+        "method": "bounded",
+        "seconds": 1.5150137710006675,
+        "outcome": "timeout: UI query timed out (incomplete scan: node_limit, time_budget); inspect or use a screenshot"
+      },
+      {
+        "method": "bounded",
+        "seconds": 1.519137334998959,
+        "outcome": "timeout: UI query timed out (incomplete scan: node_limit, time_budget); inspect or use a screenshot"
+      },
+      {
+        "method": "previous",
+        "seconds": 1.384785517002456,
+        "outcome": "timeout: UI query timed out (incomplete scan: node_limit); inspect or use a screenshot"
+      }
+    ],
+    "reopened": true
+  },
+  "writer_workflow_before_size_guard": [
+    {
+      "method": "previous",
+      "seconds": 2.163819315999717,
+      "replacement": "Thursday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69957
+    },
+    {
+      "method": "new",
+      "seconds": 0.9692746719993011,
+      "replacement": "Monday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69265
+    },
+    {
+      "method": "new",
+      "seconds": 0.991294776002178,
+      "replacement": "Tuesday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69135
+    },
+    {
+      "method": "previous",
+      "seconds": 1.8830276310000045,
+      "replacement": "Friday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69619
+    },
+    {
+      "method": "new",
+      "seconds": 1.0017065350002667,
+      "replacement": "Monday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69059
+    },
+    {
+      "method": "previous",
+      "seconds": 1.802976694998506,
+      "replacement": "Thursday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69946
+    },
+    {
+      "method": "previous",
+      "seconds": 1.8281884159987385,
+      "replacement": "Friday",
+      "exact_artifact": true,
+      "screenshot_bytes": 69622
+    },
+    {
+      "method": "new",
+      "seconds": 0.9840949419995013,
+      "replacement": "Wednesday",
+      "exact_artifact": true,
+      "screenshot_bytes": 70378
+    }
+  ],
+  "gimp": {
+    "stroke_changed_canvas": true,
+    "undo_restored_exact_pixels": true,
+    "launch_returned_long_normal_startup": true,
+    "actual_window_observed_before_input": true,
+    "geometry_change_refused_before_input": true
+  },
+  "apps_closed": true,
+  "source_hashes_final": {
+    "deskwright/semantic.py": "0952b39d70c8b0b8fdb5c0ede44ef938c3a4b292eecd81194748af24559f51e0",
+    "deskwright/atspi.py": "3477856649d0b8e02511c762f1da5235ff7918751a0cf1ffa4be1b2072ec3054",
+    "deskwright/hybrid.py": "97944f62ed4e8353c4855dbf6e5fab0c21a9f5817ecafd051996536fd47d7ca0",
+    "deskwright/code_runtime.py": "14a0a1ec0417e17960e161a6290820c7515dbcd956a21d40a5dcbc9fedc02a39",
+    "deskwright/server.py": "1dba9f5499f2a1a7d34489a1ba83b8dca4d5b4b0405a4dfa7d654012bff2690e"
+  },
+  "measurement_scope": "Prepared worker-local workflows; excludes model and MCP transport latency. Baseline is the pre-cycle hybrid source, not screenshot-only computer use.",
+  "query_comparison_note": "Exploratory measurements before ancestor cache refresh and virtual-tree size guard; final measurements are writer_workflow_final and calc.bounded_query_comparison.",
+  "verification": {
+    "pytest_passed": 527,
+    "pytest_warnings": 1,
+    "ruff": "clean",
+    "live_contract_checks": 12,
+    "live_contract_passed": true,
+    "private_self_test": "18/18 passed",
+    "diff_check": "clean"
+  },
+  "mean_workflow_reduction_percent": 46.05438628835821,
+  "cleanup": {
+    "session": "a-3sy2fgxi",
+    "windows_before_stop": 0,
+    "stop_result": {
+      "stopped": true,
+      "name": "a-3sy2fgxi",
+      "ended": [
+        "gnome-shell",
+        "dbus-daemon"
+      ],
+      "detail": "headless session 'a-3sy2fgxi' ended"
+    },
+    "main_desktop_input": false
+  }
+}

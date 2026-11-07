@@ -98,6 +98,9 @@ class FakePopen:
         FakePopen.calls.append(list(argv))
         self.pid = 4242
 
+    def poll(self):
+        return None
+
 
 def fake_subprocess(run_result=None):
     """A subprocess stand-in with just what tool_launch_app touches."""
@@ -168,7 +171,7 @@ def test_arrival_confirmed_by_new_window_id(monkeypatch) -> None:
         calls["n"] += 1
         base = [{"id": 1, "wm_class": "old", "title": "old"}]
         if calls["n"] >= 2:                    # snapshot sees only the old one
-            base.append({"id": 2, "wm_class": "fresh", "title": "fresh"})
+            base.append({"id": 2, "wm_class": "fresh", "title": "fresh", 'width': 400, 'height': 300})
         return base
 
     monkeypatch.setattr(atspi, "list_windows", windows)
@@ -214,6 +217,31 @@ def test_arrival_timeout_names_what_was_awaited(monkeypatch) -> None:
     assert e.code == "timeout"
     assert "new window" in str(e)
     assert "some-editor" in str(e)
+
+
+@pytest.mark.parametrize('exit_code', [1, -9])
+def test_failed_launcher_stops_before_arrival_timeout(monkeypatch, exit_code):
+    monkeypatch.setattr(atspi, 'subprocess', fake_subprocess())
+    monkeypatch.setattr(FakePopen, 'poll', lambda _: exit_code)
+    monkeypatch.setattr(atspi, 'list_windows', list)
+    monkeypatch.setattr(atspi, 'list_atspi_apps', list)
+    monkeypatch.setattr(atspi.time, 'sleep', lambda _: pytest.fail('waited after launcher failed'))
+    e = err(atspi.tool_launch_app, {'command': ['some-editor'], 'timeout': 15})
+    assert e.code == 'verification_failed'
+    assert e.action_status == 'unknown'  # it may have spawned children
+    assert e.details == {'pid': 4242, 'exit_code': exit_code, 'arrival_confirmed': False}
+
+
+def test_successful_launcher_exit_keeps_waiting_for_window(monkeypatch):
+    monkeypatch.setattr(atspi, 'subprocess', fake_subprocess())
+    monkeypatch.setattr(FakePopen, 'poll', lambda _: 0)
+    win = {'id': 99, 'wm_class': 'handed-off', 'title': 'Document', 'width': 400, 'height': 300}
+    samples = iter([[], [], [win], [win]])
+    monkeypatch.setattr(atspi, 'list_windows', lambda: next(samples))
+    monkeypatch.setattr(atspi, 'list_atspi_apps', list)
+    monkeypatch.setattr(atspi.time, 'sleep', lambda _: None)
+    out = atspi.tool_launch_app({'command': ['some-editor'], 'timeout': 15})
+    assert out['confirmed'] and out['window']['id'] == 99
 
 
 # =========================================================================
@@ -328,3 +356,27 @@ def test_off_view_without_scrollto_gets_an_honest_note() -> None:
     assert "scrolled" not in out
     assert "off-view" in out["note"]
     assert "pressing anyway" in out["note"]
+
+
+def test_launch_ignores_splash_and_waits_for_interactive_window(monkeypatch):
+    monkeypatch.setattr(atspi, 'subprocess', fake_subprocess())
+    win = {'id': 2, 'type': 'NORMAL', 'title': 'Document', 'width': 400, 'height': 300}
+    samples = iter([[], [{'id': 1, 'type': 'SPLASHSCREEN'}],
+                    [win], [win]])
+    monkeypatch.setattr(atspi, 'list_windows', lambda: next(samples))
+    monkeypatch.setattr(atspi, 'list_atspi_apps', list)
+    monkeypatch.setattr(atspi.time, 'sleep', lambda _: None)
+    result = atspi.tool_launch_app({'command': ['some-editor'], 'timeout': 2})
+    assert result['window']['id'] == 2
+
+
+def test_launch_waits_through_zero_geometry_and_mislabelled_splash(monkeypatch):
+    monkeypatch.setattr(atspi, 'subprocess', fake_subprocess())
+    splash = {'id': 1, 'type': 'NORMAL', 'width': 400, 'height': 200}
+    real = {'id': 2, 'type': 'NORMAL', 'width': 600, 'height': 400}
+    samples = iter([[], [{**splash, 'width': 0, 'height': 0}], [splash], [], [real], [real]])
+    monkeypatch.setattr(atspi, 'list_windows', lambda: next(samples))
+    monkeypatch.setattr(atspi, 'list_atspi_apps', list)
+    monkeypatch.setattr(atspi.time, 'sleep', lambda _: None)
+    result = atspi.tool_launch_app({'command': ['some-editor'], 'timeout': 2})
+    assert result['window']['id'] == 2

@@ -1,0 +1,189 @@
+{
+  "kind": "live receiver tests, not a model capability score",
+  "checks": [
+    {
+      "name": "crop/resize input reaches receiver",
+      "passed": true,
+      "detail": {
+        "error_px": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "crop/resize drag reaches receiver",
+      "passed": true,
+      "detail": {
+        "error_px": [
+          0.0,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "cancel releases mouse",
+      "passed": true,
+      "detail": {
+        "seconds": 0.9587952099973336,
+        "released": true,
+        "result": "{\"code\": \"cancelled\", \"error\": \"caller cancelled desktop execution\", \"action_status\": \"unknown\", \"session_reset\": true, \"executed_prefix\": [{\"tool\": \"pointer_path\", \"action_status\": \"started\"}], \"omitted_progress_events\": 0, \"recovery\": \"Worker stopped. Variables and observations invalidated. Inspect partial effects before retrying.\"}",
+        "events": [
+          {
+            "kind": "move",
+            "x": 181.0,
+            "y": 203.0,
+            "local_x": 155.0,
+            "local_y": 143.0,
+            "at": 19863.645595963
+          },
+          {
+            "kind": "move",
+            "x": 182.0,
+            "y": 203.0,
+            "local_x": 156.0,
+            "local_y": 143.0,
+            "at": 19863.67120626
+          },
+          {
+            "kind": "move",
+            "x": 183.0,
+            "y": 203.0,
+            "local_x": 157.0,
+            "local_y": 143.0,
+            "at": 19863.689261735
+          },
+          {
+            "kind": "up",
+            "x": 183.0,
+            "y": 203.0,
+            "local_x": 157.0,
+            "local_y": 143.0,
+            "at": 19863.698698403
+          }
+        ]
+      }
+    },
+    {
+      "name": "cancel releases key",
+      "passed": true,
+      "detail": {
+        "seconds": 0.9587580699990212,
+        "released": true,
+        "result": "{\"code\": \"cancelled\", \"error\": \"caller cancelled desktop execution\", \"action_status\": \"unknown\", \"session_reset\": true, \"executed_prefix\": [{\"tool\": \"hold_key\", \"action_status\": \"started\"}], \"omitted_progress_events\": 0, \"recovery\": \"Worker stopped. Variables and observations invalidated. Inspect partial effects before retrying.\"}",
+        "events": [
+          {
+            "keyval": 65505,
+            "kind": "9",
+            "at": 19864.235234531
+          },
+          {
+            "keyval": 65505,
+            "kind": "8",
+            "at": 19864.266605386
+          },
+          {
+            "keyval": 65505,
+            "kind": "9",
+            "at": 19864.659373958
+          }
+        ]
+      }
+    },
+    {
+      "name": "reset invalidates observation",
+      "passed": true,
+      "detail": "[stale_observation] observation expired or desktop geometry changed; observe again\n{\"code\": \"stale_observation\", \"action_status\": \"not_started\"}"
+    },
+    {
+      "name": "code initialization",
+      "passed": true,
+      "detail": {}
+    },
+    {
+      "name": "state persists between calls",
+      "passed": true,
+      "detail": [
+        "42"
+      ]
+    },
+    {
+      "name": "worker loss is explicit",
+      "passed": true,
+      "detail": "{\"code\": \"worker_lost\", \"error\": \"desktop worker exited unexpectedly\", \"action_status\": \"unknown\", \"session_reset\": true, \"executed_prefix\": [{\"tool\": \"desktop_exec\", \"action_status\": \"started\"}], \"omitted_progress_events\": 0, \"recovery\": \"Worker stopped. Variables and observations invalidated. Inspect partial effects before retrying.\"}"
+    },
+    {
+      "name": "worker loss clears code state",
+      "passed": true,
+      "detail": [
+        "false"
+      ]
+    },
+    {
+      "name": "worker crash releases mouse",
+      "passed": true,
+      "detail": {
+        "result": "{\"code\": \"worker_lost\", \"error\": \"desktop worker exited unexpectedly\", \"action_status\": \"unknown\", \"session_reset\": true, \"executed_prefix\": [{\"tool\": \"desktop_exec\", \"action_status\": \"started\"}], \"omitted_progress_events\": 0, \"recovery\": \"Worker stopped. Variables and observations invalidated. Inspect partial effects before retrying.\"}",
+        "events": [
+          {
+            "kind": "move",
+            "x": 156.0,
+            "y": 203.0,
+            "local_x": 130.0,
+            "local_y": 143.0,
+            "at": 19865.309367076
+          },
+          {
+            "kind": "down",
+            "x": 156.0,
+            "y": 203.0,
+            "local_x": 130.0,
+            "local_y": 143.0,
+            "at": 19865.5119227
+          },
+          {
+            "kind": "up",
+            "x": 156.0,
+            "y": 203.0,
+            "local_x": 130.0,
+            "local_y": 143.0,
+            "at": 19865.719930551
+          }
+        ]
+      }
+    },
+    {
+      "name": "60-second deadline releases key and resets",
+      "passed": true,
+      "detail": {
+        "seconds": 60.02332102299988,
+        "result": "{\"code\": \"timeout\", \"error\": \"60-second execution deadline reached\", \"action_status\": \"unknown\", \"session_reset\": true, \"executed_prefix\": [{\"tool\": \"hold_key\", \"action_status\": \"started\"}, {\"tool\": \"hold_key\", \"action_status\": \"unknown\", \"code\": \"timeout\"}], \"omitted_progress_events\": 0, \"recovery\": \"Worker stopped. Variables and observations invalidated. Inspect partial effects before retrying.\"}",
+        "events": [
+          {
+            "keyval": 65505,
+            "kind": "9",
+            "at": 19866.267244135
+          },
+          {
+            "keyval": 65505,
+            "kind": "8",
+            "at": 19866.298699128
+          },
+          {
+            "keyval": 65505,
+            "kind": "9",
+            "at": 19926.121760837
+          }
+        ]
+      }
+    },
+    {
+      "name": "deadline clears code state",
+      "passed": true,
+      "detail": [
+        "false"
+      ]
+    }
+  ],
+  "passed": true
+}

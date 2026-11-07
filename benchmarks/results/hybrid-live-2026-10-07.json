@@ -1,0 +1,116 @@
+{
+  "samples": [
+    {
+      "case": "files_snapshot",
+      "version": "before",
+      "ok": true,
+      "result": {
+        "visited": 157,
+        "complete": true,
+        "limits_hit": [],
+        "elapsed_ms": 182.3
+      },
+      "seconds": 0.18243838899979892,
+      "controls": 51,
+      "json_bytes": 15352
+    },
+    {
+      "case": "embedded_dialog_read",
+      "version": "before",
+      "ok": false,
+      "code": "stale_observation",
+      "seconds": 0.004638073000023724
+    },
+    {
+      "case": "files_snapshot",
+      "version": "after",
+      "ok": true,
+      "result": {
+        "visited": 157,
+        "complete": true,
+        "limits_hit": [],
+        "elapsed_ms": 196.62
+      },
+      "seconds": 0.19682983600023363,
+      "controls": 22,
+      "json_bytes": 5236
+    },
+    {
+      "case": "embedded_dialog_read",
+      "version": "after",
+      "ok": true,
+      "result": "",
+      "seconds": 0.007664829000077589
+    },
+    {
+      "case": "selected_path_replacement",
+      "version": "before",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 1.9651175110002441,
+      "exact_or_selected_completion": true
+    },
+    {
+      "case": "selected_path_replacement",
+      "version": "after",
+      "ok": true,
+      "result": true,
+      "seconds": 1.2014544660000865,
+      "exact_or_selected_completion": true
+    },
+    {
+      "case": "selected_path_replacement",
+      "version": "after",
+      "ok": true,
+      "result": true,
+      "seconds": 1.1982249490001777,
+      "exact_or_selected_completion": true
+    },
+    {
+      "case": "selected_path_replacement",
+      "version": "before",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 1.9711184820002927,
+      "exact_or_selected_completion": true
+    },
+    {
+      "case": "calculator_normalized_typing",
+      "version": "before",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 1.2507670709997,
+      "calculated": "639.6"
+    },
+    {
+      "case": "calculator_normalized_typing",
+      "version": "after",
+      "ok": true,
+      "result": true,
+      "seconds": 0.5282455890001074,
+      "calculated": "639.6"
+    },
+    {
+      "case": "calculator_normalized_typing",
+      "version": "after",
+      "ok": true,
+      "result": true,
+      "seconds": 0.521563905000221,
+      "calculated": "639.6"
+    },
+    {
+      "case": "calculator_normalized_typing",
+      "version": "before",
+      "ok": false,
+      "code": "verification_failed",
+      "seconds": 1.2818800390000433,
+      "calculated": "639.6"
+    }
+  ],
+  "scope": "Same private session, worker-local tool timing; no model latency.",
+  "measurement_notes": [
+    "Input comparisons used 20 ms per character in both versions to isolate verification.",
+    "After the speed experiment, keysym default changed to 8 ms.",
+    "Normalization postcondition is now named expected_after to distinguish it from semantic expected_text (a precondition)."
+  ]
+}

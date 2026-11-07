@@ -12,6 +12,7 @@ from typing import Any
 
 from .atspi import (
     REFS_CONTRACT,
+    _atspi,
     _atspi_app_for_window,
     _clickable_widgets,
     _find_text_widget,
@@ -24,7 +25,7 @@ from .atspi import (
 from .capture import _Look, _look, _look_before, _look_typed
 from .config import KEYS, MODIFIERS
 from .errors import ToolError
-from .execution import CURRENT, check, pause, remaining
+from .execution import CURRENT, check, clock, pause, remaining
 from .shell import (
     _gdbus,
     _needs_relogin,
@@ -372,10 +373,57 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
     )
 
 
+def _edit_span(node, length):
+    """Read selected character range or caret; never guess an unsupported offset."""
+    try:
+        node.clear_cache_single()
+        iface = node.get_text_iface()
+        Text = _atspi().Text
+        count = Text.get_n_selections(iface)
+        if count == 1:
+            # Accessible.get_selection() names a different GI interface.
+            selection = Text.get_selection(iface, 0)
+            start, end = selection.start_offset, selection.end_offset
+        elif count == 0:
+            start = end = Text.get_caret_offset(iface)
+        else:
+            return None
+        return (start, end) if 0 <= start <= end <= length else None
+    except Exception:
+        return None
+
+
+def _typed_matches(node, before, after, text, expected):
+    if expected is not None:
+        if after == expected:
+            return True
+        # Files selects its autocompleted suffix (e.g. the trailing slash).
+        # Only a selected, trailing completion may extend the exact edit.
+        span = _edit_span(node, len(after))
+        return (after.startswith(expected) and span == (len(expected), len(after))
+                and len(after) > len(expected))
+    # Unknown caret: accept only a changed buffer with the insertion present.
+    # Unchanged pre-existing text is not evidence that any key arrived.
+    if after == before:
+        return False
+    added = after[len(before):] if after.startswith(before) else after
+    return text in added
+
+
 def tool_type_text(a: dict) -> dict:
     text = a.get("text")
     if not isinstance(text, str) or text == "":
         raise ToolError("text is required", code="bad_args")
+    if "expected_after" in a and not isinstance(a["expected_after"], str):
+        raise ToolError("expected_after must be a string", code="bad_args")
+    via = str(a.get("via") or "auto").lower()
+    if via not in ("auto", "keysym", "ydotool"):
+        raise ToolError("via must be auto, keysym or ydotool", code="bad_args")
+    # Live 138-character editor trials: 8ms halved typing time versus 20ms,
+    # with exact readback in all six trials. Keep ydotool's unmeasured default.
+    delay = a.get("key_delay_ms", 20 if via == "ydotool" else 8)
+    if isinstance(delay, bool) or not isinstance(delay, int) or not 0 <= delay <= 1000:
+        raise ToolError("key_delay_ms must be an integer in 0..1000", code="bad_args")
     target = a.get("target")
     if target is None:
         raise ToolError(
@@ -385,12 +433,13 @@ def tool_type_text(a: dict) -> dict:
             code="no_expectation",
         )
     focus = focus_window(target)
-    delay = int(a.get("key_delay_ms") or 20)
     watching = _look_before(a, hint_window=focus["window"])
 
     # Read the widget BEFORE typing so we can tell what this call actually added.
     app_hint = a.get("verify_app") or _atspi_app_for_window(focus["window"])
     before = None
+    pinned = None
+    expected = a.get("expected_after")
     widget_focus = None
     if app_hint:
         # Window focus is not widget focus: after an AT-SPI popover dance the
@@ -413,16 +462,17 @@ def tool_type_text(a: dict) -> dict:
         # ui_set_text without an automatic, content-changing focus probe.
         try:
             if widget_focus.get("path"):
-                before = _read_text(_find_text_widget(str(app_hint), widget_focus["path"]))
+                pinned = _find_text_widget(str(app_hint), widget_focus["path"])
+                before = _read_text(pinned)
+                span = _edit_span(pinned, len(before))
+                if expected is None and span is not None:
+                    expected = before[:span[0]] + text + before[span[1]:]
         except ToolError:
             before = None
 
     # Keysyms first: the compositor is handed the CHARACTER, so the active XKB
     # layout cannot transpose it. ydotool is the fallback, and the reason this
     # function still has a verification pass at all.
-    via = str(a.get("via") or "auto").lower()
-    if via not in ("auto", "keysym", "ydotool"):
-        raise ToolError("via must be auto, keysym or ydotool", code="bad_args")
     used = "ydotool"
     if via in ("auto", "keysym"):
         try:
@@ -454,20 +504,26 @@ def tool_type_text(a: dict) -> dict:
                              + (f". {hazard}" if hazard else ""))
         return _look_typed(a, result, focus["window"], watching)
 
-    # Poll the pinned widget without resending; delayed visibility is not a layout diagnosis.
+    # Pin the native object, not its child-index path: tab changes can retarget
+    # paths. Observe immediately; don't charge every successful edit a fixed sleep.
     added = ""
-    for attempt in range(5):
-        pause(.15 if attempt else .1)
+    deadline = clock() + .7
+    while True:
+        check()
         try:
-            after = _read_text(_find_text_widget(
-                str(app_hint), widget_focus.get("path") if widget_focus else None))
+            after = _read_text(pinned)
         except ToolError:
             result.update(verified=False, verification="unavailable", action_status="unknown")
             return _look_typed(a, result, focus["window"], watching)
         added = after[len(before):] if after.startswith(before) else after
-        if text in added:
+        matched = (after == expected if "expected_after" in a else
+                   _typed_matches(pinned, before, after, text, expected))
+        if matched:
             result.update(verified=True, verification="read_back", action_status="applied")
             return _look(a, result, watching) if a.get("look") not in (None, "auto") else result
+        if clock() >= deadline:
+            break
+        pause(min(.02, max(0, deadline-clock())))
     raise ToolError(f"Text input attempted via {used}, but readback did not confirm it. "
                     f"Requested {text!r}; observed change {added!r}. "
                     "The update may be delayed, partial, or in a different widget. "

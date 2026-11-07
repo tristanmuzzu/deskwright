@@ -20,12 +20,13 @@ import GLib from 'gi://GLib';
 import Meta from 'gi://Meta';
 import Shell from 'gi://Shell';
 import St from 'gi://St';
+import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
 import {ActivityIndicator} from './indicator.js';
 
 /* Bumped by hand whenever this file changes, so a client can tell a running
  * shell that predates the change from one that has it. See Ping. */
-const BUILD = '2026-08-23.1';
+const BUILD = '2026-10-06.1';
 
 /* Halt banner. Kept in one place so the keybinding hint in it can never drift
  * from the schema default without someone noticing this constant. */
@@ -53,6 +54,9 @@ const IFACE = `
     </method>
     <method name="Ping">
       <arg type="s" direction="out" name="build"/>
+    </method>
+    <method name="InteractionState">
+      <arg type="s" direction="out" name="json"/>
     </method>
     <method name="ListWindows">
       <arg type="s" direction="out" name="json"/>
@@ -301,7 +305,7 @@ export class DBusService {
         return JSON.stringify({
             build: BUILD,
             methods: ['Screenshot', 'ScreenshotArea', 'ScreenshotWindow',
-                      'ListWindows', 'Pointer', 'WindowAt', 'ActivateWindow',
+                      'ListWindows', 'InteractionState', 'Pointer', 'WindowAt', 'ActivateWindow',
                       'MoveResize', 'Close', 'Minimize', 'Unminimize',
                       'Maximize', 'SetWorkspace', 'SetAbove',
                       'SetIndicator', 'ClearIndicator', 'IndicatorActive',
@@ -369,6 +373,18 @@ export class DBusService {
         return JSON.stringify({x, y, window: hit, covering});
     }
 
+    // Semantic actions bypass pointer routing. Report shell grabs separately:
+    // a keyring prompt can leave the underlying application "focused".
+    InteractionState() {
+        return JSON.stringify({
+            locked: Main.sessionMode.isLocked,
+            modal_count: Main.modalCount,
+            overview: Boolean(Main.overview.visible || Main.overview.visibleTarget),
+            focused_window: global.display.get_focus_window()?.get_id() ?? null,
+            windows: JSON.parse(this.ListWindows()),
+        });
+    }
+
     ListWindows() {
         const windows = global.get_window_actors().map(actor => {
             const win = actor.meta_window;
@@ -388,6 +404,8 @@ export class DBusService {
                 height: rect.height,
                 focused: win.has_focus(),
                 minimized: win.minimized,
+                transient_for: win.get_transient_for()?.get_id() ?? null,
+                modal: win.window_type === Meta.WindowType.MODAL_DIALOG,
                 above: win.above,
                 workspace: win.get_workspace()?.index() ?? -1,
                 type: Object.keys(Meta.WindowType).find(
