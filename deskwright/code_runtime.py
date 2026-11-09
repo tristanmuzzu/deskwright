@@ -1,9 +1,12 @@
 """Opt-in persistent Python with explicit observations over guarded desktop tools."""
 from __future__ import annotations
 
+import builtins
 import contextlib
+import difflib
 import io
 import json
+import time
 
 from .errors import ToolError
 from .execution import check, execute, pause, remaining
@@ -36,23 +39,59 @@ def _attach_image(observation):
     IMAGES.append(observation[_INLINE_KEY])
 
 
+def _unknown_tool(tool):
+    from .server import TOOL_SCHEMAS
+    names = [s['name'] for s in TOOL_SCHEMAS if s['name'] != 'desktop_exec']
+    close = difflib.get_close_matches(str(tool), names, n=3, cutoff=0.4)
+    hint = f" Did you mean {', '.join(close)}?" if close else ''
+    return (f"unknown or recursive desktop tool {tool!r}.{hint} "
+            f"desktop.describe() lists all {len(names)} tools.")
+
+
+def _helpers(desktop):
+    """The helpers the tool description names, as plain globals.
+
+    The description has always said click(), type(), key(), wait() and
+    sleep() are available; until 2026-11-09 only desktop.click() and the
+    rest existed, and five sessions hit NameError on the first try.
+    `type` keeps working as the builtin: type(obj) and type(name, bases,
+    dict) still do what Python means, only type(text, target=...) types.
+    """
+    def type_(*a, **kw):
+        if 'target' in kw:
+            return desktop.type(*a, **kw)
+        return builtins.type(*a, **kw)
+    names = ('click', 'move', 'scroll', 'path', 'key', 'wait', 'sleep', 'observe',
+             'query', 'screenshot', 'describe', 'call', 'wait_process', 'deadline_left')
+    out = {n: getattr(desktop, n) for n in names}
+    out['type'] = type_
+    return out
+
+
 class Desktop:
     def __init__(self):
         self.last_call = None
         self.effects = False
 
-    def describe(self, tool):
-        """The live tool contract, without a desktop round trip."""
+    def describe(self, tool=None):
+        """The live tool contract, without a desktop round trip.
+
+        describe() with no argument lists the tool names: agents called it
+        with guesses like 'screen_size', 'scroll' and 'mouse_click' and got
+        only "unknown tool" back (2026-10-30, 17 describe calls in one run).
+        """
         from .server import TOOL_SCHEMAS
+        if tool is None:
+            return sorted(s['name'] for s in TOOL_SCHEMAS if s['name'] != 'desktop_exec')
         match = next((s for s in TOOL_SCHEMAS if s['name'] == tool), None)
         if match is None or tool == 'desktop_exec':
-            raise ToolError('unknown or recursive desktop tool', code='bad_args')
+            raise ToolError(_unknown_tool(tool), code='bad_args')
         return match['inputSchema']
 
     def call(self, tool, **args):
         from .server import _READ_ONLY_TOOLS, HANDLERS, validate_tool_args
         if tool not in HANDLERS or tool == 'desktop_exec':
-            raise ToolError('unknown or recursive desktop tool', code='bad_args')
+            raise ToolError(_unknown_tool(tool), code='bad_args')
         self.last_call = (tool, dict(args))
         validate_tool_args(tool, args)
         args.setdefault('observation_mode', 'compact')
@@ -87,8 +126,15 @@ class Desktop:
                          **({'within': within} if within is not None else {}),
                          timeout_s=timeout_s)['controls']
 
-    def click(self, x, y, *, target, **args):
-        return self.call('pointer_click', x=x, y=y, expect_window=target, **args)
+    def click(self, x, y, *, target=None, **args):
+        """Click; with target, nothing is clicked unless that window is there."""
+        if target is not None:
+            args['expect_window'] = target
+        return self.call('pointer_click', x=x, y=y, **args)
+
+    def scroll(self, x, y, dy=0, dx=0, **args):
+        """dy/dx are wheel clicks, positive down/right."""
+        return self.call('pointer_scroll', x=x, y=y, dy=dy, dx=dx, **args)
 
     def move(self, x, y, **args):
         return self.call('pointer_move', x=x, y=y, **args)
@@ -110,6 +156,57 @@ class Desktop:
         return result
 
     sleep = staticmethod(pause)
+
+    @staticmethod
+    def deadline_left():
+        """Seconds before this call's deadline; plan long work in chunks."""
+        return round(remaining(60), 2)
+
+    @staticmethod
+    def wait_process(proc, timeout=None, tail=None, lines=20):
+        """Block until a process exits or the time runs out, instead of polling.
+
+        An overnight run on 2026-10-30 spent about 237 desktop_exec calls on
+        nothing but proc.poll() and reading a log tail. This waits inside one
+        call, up to `timeout` or the call's deadline less a 2 s margin, reaps
+        the child if it is ours, and returns the last `lines` of `tail`.
+        """
+        import os
+        import subprocess
+        budget = remaining(60) - 2
+        if timeout is not None:
+            budget = min(budget, float(timeout))
+        start = time.monotonic()
+        returncode = None
+        if isinstance(proc, subprocess.Popen):
+            try:
+                returncode = proc.wait(timeout=max(0.0, budget))
+            except subprocess.TimeoutExpired:
+                returncode = None
+            pid = proc.pid
+        else:
+            pid = int(proc)
+            while time.monotonic() - start < budget:
+                try:
+                    done, status = os.waitpid(pid, os.WNOHANG)
+                    if done:
+                        returncode = os.waitstatus_to_exitcode(status)
+                        break
+                except ChildProcessError:
+                    # Not our child: all we can learn is whether it still exists.
+                    if not os.path.exists(f'/proc/{pid}'):
+                        returncode = 'exited (not our child; code unknown)'
+                        break
+                pause(0.1)
+        out = {'pid': pid, 'exited': returncode is not None, 'returncode': returncode,
+               'waited_s': round(time.monotonic() - start, 2)}
+        if tail:
+            try:
+                with open(tail, errors='replace') as f:
+                    out['tail'] = f.read().splitlines()[-int(lines):]
+            except OSError as e:
+                out['tail_error'] = str(e)
+        return out
 
     def recovery(self):
         """Attach a fresh visual observation after a stopped batch, never input."""
@@ -152,6 +249,7 @@ def tool_desktop_exec(args):
         ROUTES.clear()
     if not GLOBALS:
         GLOBALS.update(desktop=Desktop(), log=log, display=display)
+        GLOBALS.update(_helpers(GLOBALS['desktop']))
     OUTPUT.clear()
     IMAGES.clear()
     desktop = GLOBALS['desktop']
