@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased (2026-11-09)
+
+Fixes drawn from the computer-use journal's GPT and Claude feedback
+(2026-08 to 2026-11). Every item was checked on a clean-home private desktop.
+
+- Read obvious argument variants as meant (`window_id` vs `window`, string
+  booleans and numbers, JSON-string regions, `direction`/`amount` scrolls)
+  and report each reading in `argument_notes`; unknown arguments name the
+  closest valid one.
+- Say when an image may be stale: `stale_warning` while displays are in
+  power-save, `repeat_capture` for an identical region; health is degraded
+  then. `zoom` takes `scale` and can crop a past observation.
+- Expire an observation only where the desktop changed under the point, so
+  a popover no longer invalidates the rest of the screenshot.
+- Confirm typing into unreadable widgets (Chrome, Electron, Qt) by OCR and
+  name the focus holder when verification fails; label untitled popups.
+- `desktop_exec`: the promised helpers exist, `wait_process` blocks instead
+  of polling, unknown tools get suggestions, printed output is whole lines.
+- New `choose_file` fills GTK and GNOME 50 portal (Nautilus) choosers, presses
+  their Open/Select when Return only selects, and says plainly when none is
+  open. Verified with a Chrome `<input type=file>` upload.
+- New `browser_devtools` reads a launched Chrome's JS state, console and page
+  over a loopback-only DevTools connection.
+- `launch_app monitor=N`, health lists monitors, `desktop_resize` restarts a
+  private desktop at another size (the next call gets a fresh worker),
+  `wait_for settled`, and gio launches that die fail fast with a reason.
+- Map Chrome and Electron windows to their accessible frames; keep partial
+  native scans instead of discarding them.
+
 ## 0.2.0b1, Linux hybrid beta (2026-10-07)
 
 Agents can combine native controls, exact completion queries and visual input

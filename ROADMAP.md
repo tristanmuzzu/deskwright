@@ -183,7 +183,9 @@ Every gap here is a task the agent must currently hand back to a human.
 17. **Text-selection primitives.** [M]
     Select range via AT-SPI `Text` interface, keyboard fallback.
     Windows-MCP lists this as a known gap, doing it is a differentiator.
-18. **File-dialog helper.** [M]
+18. **File-dialog helper.** [M] SHIPPED 2026-11-09 as `choose_file`
+    (GTK and the GNOME 50 Nautilus portal chooser; reports, never answers,
+    a follow-up dialog).
     GTK file choosers are an agent tarpit. Composite "in the dialog, go
     to PATH and confirm" (Ctrl+L + type + Enter) as a macro or tool.
 
@@ -252,7 +254,10 @@ the git log for what each one was; nothing here is outstanding.
 35. **X11 fallback backend.** [S–M] XTEST is trivial next to what exists;
     makes "works on any Linux" literally true. Low mission priority
     (X11 has 20 competitors), cheap.
-36. **HiDPI / fractional scaling / multi-monitor.** [M]
+36. **HiDPI / fractional scaling / multi-monitor.** [M] PARTLY SHIPPED
+    2026-11-09: monitor enumeration in `desktop_health`, `launch_app
+    monitor=N`, `desktop_resize` for a private desktop. Fractional scaling
+    is still untested.
     Define the coordinate space once (logical vs physical, per monitor);
     monitor enumeration in `screen_map`; scale factor in
     `desktop_health`; test on a mutter virtual monitor.
