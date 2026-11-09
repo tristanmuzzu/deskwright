@@ -299,3 +299,54 @@ def test_unnamed_popups_get_an_owner_and_a_label(monkeypatch):
     assert out[1]['wm_class'] is None         # reported value is not rewritten
     assert shell.window_label(out[1]).startswith('org.gnome.Nautilus popup')
     assert 'label' not in out[0]
+
+
+def test_planned_worker_exit_does_not_lose_the_next_call(tmp_path):
+    """desktop_resize ends its worker; the call right after it must get a new one.
+
+    The fixture worker lingers after it decides to exit, which is exactly the
+    window in which the next call used to be written to it and come back as
+    worker_lost (seen live on 2026-11-09).
+    """
+    root = Path(__file__).resolve().parents[1]
+    env = {**os.environ, 'DESKWRIGHT_SESSION': 'primary', 'XDG_RUNTIME_DIR': str(tmp_path),
+           'PYTHONPATH': str(root)}
+    env.pop('DESKWRIGHT_HEADLESS_LAZY', None)
+    fixture = tmp_path/'fixture.py'
+    fixture.write_text('''import os, time
+from deskwright import server, shell, resize
+server.halt_active = lambda: False
+shell.halt_active = lambda: False
+def fake_resize(a):
+    resize.RESTART_WORKER = True
+    return {"pid": os.getpid()}
+server.HANDLERS["desktop_resize"] = fake_resize
+from deskwright.worker import main
+main()
+time.sleep(3)
+''')
+    entry = tmp_path/'entry.py'
+    entry.write_text(f'''import sys
+from deskwright import supervisor
+original = supervisor.subprocess.Popen
+supervisor.subprocess.Popen = lambda command, **kw: original([sys.executable, {str(fixture)!r}], **kw)
+supervisor.serve()
+''')
+    proc = subprocess.Popen([sys.executable, str(entry)], env=env,
+                            stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+
+    def call(ident):
+        proc.stdin.write(json.dumps({'id': ident, 'method': 'tools/call', 'params': {
+            'name': 'desktop_resize', 'arguments': {'width': 1600, 'height': 900}}}) + '\n')
+        proc.stdin.flush()
+        assert select.select([proc.stdout], [], [], 10)[0], 'supervisor stopped responding'
+        out = json.loads(proc.stdout.readline())
+        assert not out['result'].get('isError'), out
+        return json.loads(out['result']['content'][0]['text'])['pid']
+    try:
+        first = call(1)
+        second = call(2)
+        assert first != second
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=10)

@@ -36,6 +36,17 @@ def _repin():
 def main():
     from . import resize, server
     _repin()
+    # A worker that is about to exit (desktop_resize) must say so BEFORE its
+    # reply, on the same pipe. Otherwise the client's next call can reach the
+    # supervisor first and be written to a worker that is already leaving,
+    # which came back as worker_lost on 2026-11-09.
+    reply = server._respond
+
+    def respond(msg_id, result):
+        if resize.RESTART_WORKER:
+            send({'retiring': True})
+        reply(msg_id, result)
+    server._respond = respond
     for line in sys.stdin:
         msg = json.loads(line)
         try:

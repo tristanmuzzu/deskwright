@@ -26,6 +26,7 @@ def serve():
     trace = []
     trace_dropped = 0
     deadline = 0
+    retiring = False
 
     def reader(stream, source):
         try:
@@ -85,6 +86,7 @@ def serve():
                         server._error(msg.get('id'), -32000, 'desktop is busy; serialize calls')
                         continue
                     if worker is None:
+                        retiring = False
                         env = dict(os.environ)
                         root = str(Path(__file__).resolve().parent.parent)
                         env['PYTHONPATH'] = root + os.pathsep + env.get('PYTHONPATH', '')
@@ -118,6 +120,10 @@ def serve():
                     trace.append(result['progress'])
                     trace_dropped += max(0, len(trace) - 512)
                     trace[:] = trace[-512:]
+                elif result.get('retiring'):
+                    # Announced before its reply: the worker exits after this
+                    # call (its D-Bus connections point at a stopped session).
+                    retiring = True
                 elif active and result.get('id') == active['id']:
                     if clock() >= deadline - .25:
                         fail('timeout', '60-second execution deadline reached')
@@ -125,6 +131,10 @@ def serve():
                     sys.stdout.write(line)
                     sys.stdout.flush()
                     active = None
+                    if retiring:
+                        # Retire it now, so the next call starts a fresh worker
+                        # instead of being written to one that is leaving.
+                        stop()
     finally:
         stop()
     return 0
