@@ -251,3 +251,63 @@ def _match_phrase(words: list[dict], needle: str, exact: bool) -> list[dict]:
                 "height": max(w["y"] + w["height"] for w in run) - top,
             })
     return hits
+
+
+def _norm(text: str) -> str:
+    return " ".join(text.lower().split())
+
+
+def ocr_contains(path: Path, crop: tuple[int, int, int, int] | None, text: str,
+                 budget_s: float = 4.0, threshold: float = 0.85) -> dict:
+    """Whether `text` is visible in `crop` of `path`, by OCR. Never raises.
+
+    For type_text into widgets AT-SPI cannot read (Qt, Chrome, Electron): 83
+    "COULD NOT VERIFY" results in 16 sessions, each followed by a screenshot
+    and a Read to check by eye. Reports only found/similarity, never the text
+    OCR saw, so a typed secret is not echoed back. Long text is checked by its
+    last 40 characters, the part a wrapped field still shows.
+    """
+    import difflib
+    needle = _norm(text)[-40:]
+    if len(needle) < 3:
+        return {"checked": False, "why": "too short to confirm by OCR"}
+    if not shutil.which("tesseract"):
+        return {"checked": False, "why": "tesseract is not installed"}
+    start = time.monotonic()
+    Image, _ = _pillow()
+    source = path.with_name(f".{path.name}.typed.png")
+    try:
+        with Image.open(path) as img:
+            snip = img.convert("RGB")
+            if crop:
+                box = (max(0, crop[0]), max(0, crop[1]),
+                       min(img.width, crop[2]), min(img.height, crop[3]))
+                if box[2] > box[0] and box[3] > box[1]:
+                    snip = snip.crop(box)
+            if max(snip.size) < OCR_UPSCALE_UNDER:
+                snip = snip.resize((snip.width * 2, snip.height * 2), Image.LANCZOS)
+            snip.save(source)
+        try:
+            proc = subprocess.run(["tesseract", str(source), "stdout", "--psm",
+                                   str(OCR_PSM_REGION), "tsv"], capture_output=True,
+                                  text=True, timeout=max(0.2, budget_s - (time.monotonic() - start)))
+        except subprocess.TimeoutExpired:
+            return {"checked": False, "why": f"OCR took over {budget_s}s"}
+    except OSError as e:
+        return {"checked": False, "why": f"could not read the capture: {e}"}
+    finally:
+        source.unlink(missing_ok=True)
+    hay = _norm(" ".join(w["text"] for w in _parse_tsv(proc.stdout, 0)))[:4000]
+    best = 0.0
+    if needle in hay:
+        best = 1.0
+    else:
+        n = len(needle)
+        for i in range(0, max(1, len(hay) - n + 1)):
+            r = difflib.SequenceMatcher(None, needle, hay[i:i + n + 2]).ratio()
+            if r > best:
+                best = r
+                if best >= 0.98:
+                    break
+    return {"checked": True, "found": best >= threshold, "similarity": round(best, 2),
+            "seconds": round(time.monotonic() - start, 2)}

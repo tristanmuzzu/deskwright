@@ -314,6 +314,34 @@ def pointer_position() -> dict:
     )
 
 
+_POPUP_TYPES = {"DROPDOWN_MENU", "POPUP_MENU", "MENU", "COMBO", "TOOLTIP", "UTILITY"}
+
+
+def _owned_popup(target: dict | None, wanted: dict) -> str | None:
+    """A menu or popover that belongs to the expected window, if that is what is hit.
+
+    Clicking an item in the app's own dropdown is still clicking the app, but
+    the guard refused it because the popup is a separate window: four refusals
+    in a row in Adobe Audition (2026-09). Accepted only for a window that is
+    transient for the expected one, or a popup-type window of the same
+    process, and the result says the popup received it.
+    """
+    if not target:
+        return None
+    try:
+        from .shell import list_windows
+        full = next((w for w in list_windows() if w.get("id") == target.get("id")), target)
+    except Exception:
+        full = target
+    same_parent = full.get("transient_for") == wanted["id"]
+    same_process_popup = (full.get("pid") and full.get("pid") == wanted.get("pid")
+                          and str(full.get("type") or "") in _POPUP_TYPES)
+    if same_parent or same_process_popup:
+        kind = str(full.get("type") or "window").lower().replace("_", " ")
+        return f"a {kind} of {wanted['wm_class']} (id {full.get('id')})"
+    return None
+
+
 def _guard_point(x: float, y: float, expect: Any) -> dict:
     """Refuse to click when the thing under the point is not what was expected.
 
@@ -328,6 +356,10 @@ def _guard_point(x: float, y: float, expect: Any) -> dict:
     target = at.get("window")
     if target and target.get("id") == wanted["id"]:
         return {"expected": wanted["wm_class"], "confirmed_by": at["source"]}
+    owned = _owned_popup(target, wanted)
+    if owned:
+        return {"expected": wanted["wm_class"], "confirmed_by": at["source"],
+                "received_by": owned}
     covering_ids = [w["id"] for w in at["covering"]]
     if target is None and wanted["id"] in covering_ids:
         # Rect says yes, the compositor says nothing is there: the point is over
@@ -524,11 +556,16 @@ def tool_type_text(a: dict) -> dict:
         if clock() >= deadline:
             break
         pause(min(.02, max(0, deadline-clock())))
+    from .atspi import focused_widget
+    holder = focused_widget(str(app_hint)) if app_hint else None
+    where = (f" Keyboard focus is on {holder['role']} {holder['name']!r} ({holder['path']}), "
+             "which may be where the keys went." if holder else "")
     raise ToolError(f"Text input attempted via {used}, but readback did not confirm it. "
                     f"Requested {text!r}; observed change {added!r}. "
-                    "The update may be delayed, partial, or in a different widget. "
-                    "Inspect before retrying; no layout cause is established.",
-                    code="verification_failed", action_status="partial" if added else "unknown")
+                    "The update may be delayed, partial, or in a different widget."
+                    f"{where} Inspect before retrying; no layout cause is established.",
+                    code="verification_failed", action_status="partial" if added else "unknown",
+                    details={"focused_widget": holder} if holder else None)
 
 
 def tool_press_keys(a: dict) -> dict:

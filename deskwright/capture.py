@@ -1220,7 +1220,49 @@ def _look_typed(a: dict, result: dict, window: dict, prepared: _Look) -> dict:
     if isinstance(view, dict):
         view["why"] = ("attached because AT-SPI could not read the text back; "
                        "this picture is the only proof the characters arrived")
+        _ocr_verify_typed(a, result, view, prepared)
     return result
+
+
+def _ocr_verify_typed(a: dict, result: dict, view: dict, prepared: _Look) -> None:
+    """Read the typed text off the after-image, so the caller need not.
+
+    Looks where the screen changed first (with a generous margin, since a
+    field's whole line may scroll), and in the whole capture otherwise.
+    Never fails the typing that already happened.
+    """
+    try:
+        from .ocr import ocr_contains  # late: ocr imports this module
+        path = Path(view["path"])
+        rect = prepared.region
+        crop = None
+        where = view.get("changed_where")
+        native = _dimension_pair(_png_dimensions(path))
+        if where and rect and native:
+            fx, fy = native[0] / rect[2], native[1] / rect[3]
+            box = where["box"]
+            crop = (int((box["x"] - rect[0] - 40) * fx), int((box["y"] - rect[1] - 24) * fy),
+                    int((box["x"] - rect[0] + box["width"] + 40) * fx),
+                    int((box["y"] - rect[1] + box["height"] + 24) * fy))
+        seen = ocr_contains(path, crop, str(a.get("text") or ""))
+        if not seen.get("checked"):
+            result["ocr_check"] = seen
+            return
+        if seen["found"]:
+            result.update(verified=True, verification="ocr",
+                          ocr_check={"similarity": seen["similarity"],
+                                     "area": "changed area" if crop else "whole window"})
+            result["detail"] += (f"; OCR found the typed text on screen (similarity "
+                                 f"{seen['similarity']})")
+        else:
+            result["verification"] = "ocr_not_found"
+            result["ocr_check"] = {"similarity": seen["similarity"],
+                                   "area": "changed area" if crop else "whole window"}
+            result["detail"] += ("; OCR could not find the typed text on screen. It may "
+                                 "be masked (a password), scrolled out of view, or not "
+                                 "have arrived; inspect the attached image")
+    except Exception as e:                                  # pragma: no cover
+        result["ocr_check"] = {"checked": False, "why": f"{type(e).__name__}: {e}"}
 
 
 def _attach_inline(result: dict, path: Path, a: dict) -> dict:

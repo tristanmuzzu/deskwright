@@ -430,16 +430,16 @@ def _focus_failure(wid: int, window: dict, last: dict | None) -> str:
                  and _overlaps(w, last or window)]
 
     detail = (f'the compositor ACCEPTED ActivateWindow for {wid} '
-              f'({window["wm_class"]}) and the window is still {state} after '
+              f'({window_label(window)}) and the window is still {state} after '
               f"{FOCUS_TIMEOUT_S:.0f}s. Nothing was typed, and retrying the same "
               "call is unlikely to help -- the request was not refused, it was "
               "ignored.")
     if focused and focused["id"] != wid:
-        detail += (f' Focus is on {focused["wm_class"]} (id {focused["id"]}) '
+        detail += (f' Focus is on {window_label(focused)} (id {focused["id"]}) '
                    f'{focused.get("title", "")!r} instead.')
     if above:
         detail += (" Stacked above it and overlapping: "
-                   + ", ".join(f'{w["wm_class"]} (id {w["id"]}) '
+                   + ", ".join(f'{window_label(w)} (id {w["id"]}) '
                                f'{w.get("title", "")!r}' for w in above[:4])
                    + ". A capture of the target will show THEIR pixels, not its.")
     if (last or {}).get("minimized"):

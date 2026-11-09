@@ -1252,3 +1252,38 @@ def resolve_ref(ref) -> dict:
         "name": name, "role": role, "window_id": entry["window_id"],
         "click_at": [ext.x + ext.width // 2, ext.y + ext.height // 2],
     }
+
+
+def focused_widget(app_name: str, max_nodes: int = 3000, budget_s: float = 1.5) -> dict | None:
+    """Which widget of `app_name` holds keyboard focus right now, or None.
+
+    2026-11-08, GIMP: after a tool-options field took focus, single-letter
+    shortcuts typed into that field and type_text said only
+    verification_failed. Naming the focus holder turns that into one read.
+    Bounded by node count and time; never raises.
+    """
+    try:
+        root = _find_app(app_name)
+    except Exception:
+        return None
+    deadline = time.monotonic() + budget_s
+    stack = [(root, app_name)]
+    seen = 0
+    while stack and seen < max_nodes and time.monotonic() < deadline:
+        node, path = stack.pop()
+        seen += 1
+        try:
+            if node is not root and _is_focused(node):
+                return {"role": node.get_role_name(), "name": node.get_name() or "",
+                        "path": path}
+            count = node.get_child_count()
+        except Exception:
+            continue
+        for i in range(count - 1, -1, -1):
+            try:
+                child = node.get_child_at_index(i)
+            except Exception:
+                child = None
+            if child is not None:
+                stack.append((child, f"{path}/{i}"))
+    return None
