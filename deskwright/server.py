@@ -1214,7 +1214,28 @@ TOOLS: list[dict] = [
     },
 ]
 
+from .filechooser import tool_choose_file  # noqa: E402
 from .resize import tool_desktop_resize  # noqa: E402
+
+TOOLS.append({
+    "name": "choose_file",
+    "description": "Fill an open file chooser (GTK, GTK4 or the xdg portal's) with an "
+                   "absolute path and confirm it: finds the chooser, opens its location "
+                   "field, types the path, presses Return and reports whether it closed. "
+                   "If no chooser is open it says so and lists the dialogs that are, "
+                   "without typing anything. A follow-up such as 'replace file?' is "
+                   "reported, never answered.",
+    "inputSchema": {"type": "object", "properties": {
+        "path": _s("Absolute path of the file (or folder) to choose"),
+        "target": {"anyOf": [{"type": "integer"}, {"type": "string"}],
+                   "description": "The chooser window, if it is not recognised automatically"},
+        "must_exist": {"type": "boolean", "default": True,
+                       "description": "false for a save dialog naming a new file"},
+        "timeout": {"type": "number", "minimum": 0.5, "maximum": 30, "default": 5},
+    }, "required": ["path"]},
+    "handler": tool_choose_file,
+    "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+})
 
 TOOLS.append({
     "name": "desktop_resize",

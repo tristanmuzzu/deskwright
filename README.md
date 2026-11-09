@@ -186,7 +186,7 @@ now and what each of them will actually do.
 
 ## What it can do
 
-43 tools. Each returns enough that you do not need a second call to work
+44 tools. Each returns enough that you do not need a second call to work
 out what happened. The order below is the order an agent should reach for them.
 Use native controls and exact queries where useful, with screenshots and
 ordinary input for visual work or incomplete accessibility.
@@ -204,6 +204,7 @@ ordinary input for visual work or incomplete accessibility.
 | `pointer_path` | Draw a continuous curve through a list of screen points, with one button press, bounded duration and interruption checks. Requires a target window. |
 | `window_at`, `pointer_position` | What a click at a point would hit, before you click it. And where the pointer is now, or an honest note that only the last position it set is known. |
 | `browser_devtools` | For a Chrome, Chromium or Electron page you launched with `--remote-debugging-port`: list targets, evaluate JavaScript, read the console and uncaught exceptions, capture the page, navigate. Loopback only, standard library only. |
+| `choose_file` | Fill an open file chooser with a path and confirm it, or say that no chooser is open and list the dialogs that are. Never answers a 'replace file?' prompt. |
 | `desktop_resize` | Restart a private headless desktop at another resolution (say 1920x1080). Refused on your own desktop and while any window is open there. `DESKWRIGHT_HEADLESS_SIZE` sets the size it starts at. |
 | `find_text` | Where a visible string is, in screen coordinates. OCR, about 0.3s for a window, and no image in your transcript. This is the answer for Chrome, Electron and Qt, which expose almost nothing to `ui_find`. |
 | `wait_for` | Wait for a window, a widget, some text, a focus change or the clipboard, instead of sleeping a guessed number of seconds. |
@@ -223,7 +224,7 @@ ordinary input for visual work or incomplete accessibility.
 An agent that needs your screen is only half useful. `deskwright-headless` starts a
 separate GNOME session on a virtual monitor, with its own session bus, its own
 `gnome-shell --headless` and its own runtime directory. A server pinned to it
-drives that desktop with the same 43 tools while you keep the physical one.
+drives that desktop with the same 44 tools while you keep the physical one.
 
 ```bash
 deskwright-headless start                    # about 200 MB of gnome-shell, idempotent
