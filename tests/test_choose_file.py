@@ -40,6 +40,19 @@ def test_recognises_a_portal_window(monkeypatch):
     assert w["id"] == 3 and "portal" in how
 
 
+
+@pytest.mark.parametrize("title, want", [
+    ("Pick Files", True), ("Open File", True), ("Select Folder", True),
+    ("Downloads", False), ("Open", False), ("Project files", False)])
+def test_recognises_the_nautilus_hosted_chooser_by_its_title(monkeypatch, title, want):
+    """GNOME 50: the portal's chooser is a NORMAL Nautilus window, not transient."""
+    monkeypatch.setattr(filechooser, "_program",
+                        lambda pid: "nautilus" if pid == 77 else "x")
+    files = {"id": 4, "pid": 77, "wm_class": "org.gnome.Nautilus", "title": title,
+             "type": "NORMAL", "transient_for": None}
+    w, how = filechooser.find_chooser([APP, files])
+    assert (w is not None and w["id"] == 4) is want, how
+
 @pytest.fixture
 def desk(monkeypatch, tmp_path):
     state = {"windows": [APP, CHOOSER], "keys": [], "typed": [], "close_on_return": True,
@@ -92,3 +105,34 @@ def test_relative_and_missing_paths_are_refused(desk):
     desk["windows"] = [APP]
     assert filechooser.tool_choose_file({"path": "/tmp/new.pdf",
                                          "must_exist": False})["chooser_open"] is False
+
+
+def test_presses_the_confirm_button_when_return_only_selects(desk, monkeypatch):
+    """Nautilus selects the file on Return and waits for Open."""
+    desk["close_on_return"] = False
+    pressed = []
+
+    def confirm(chooser, windows):
+        pressed.append(chooser["id"])
+        desk["windows"] = [APP]
+        return "Open"
+    monkeypatch.setattr(filechooser, "_press_confirm", confirm)
+    out = filechooser.tool_choose_file({"path": desk["file"], "timeout": 3})
+    assert out["accepted"] is True and out["confirmed_with"] == "Open"
+    assert pressed == [2] and desk["keys"].count("Return") == 1
+
+
+def test_a_folder_path_never_presses_confirm(desk, monkeypatch, tmp_path):
+    desk["close_on_return"] = False
+    monkeypatch.setattr(filechooser, "_press_confirm",
+                        lambda c, w: pytest.fail("confirm pressed for a folder"))
+    out = filechooser.tool_choose_file({"path": str(tmp_path), "timeout": 1.5})
+    assert out["chooser_open"] is True and "folder" in out["detail"]
+
+
+def test_a_followup_dialog_is_reported_before_any_confirm(desk, monkeypatch):
+    desk["followup"] = True
+    monkeypatch.setattr(filechooser, "_press_confirm",
+                        lambda c, w: pytest.fail("confirm pressed over a follow-up"))
+    out = filechooser.tool_choose_file({"path": desk["file"], "timeout": 2})
+    assert out["follow_up_dialog"]["id"] == 4

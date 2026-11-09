@@ -9,11 +9,14 @@ rejoining it in page JavaScript -- about ten extra calls.
 What this does, in order:
   1. find the chooser: the window named in `target`, else a window owned by
      xdg-desktop-portal-gnome/-gtk (the portal draws choosers for sandboxed
-     and portal-using apps), else a dialog whose title reads like a chooser;
+     and portal-using apps), else Nautilus's "Pick Files" window (GNOME 50's
+     portal delegates to it), else a dialog whose title reads like a chooser;
   2. if none is open, say so plainly, with the dialog-like windows that ARE
      open, so "suppressed" and "unlisted" can be told apart;
   3. focus it, open the location field (ctrl+L, which GTK3 and GTK4 both
      honour), type the path through the guarded type_text, press Return;
+     if a chooser is still open a second later on a file path (Nautilus
+     selects the file and waits), press its one Open/Select/Save button;
   4. report whether the chooser closed (accepted), or what is still open --
      an overwrite confirmation is reported, never answered.
 """
@@ -28,6 +31,14 @@ from .errors import ToolError
 
 PORTAL_PROCESSES = ("xdg-desktop-portal-gnome", "xdg-desktop-portal-gtk",
                     "xdg-desktop-portal-kde")
+# On GNOME 50 the portal hands the chooser to Nautilus: a NORMAL, non-transient
+# window of `nautilus --gapplication-service` titled "Pick Files" (seen live on
+# 2026-11-09 for gnome-text-editor's ctrl+O). An ordinary Nautilus window is
+# titled after its folder, so for Nautilus the title must START with a chooser
+# verb; a folder named "Open" alone would still need `target`.
+CHOOSER_HOSTS = ("nautilus",)
+_HOST_TITLE = re.compile(r"^(pick|open|save|select|choose|upload|export|import|attach)\b"
+                         r".*\b(file|files|folder|folders|location)\b", re.IGNORECASE)
 _TITLE = re.compile(
     r"\b(open|save|select|choose|upload|export|import|attach|browse|"
     r"öffnen|speichern|auswählen|hochladen|exportieren|ouvrir|enregistrer|"
@@ -51,6 +62,10 @@ def find_chooser(windows: list[dict]) -> tuple[dict | None, str]:
     portal = [w for w in windows if _program(w.get("pid")) in PORTAL_PROCESSES]
     if portal:
         return portal[-1], "owned by the xdg desktop portal"
+    hosted = [w for w in windows if _program(w.get("pid")) in CHOOSER_HOSTS
+              and _HOST_TITLE.search(w.get("title") or "")]
+    if hosted:
+        return hosted[-1], f"the portal's Nautilus chooser {hosted[-1].get('title')!r}"
     titled = [w for w in windows
               if str(w.get("type") or "NORMAL") in _DIALOG_TYPES
               and (w.get("transient_for") or w.get("modal")
@@ -59,6 +74,52 @@ def find_chooser(windows: list[dict]) -> tuple[dict | None, str]:
     if titled:
         return titled[-1], f"a dialog titled {titled[-1].get('title')!r}"
     return None, "no window looks like a file chooser"
+
+
+# Names of a chooser's own confirm button. Pressed only when it is the single
+# visible, enabled button with one of these names in the chooser's frame.
+_CONFIRM_NAMES = {"open", "select", "save", "upload", "choose", "pick", "insert",
+                  "attach", "öffnen", "auswählen", "speichern", "ouvrir", "abrir"}
+
+
+def _press_confirm(chooser: dict, windows: list[dict]) -> str | None:
+    """Press the chooser's confirm button; its name, or None if not exactly one.
+
+    Nautilus (GNOME 50's portal chooser) answers Return in its location bar
+    by going to the folder and selecting the file, then waits for Open
+    (seen live 2026-11-09). GTK's own chooser accepts on Return, so this only
+    runs when the chooser is still open afterwards.
+    """
+    from . import atspi, semantic
+    try:
+        Atspi = atspi._atspi()
+        app = atspi._find_app(f"#{chooser['pid']}")
+        app.clear_cache_single()
+        roots = [app.get_child_at_index(i) for i in range(min(app.get_child_count(), 256))]
+        root, _ = semantic._map_root([r for r in roots if r is not None], chooser, windows)
+        if root is None:
+            return None
+        found, stack, visited = [], [(root, 0)], 0
+        while stack and visited < 4000:
+            node, depth = stack.pop()
+            visited += 1
+            if node is None:
+                continue
+            if node.get_role_name() in ("push button", "button") and \
+                    (node.get_name() or "").strip().lower() in _CONFIRM_NAMES:
+                states = node.get_state_set()
+                if states.contains(Atspi.StateType.SHOWING) and \
+                        states.contains(Atspi.StateType.SENSITIVE):
+                    found.append(node)
+                continue
+            if depth < 40:
+                stack.extend((node.get_child_at_index(i), depth + 1)
+                             for i in range(min(node.get_child_count(), 500)))
+        if len(found) != 1 or not found[0].get_action_iface() or not found[0].do_action(0):
+            return None
+        return found[0].get_name()
+    except Exception:
+        return None
 
 
 def tool_choose_file(a: dict) -> dict:
@@ -104,18 +165,23 @@ def tool_choose_file(a: dict) -> dict:
     typed = tool_type_text({"text": path, "target": chooser["id"], "look": False})
     tool_press_keys({"combo": "Return", "target": chooser["id"], "look": False})
 
-    deadline = time.monotonic() + float(a.get("timeout") or 5)
-    still = chooser
+    is_dir = os.path.isdir(path)
+    started = time.monotonic()
+    deadline = started + float(a.get("timeout") or 5)
+    still, confirmed = chooser, None
     while time.monotonic() < deadline:
         time.sleep(0.2)
         now = list_windows()
         still = next((w for w in now if w["id"] == chooser["id"]), None)
         if still is None:
-            return {"chooser_open": False, "accepted": True, "action_status": "applied",
-                    "path": path, "recognised": how,
-                    "typed_verified": typed.get("verified"),
-                    "detail": "the chooser closed after the path was entered; check the "
-                              "app shows the file before continuing"}
+            out = {"chooser_open": False, "accepted": True, "action_status": "applied",
+                   "path": path, "recognised": how,
+                   "typed_verified": typed.get("verified"),
+                   "detail": "the chooser closed after the path was entered; check the "
+                             "app shows the file before continuing"}
+            if confirmed:
+                out["confirmed_with"] = confirmed
+            return out
         newer = [w for w in now if w.get("transient_for") == chooser["id"]]
         if newer:
             return {"chooser_open": True, "accepted": False, "action_status": "partial",
@@ -124,7 +190,8 @@ def tool_choose_file(a: dict) -> dict:
                                          "title": newer[-1].get("title")},
                     "detail": "a follow-up dialog opened (often 'replace existing "
                               "file?'). It was NOT answered: look at it and decide."}
-    is_dir = os.path.isdir(path)
+        if confirmed is None and not is_dir and time.monotonic() - started > 1.0:
+            confirmed = _press_confirm(still, now) or ""
     return {"chooser_open": True, "accepted": False, "action_status": "partial",
             "path": path, "recognised": how, "typed_verified": typed.get("verified"),
             "detail": ("the chooser navigated into that folder and is still open; pick a "
