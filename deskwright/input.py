@@ -873,8 +873,15 @@ def tool_pointer_scroll(a: dict) -> dict:
         raise ToolError("give dy (down is positive) or dx (right is positive)",
                         code="bad_args")
     if max(abs(dy), abs(dx)) > 30:
-        raise ToolError("more than 30 wheel clicks at once is almost always a typo",
-                        code="bad_args")
+        big = max(abs(dy), abs(dx))
+        # 2026-10-31: dy=-611 from an agent that meant pixels. Say the unit
+        # and the value it probably wanted instead of only refusing.
+        guess = max(1, min(30, round(big / 50)))
+        raise ToolError(
+            f"dy/dx count mouse-wheel clicks, not pixels, and {big} is more than "
+            f"the 30 allowed in one call. If you meant {big} px, that is about "
+            f"{guess} clicks (one click is roughly 50 px); for longer distances "
+            "scroll several times and look in between", code="bad_args")
     guard = _guard_point(x, y, a["expect_window"]) if a.get("expect_window") else None
     watching = _look_before(a, point=(x, y))
     _pointer().scroll(x, y, dy=dy, dx=dx)

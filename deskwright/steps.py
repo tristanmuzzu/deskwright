@@ -125,6 +125,10 @@ def _validate_step(index: int, step: Any, schemas: dict[str, dict]) -> None:
 
     tool_name, required = _STEP_VERBS[verb]
     schema = schemas.get(tool_name) or {}
+    # Same reading of obvious variants as a direct call (deskwright/args.py);
+    # the step dict is rewritten in place, so the run uses the fixed form.
+    from .args import normalize
+    normalize(tool_name, step, schema)
     need = set(required) | set(schema.get("required") or ())
     missing = sorted(k for k in need if step.get(k) is None)
     if missing:

@@ -452,7 +452,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "pointer_scroll",
-        "description": 'Scroll at a desktop point, with direction and amount. Inspect the application to verify movement.',
+        "description": 'Scroll at a desktop point. dy/dx count mouse-wheel clicks, not pixels: one click moves roughly three lines (about 50 px in most apps). dy positive scrolls down. Inspect the application to verify movement.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -460,8 +460,11 @@ TOOLS: list[dict] = [
                 "look_at": _LOOK_AT_SCHEMA,
                 "settle_max_s": _SETTLE_SCHEMA,
                 "x": {"type": "number"}, "y": {"type": "number"},
-                "dy": {"type": "integer", "default": 0},
-                "dx": {"type": "integer", "default": 0},
+                "dy": {"type": "integer", "default": 0, "minimum": -30, "maximum": 30,
+                       "description": "Vertical wheel clicks; positive scrolls down. "
+                                      "NOT pixels: 5 is a modest scroll, 15 a long one."},
+                "dx": {"type": "integer", "default": 0, "minimum": -30, "maximum": 30,
+                       "description": "Horizontal wheel clicks; positive scrolls right."},
                 "expect_window": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
             },
             "required": ["x", "y"],
@@ -1241,19 +1244,33 @@ TOOL_SCHEMAS = [
 
 
 def validate_tool_args(tool, args):
-    """Reject misspelled fields and choices before input; handlers own semantics."""
+    """Reject misspelled fields and choices before input; handlers own semantics.
+
+    Obvious variants (another window-argument name, "false" as a string, a
+    JSON-string region) are rewritten in place first; the returned notes say
+    what was reinterpreted so the caller can see it. See deskwright/args.py.
+    """
+    from .args import normalize, unknown_message
     schema = next((s['inputSchema'] for s in TOOL_SCHEMAS if s['name'] == tool), None)
     if schema is None or not isinstance(args, dict):
         raise ToolError('unknown tool or non-object arguments', code='bad_args')
+    notes = normalize(tool, args, schema)
     props = schema.get('properties', {})
     unknown = set(args) - set(props) - {'observation_mode'}
     missing = set(schema.get('required', ())) - set(args)
     invalid = [k for k, v in args.items() if k in props and 'enum' in props[k]
                and v not in props[k]['enum']]
-    if unknown or missing or invalid:
-        raise ToolError(f'{tool}: unknown arguments {sorted(unknown)}; '
-                        f'missing {sorted(missing)}; invalid choices {invalid}',
+    if unknown:
+        raise ToolError(unknown_message(tool, unknown, props)
+                        + (f'; missing {sorted(missing)}' if missing else ''),
                         code='bad_args', details={'tool': tool, 'schema': schema})
+    if missing or invalid:
+        choices = 'invalid choices: ' + '; '.join(
+            f'{k}={args[k]!r} must be one of {props[k]["enum"]}' for k in invalid)
+        raise ToolError(f'{tool}: missing {sorted(missing)}'
+                        + (f'; {choices}' if invalid else ''),
+                        code='bad_args', details={'tool': tool, 'schema': schema})
+    return notes
 
 
 def _content_blocks(result: Any) -> list[dict]:
@@ -1327,7 +1344,7 @@ def handle(msg: dict) -> None:
         args = params.get("arguments", {})
         acted = name not in _READ_ONLY_TOOLS
         try:
-            validate_tool_args(name, args)
+            notes = validate_tool_args(name, args)
             # Deferred headless start (see mcp_server._resolve_session): the
             # session was cold at initialize, so the FIRST tool call pays the
             # 15-20s bring-up here, inside a normal per-call timeout, instead
@@ -1354,6 +1371,8 @@ def handle(msg: dict) -> None:
             from .execution import CURRENT
             if acted and CURRENT.get() is None:
                 journal_record(name, args, result)
+            if notes and isinstance(result, dict):
+                result = {**result, "argument_notes": notes}
             _respond(msg_id, {"content": _content_blocks(result),
                               **({"isError": True} if isinstance(result, dict) and result.get("all_ok") is False else {})})
         except ToolError as e:
