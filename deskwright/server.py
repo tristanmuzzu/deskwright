@@ -225,9 +225,14 @@ def _health_verdict(report: dict) -> str:
         degraded.append("the running shell predates some extension methods; "
                         "a logout is pending")
     if str(report.get("displays", "")).startswith("POWER-SAVE"):
+        # The remedy differs: a private desktop is woken by the agent itself,
+        # the user's own displays are theirs (use a private desktop instead).
+        remedy = ("set DisplayConfig PowerSaveMode to 0 on this private desktop's bus"
+                  if not str(report.get("desktop", "primary")).startswith("primary")
+                  else "use a private headless desktop")
         degraded.append("the displays are powered down, so screenshots show the "
                         "last frame drawn, not the current screen; verify through "
-                        "app state or use a private headless desktop")
+                        f"app state or {remedy}")
     if report.get("toolkit_accessibility") == "false":
         degraded.append("toolkit-accessibility is off, so apps started from "
                         "now on will expose no widgets")

@@ -68,6 +68,19 @@ def test_health_verdict_says_displays_are_off():
                                       "desktop": "primary"})
     assert verdict.startswith("USABLE") and "powered down" in verdict
     assert "Screenshots" not in verdict.split(".")[-2]
+    assert "private headless desktop" in verdict
+    labelled = server._health_verdict({"extension": "ACTIVE", "windows": 2, "atspi_apps": 3,
+                                       "displays": "POWER-SAVE (off)",
+                                       "desktop": "primary (the user's own screen)"})
+    assert "private headless desktop" in labelled and "PowerSaveMode" not in labelled
+
+
+def test_private_desktop_is_not_told_to_use_a_private_desktop():
+    verdict = server._health_verdict({"extension": "ACTIVE", "windows": 2, "atspi_apps": 3,
+                                      "displays": "POWER-SAVE (off)",
+                                      "desktop": "dwclean"})
+    assert "use a private headless desktop" not in verdict
+    assert "PowerSaveMode" in verdict
 
 
 def test_repeat_capture_is_noted_only_after_some_time(fake, monkeypatch):
