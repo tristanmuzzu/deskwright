@@ -287,6 +287,11 @@ def _pointer() -> Any:
     return _InputProxy(_input().shared())
 
 
+def monitors() -> list[dict]:
+    """Logical monitors, left to right, each with its index."""
+    return _pointer().monitors()
+
+
 def pointer_position() -> dict:
     """Where the pointer is.
 

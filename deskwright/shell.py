@@ -534,7 +534,7 @@ def tool_window_at(a: dict) -> dict:
 WAIT_CONDITIONS = {"window_focused", "window_exists", "window_gone",
                    "window_new", "window_title",
                    "focus_changes", "text_appears", "widget_exists",
-                   "clipboard_changed", "elapsed"}
+                   "clipboard_changed", "elapsed", "settled"}
 
 # A wait can legitimately be long -- an app launch, an installer, a first-run
 # index. The old 120s hard error did not stop anyone waiting longer, it just
@@ -621,6 +621,30 @@ def tool_wait_for(a: dict) -> dict:
             out["clamped_from"] = requested
         return out
 
+    # "Has it finished drawing?" -- a reply streaming in, a page loading, a
+    # render. Agents asked for it in several sessions and faked it with
+    # repeated screenshots; region_changed answers the opposite question.
+    if condition == "settled":
+        from .capture import _settle, _shot_path  # late: capture imports shell
+        region = None
+        if target is not None:
+            w = _resolve_target(target)
+            region = (w["x"], w["y"], w["width"], w["height"])
+        start = clock()
+        path, _ = _shot_path({})
+        state = _settle(path, region, timeout)
+        waited = round(clock() - start, 2)
+        out = {"condition": condition, "met": bool(state.get("settled")),
+               "waited_seconds": waited, "frames": state.get("frames"),
+               "evidence": ("the picture stopped changing" if state.get("settled")
+                            else "still changing when the time ran out"),
+               **({"clamped_from": requested} if clamped else {})}
+        from .capture import stale_warning
+        warning = stale_warning()
+        if warning:
+            out.update(met=False, stale_warning=warning)
+        return out
+
     if condition in ("window_focused", "window_exists", "window_gone",
                      "window_title", "text_appears") and target is None:
         raise ToolError(f"{condition} needs a target window", code="bad_args")
@@ -674,12 +698,21 @@ def tool_wait_for(a: dict) -> dict:
                         **clamp_note}
             pause(0.4)
 
+    by_id = isinstance(target, int) or (isinstance(target, str) and str(target).isdigit())
+
     def matches(w: dict) -> bool:
-        if isinstance(target, int) or (isinstance(target, str) and str(target).isdigit()):
+        if by_id:
             return w["id"] == int(target)
         needle = str(target).strip().lower()
-        return (needle in (w["wm_class"] or "").lower()
-                or needle in (w["title"] or "").lower())
+        if not (needle in (w["wm_class"] or "").lower()
+                or needle in (w["title"] or "").lower()
+                or needle in (w.get("label") or "").lower()):
+            return False
+        # A splash or hidden helper of the same class is not the window being
+        # waited for: Adobe apps map 1x1 and empty-titled helpers for minutes
+        # while starting (2026-09), and an early "met" sent input into them.
+        return not (condition in ("window_exists", "window_focused")
+                    and w.get("width", 0) * w.get("height", 0) < _DEGENERATE_AREA)
 
     if target is not None and (isinstance(target, bool) or not isinstance(target, (str, int))
                                or (isinstance(target, str) and not target.strip())):
@@ -710,7 +743,9 @@ def tool_wait_for(a: dict) -> dict:
             return {"condition": condition, "met": True, "waited_seconds": waited,
                     "focused": (focused[0]["wm_class"] if focused else None),
                     "matched": [{"id": w["id"], "wm_class": w["wm_class"],
-                                 "title": w["title"]} for w in hits[:5]],
+                                 "title": w["title"],
+                                 "size": f'{w.get("width")}x{w.get("height")}'}
+                                for w in hits[:5]],
                     "matched_count": len(hits),
                     "matches_truncated": len(hits) > 5,
                     **clamp_note}

@@ -658,11 +658,25 @@ def _seed_home(home: str, env: dict[str, str] | None = None) -> None:
                        env=env, capture_output=True, timeout=15, check=False)
 
 
-def ensure(size: str = DEFAULT_SIZE, display: str | None = None,
+def default_size() -> str:
+    """DESKWRIGHT_HEADLESS_SIZE (e.g. 1920x1080) if set and sane, else 1280x720.
+
+    The fixed 1280x720 clipped a 1280x800 game on every launch (2026-09) and
+    made a Codex run build its own 1080p capture harness (2026-10-30).
+    """
+    raw = os.environ.get("DESKWRIGHT_HEADLESS_SIZE", "").strip().lower()
+    m = re.fullmatch(r"(\d{3,4})x(\d{3,4})", raw)
+    if m and 640 <= int(m.group(1)) <= 3840 and 480 <= int(m.group(2)) <= 2160:
+        return raw
+    return DEFAULT_SIZE
+
+
+def ensure(size: str | None = None, display: str | None = None,
            name: str | None = None, home: str | None = None) -> dict[str, Any]:
     """Running session of this name, starting one if needed. What a pinned
     server calls at startup so `DESKWRIGHT_SESSION=headless[:name]` is
     self-sufficient."""
+    size = size or default_size()
     name = session_name(name)
     current = status(name)
     if current["running"]:

@@ -332,6 +332,17 @@ class PortalInput(Gestures):
             raise InputError("portal streams report no usable size")
         return left, top, right - left, bottom - top
 
+    def monitors(self) -> list[dict]:
+        """One entry per stream, which on this backend is one per monitor."""
+        self._ensure()
+        out = [{"x": int(sx), "y": int(sy), "width": int(w), "height": int(h),
+                "scale": 1.0, "primary": False, "connector": None}
+               for _node, sx, sy, w, h in self._streams]
+        out.sort(key=lambda m: (m["x"], m["y"]))
+        for i, m in enumerate(out):
+            m["index"] = i
+        return out
+
     def _stream_for(self, x: float, y: float) -> tuple[int, float, float]:
         for node, sx, sy, w, h in self._streams:
             if sx <= x <= sx + w and sy <= y <= sy + h:

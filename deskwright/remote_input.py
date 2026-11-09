@@ -237,6 +237,15 @@ class RemoteInput(Gestures):
         This is the coordinate space of `list_windows`, and after `_ensure` it
         is also the coordinate space of every x/y this module takes.
         """
+        rects = self.monitors()
+        left = min(m["x"] for m in rects)
+        top = min(m["y"] for m in rects)
+        right = max(m["x"] + m["width"] for m in rects)
+        bottom = max(m["y"] + m["height"] for m in rects)
+        return left, top, right - left, bottom - top
+
+    def monitors(self) -> list[dict]:
+        """Every logical monitor, in global logical pixels, left to right."""
         state = self._call(DISPLAY, DISPLAY_PATH, DISPLAY, "GetCurrentState").unpack()
         monitors, logical = state[1], state[2]
         # Mode sizes live on the monitor, position and scale on the logical
@@ -248,8 +257,7 @@ class RemoteInput(Gestures):
                 if mode[6].get("is-current"):
                     current_mode[connector] = (mode[1], mode[2])
                     break
-        left = top = 10**9
-        right = bottom = -10**9
+        out = []
         for lm in logical:
             x, y, scale, transform = lm[0], lm[1], lm[2], lm[3]
             width = height = 0
@@ -262,11 +270,16 @@ class RemoteInput(Gestures):
                 width, height = height, width
             width = round(width / scale)
             height = round(height / scale)
-            left, top = min(left, x), min(top, y)
-            right, bottom = max(right, x + width), max(bottom, y + height)
-        if right <= left or bottom <= top:
+            if width > 0 and height > 0:
+                out.append({"x": int(x), "y": int(y), "width": width, "height": height,
+                            "scale": float(scale), "primary": bool(lm[4]),
+                            "connector": lm[5][0][0] if lm[5] else None})
+        if not out:
             raise InputError("mutter reported no usable monitors")
-        return left, top, right - left, bottom - top
+        out.sort(key=lambda m: (m["x"], m["y"]))
+        for i, m in enumerate(out):
+            m["index"] = i
+        return out
 
     def _ensure(self) -> tuple[str, str]:
         """A started session and a stream whose space is the whole desktop."""

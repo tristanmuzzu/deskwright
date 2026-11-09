@@ -147,6 +147,16 @@ def tool_health(_: dict) -> dict:
         )
     except Exception as e:
         report["pointer_control"] = f"FAIL: {e}"
+    try:
+        report["monitors"] = [
+            f'{m["index"]}: {m["width"]}x{m["height"]} at ({m["x"]}, {m["y"]})'
+            + (" primary" if m.get("primary") else "") for m in _input().shared().monitors()]
+    except Exception:
+        pass
+    if os.environ.get("DESKWRIGHT_HEADLESS"):
+        report["resolution_note"] = ("this private desktop has one virtual monitor of "
+                                     "fixed size; desktop_resize restarts it at another "
+                                     "size (no windows may be open)")
 
     methods = extension_methods()
     missing = sorted({"Pointer", "WindowAt", "ScreenshotArea", "ScreenshotWindow"}
@@ -546,7 +556,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "wait_for",
-        "description": 'Poll a condition until met or the bounded timeout. Returns met=false on timeout; required waits stop do_steps and desktop.wait. Window selectors use IDs or trimmed names.',
+        "description": 'Poll a condition until met or the bounded timeout. Returns met=false on timeout; required waits stop do_steps and desktop.wait. Window selectors use IDs or trimmed names. settled waits until the target window (or the whole screen) stops changing, e.g. a streamed reply or a page load; elapsed is a plain wait.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -554,7 +564,7 @@ TOOLS: list[dict] = [
                               "enum": ["window_exists", "window_gone",
                                        "window_focused", "window_new", "window_title", "focus_changes",
                                        "text_appears", "widget_exists",
-                                       "clipboard_changed", "elapsed"]},
+                                       "clipboard_changed", "elapsed", "settled"]},
                 "target": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
                 "since": {"type": "array", "items": {"type": "integer"},
                           "description": "For window_new: IDs observed before the triggering action. Returns all new candidates; never guesses an app class."},
@@ -841,6 +851,10 @@ TOOLS: list[dict] = [
                                                "the extension is down)."},
                 "timeout": {"type": "number", "default": 15, "minimum": 0.5,
                             "maximum": 120},
+                "monitor": {"type": "integer", "minimum": 0,
+                            "description": "Move the new window onto this monitor "
+                                           "(index from desktop_health's monitors, "
+                                           "left to right), centred and shrunk to fit."},
             },
         },
         "handler": tool_launch_app,
@@ -1199,6 +1213,22 @@ TOOLS: list[dict] = [
         "annotations": {"readOnlyHint": True},
     },
 ]
+
+from .resize import tool_desktop_resize  # noqa: E402
+
+TOOLS.append({
+    "name": "desktop_resize",
+    "description": "Restart this PRIVATE headless desktop at another resolution, e.g. "
+                   "1920x1080 for full-HD captures or a game that does not fit 1280x720. "
+                   "Refused on the user's own desktop, and while any window is open "
+                   "(a restart closes every app). Window ids and observations reset.",
+    "inputSchema": {"type": "object", "properties": {
+        "width": {"type": "integer", "minimum": 640, "maximum": 3840},
+        "height": {"type": "integer", "minimum": 480, "maximum": 2160},
+    }, "required": ["width", "height"]},
+    "handler": tool_desktop_resize,
+    "annotations": {"readOnlyHint": False, "destructiveHint": False, "openWorldHint": False},
+})
 
 TOOLS.append({
     "name": "pointer_path",

@@ -884,6 +884,45 @@ def _exec_argv(desktop_path: Path) -> list[str]:
     return argv
 
 
+def _monitor_rect(index: Any) -> dict:
+    from .input import monitors
+    mons = monitors()
+    if isinstance(index, bool) or not isinstance(index, int) or not 0 <= index < len(mons):
+        raise ToolError(f"monitor must be an index 0..{len(mons) - 1}; monitors (left to "
+                        "right): " + ", ".join(
+                            f'{m["index"]}: {m["width"]}x{m["height"]}+{m["x"]}+{m["y"]}'
+                            + (" primary" if m.get("primary") else "") for m in mons),
+                        code="bad_args")
+    return mons[index]
+
+
+def place_on_monitor(window: dict, index: int) -> dict:
+    """Move a just-launched window onto a monitor, centred, shrunk to fit.
+
+    2026-11-08: GIMP and its New Image dialog opened on monitor 1 over the
+    user's video instead of the monitor the task named, and each window had
+    to be moved afterwards. Never raises: the launch already succeeded.
+    """
+    try:
+        from .shell import list_windows, tool_window_manage
+        mon = _monitor_rect(index)
+        if window.get("x", 0) >= mon["x"] and window.get("y", 0) >= mon["y"] and \
+                window["x"] + window["width"] <= mon["x"] + mon["width"] and \
+                window["y"] + window["height"] <= mon["y"] + mon["height"]:
+            return {"monitor": index, "moved": False, "detail": "already on that monitor"}
+        width = min(window["width"], mon["width"])
+        height = min(window["height"], mon["height"])
+        x = mon["x"] + (mon["width"] - width) // 2
+        y = mon["y"] + (mon["height"] - height) // 2
+        tool_window_manage({"action": "move_resize", "target": window["id"],
+                            "x": x, "y": y, "width": width, "height": height})
+        now = next((w for w in list_windows() if w["id"] == window["id"]), None)
+        return {"monitor": index, "moved": True, "window": now or window}
+    except Exception as e:
+        return {"monitor": index, "moved": False,
+                "detail": f"launched, but could not move it: {e}"}
+
+
 def tool_launch_app(a: dict) -> dict:
     """Launch an application and CONFIRM it arrived, instead of assuming.
 
@@ -895,6 +934,7 @@ def tool_launch_app(a: dict) -> dict:
     """
     desktop_id = a.get("desktop_id")
     command = a.get("command")
+    exec_name: str | None = None
     if (desktop_id is None) == (command is None):
         raise ToolError(
             "give exactly one of desktop_id (a .desktop id for `gio launch`) or "
@@ -903,6 +943,11 @@ def tool_launch_app(a: dict) -> dict:
     if file is not None and not isinstance(file, str):
         raise ToolError("file must be a path string", code="bad_args")
     wait_window = bool(a.get("wait_window", True))
+    if a.get("monitor") is not None:
+        _monitor_rect(a["monitor"])        # refuse a bad index before launching
+        if not wait_window:
+            raise ToolError("monitor placement needs wait_window: true, since the "
+                            "window has to arrive before it can be moved", code="bad_args")
     timeout = float(a.get("timeout") or LAUNCH_TIMEOUT_DEFAULT_S)
     if not 0.5 <= timeout <= 120:
         raise ToolError("timeout must be between 0.5 and 120 seconds",
@@ -927,6 +972,10 @@ def tool_launch_app(a: dict) -> dict:
         else:
             argv = ["gio", "launch", str(desktop_path)] + ([file] if file else [])
             spawn_direct, via = False, "gio launch"
+            try:
+                exec_name = _watchable_binary(_exec_argv(desktop_path))
+            except ToolError:
+                exec_name = None
 
     # Snapshots BEFORE the launch, so "new" means new. Either mechanism may be
     # down; which one answered is part of the result.
@@ -943,6 +992,7 @@ def tool_launch_app(a: dict) -> dict:
         except ToolError:
             atspi_before = None
 
+    procs_before = _pids_running(exec_name) if exec_name else set()
     if spawn_direct:
         try:
             proc = subprocess.Popen(argv, stdout=subprocess.DEVNULL,
@@ -984,7 +1034,22 @@ def tool_launch_app(a: dict) -> dict:
                else f"a new AT-SPI application after launching {what}")
     start = time.monotonic()
     mapped = set()
+    born: set[int] = set()
     while time.monotonic() - start < timeout:
+        if exec_name and not spawn_direct:
+            alive = _pids_running(exec_name) - procs_before
+            gone = born - alive
+            born |= alive
+            if gone and not alive and time.monotonic() - start > 1.0:
+                # 2026-09: a snap app died under AppArmor in about a second and
+                # the wait ran to 40-120 s saying "may be slow to start".
+                raise ToolError(
+                    f"{what} started ({exec_name}, pid {', '.join(map(str, sorted(gone)))}) "
+                    "and exited before any window appeared. Likely a crash or a "
+                    "confinement denial (snap/AppArmor, flatpak); try launching it from "
+                    "a terminal to see why. Nothing else was changed.",
+                    code="verification_failed", action_status="unknown",
+                    details={"exited_pids": sorted(gone), "arrival_confirmed": False})
         if window_ids is not None:
             try:
                 candidates = []
@@ -1000,10 +1065,14 @@ def tool_launch_app(a: dict) -> dict:
                     # A longer startup window can still pass: arrival is not
                     # document readiness (observed with GIMP and LibreOffice).
                     if (w['id'], w.get('pid')) in mapped:
-                        return {**launched, "confirmed": True,
-                                "confirmed_by": "window", "window": w,
-                                "note": "Window arrival only; inspect current windows and document readiness before input.",
-                                "waited_seconds": round(time.monotonic() - start, 2)}
+                        out = {**launched, "confirmed": True,
+                               "confirmed_by": "window", "window": w,
+                               "note": "Window arrival only; inspect current windows and document readiness before input.",
+                               "waited_seconds": round(time.monotonic() - start, 2)}
+                        if a.get("monitor") is not None:
+                            out["placement"] = place_on_monitor(w, a["monitor"])
+                            out["window"] = out["placement"].get("window", w)
+                        return out
                 mapped = {(w['id'], w.get('pid')) for w in candidates}
             except ToolError:
                 # The extension died mid-wait (a lock, most likely). Fall back
@@ -1036,12 +1105,53 @@ def tool_launch_app(a: dict) -> dict:
                     details={'pid': proc.pid, 'exit_code': exit_code,
                              'arrival_confirmed': False})
         time.sleep(LAUNCH_POLL_S)
+    diagnosis = ""
+    if exec_name and not spawn_direct:
+        running = _pids_running(exec_name)
+        new = running - procs_before
+        if new:
+            diagnosis = (f" A new {exec_name} process is running (pid "
+                         f"{', '.join(map(str, sorted(new)))}) without a window yet: "
+                         "slow start, or it opened no window.")
+        elif running:
+            diagnosis = (f" No new {exec_name} process started; one was already running "
+                         f"(pid {', '.join(map(str, sorted(running)))}), so it most likely "
+                         "raised an existing window.")
+        else:
+            diagnosis = (f" No {exec_name} process is running at all, so it did not "
+                         "stay up: a crash or confinement denial is likely.")
     raise ToolError(
         f"timed out after {timeout:.0f}s waiting for {awaited}. The launch "
         "itself did not report failure -- the app may be slow to start, "
         "single-instance (it raised an EXISTING window instead of opening a "
-        "new one), or it crashed after starting.",
+        "new one), or it crashed after starting." + diagnosis,
         code="timeout")
+
+
+_WRAPPERS = {"env", "sh", "bash", "dash", "flatpak", "snap", "python3", "python",
+             "gjs", "java", "wine", "mono", "exec"}
+
+
+def _watchable_binary(argv: list[str]) -> str | None:
+    """The process name worth watching for a desktop file's Exec line, if any."""
+    base = os.path.basename(argv[0]) if argv else ""
+    return None if not base or base in _WRAPPERS else base
+
+
+def _pids_running(name: str) -> set[int]:
+    """PIDs whose argv[0] basename is `name` (comm truncates at 15 chars)."""
+    out = set()
+    for entry in os.listdir("/proc"):
+        if not entry.isdigit():
+            continue
+        try:
+            raw = Path(f"/proc/{entry}/cmdline").read_bytes()
+        except OSError:
+            continue
+        argv0 = raw.split(b"\0", 1)[0].decode(errors="replace")
+        if os.path.basename(argv0) == name:
+            out.add(int(entry))
+    return out
 
 
 def _window_for_atspi_app(app_name: str,

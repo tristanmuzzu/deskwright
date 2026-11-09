@@ -11,8 +11,31 @@ def send(value):
     sys.__stdout__.flush()
 
 
+def _repin():
+    """Re-read a pinned headless session's address at worker start.
+
+    The supervisor pinned its environment once, when it started; a session
+    restarted since (desktop_resize, or a crash and re-ensure) has a new bus.
+    A worker that inherits the old address talks to nothing.
+    """
+    import os
+
+    from .session import pinned_name
+    try:
+        name = pinned_name()
+        if not name or os.environ.get("DESKWRIGHT_HEADLESS_LAZY"):
+            return
+        from .headless import pin_env, status
+        state = status(name)
+        if state.get("running"):
+            pin_env(state)
+    except Exception:
+        pass
+
+
 def main():
-    from . import server
+    from . import resize, server
+    _repin()
     for line in sys.stdin:
         msg = json.loads(line)
         try:
@@ -24,6 +47,9 @@ def main():
                 'isError': True, 'content': [{'type': 'text', 'text': json.dumps({
                     'code': getattr(e, 'code', 'worker_error'), 'error': str(e),
                     'action_status': 'unknown'})}]}})
+        if resize.RESTART_WORKER:
+            # Its D-Bus connections point at the session that was just stopped.
+            return
 
 
 if __name__ == '__main__':
