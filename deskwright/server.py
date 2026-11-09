@@ -1253,7 +1253,8 @@ for _tool in TOOLS:
     if _tool["name"] in {"pointer_click", "pointer_move", "pointer_drag", "pointer_path", "pointer_scroll"}:
         _properties["observation_id"] = {"type": "string", "description":
             "Use coordinates in this screenshot image; server maps origin and scale. "
-            "Omit for desktop coordinates. Geometry changes invalidate the observation."}
+            "Omit for desktop coordinates. Refused only if a window appeared, moved or "
+            "closed under the target point since that screenshot."}
     if "look" in _properties or _tool["name"] in ("screenshot", "zoom", "frames"):
         _properties["image_profile"] = {
             "type": "string", "enum": ["legacy", "balanced", "original"],

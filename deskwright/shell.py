@@ -194,7 +194,43 @@ def interaction_state() -> dict:
 def list_windows() -> list[dict]:
     """Every window, bottom of the stack first -- the order gnome-shell keeps
     them in, which is what makes the last match at a point the topmost one."""
-    return json.loads(_unwrap_gvariant_string(_gdbus("ListWindows")))
+    return _label_unnamed(json.loads(_unwrap_gvariant_string(_gdbus("ListWindows"))))
+
+
+def _process_name(pid: Any) -> str | None:
+    try:
+        return Path(f"/proc/{int(pid)}/comm").read_text().strip() or None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _label_unnamed(windows: list[dict]) -> list[dict]:
+    """Give popups, menus and dialogs with no wm_class an owner and a kind.
+
+    GTK popovers and menus arrive with wm_class null and often no title
+    (2026-11-08 GIMP, 2026-11-09 Nautilus): occlusion said `by: [null]`, and
+    an export-options dialog could only be found with a full screenshot. The
+    compositor already knows the parent (transient_for) and the process, so
+    say which app it belongs to. wm_class itself is left as reported.
+    """
+    by_id = {w.get("id"): w for w in windows}
+    for w in windows:
+        if w.get("wm_class"):
+            continue
+        parent = by_id.get(w.get("transient_for"))
+        owner = (parent or {}).get("wm_class") or _process_name(w.get("pid"))
+        if owner:
+            w["owner_app"] = owner
+        kind = str(w.get("type") or "").lower().replace("_", " ")
+        w["label"] = f"{owner or 'unknown app'} {kind or 'window'}".strip() + \
+            (f" {w['title']!r}" if w.get("title") else " (untitled)")
+    return windows
+
+
+def window_label(w: dict) -> str:
+    """The best short name for a window, never None."""
+    return (w.get("wm_class") or w.get("label") or w.get("title")
+            or f"window {w.get('id')}")
 
 
 # ---- what the running extension can actually do ---------------------------

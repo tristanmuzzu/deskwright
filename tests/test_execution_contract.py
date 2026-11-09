@@ -240,3 +240,62 @@ def test_health_uses_live_extension_when_status_cli_is_unknown(monkeypatch):
     out = server.tool_health({})
     assert out['extension'] == 'ACTIVE' and out['extension_cli_state'] == 'unknown'
     assert out['verdict'].startswith('READY')
+
+
+def test_observation_survives_changes_away_from_the_point(monkeypatch):
+    """A popover elsewhere no longer expires the whole screenshot (2026-11-09)."""
+    monkeypatch.setattr(observations, 'geometry', lambda: [(1, 0, 0, 800, 600)])
+    out = {}
+    observations.register(out, (0, 0), (800, 600), (800, 600))
+    obs = out['observation']['id']
+    # a popover opens at (500, 100)-(700, 300)
+    monkeypatch.setattr(observations, 'geometry',
+                        lambda: [(1, 0, 0, 800, 600), (2, 500, 100, 200, 200)])
+    mapped = observations.map_input('pointer_click', {'observation_id': obs, 'x': 50, 'y': 50})
+    assert mapped['x'] == 50
+    with pytest.raises(ToolError, match='appeared') as e:
+        observations.map_input('pointer_click', {'observation_id': obs, 'x': 600, 'y': 200})
+    assert e.value.code == 'stale_observation'
+
+
+def test_observation_refuses_where_a_window_closed(monkeypatch):
+    monkeypatch.setattr(observations, 'geometry',
+                        lambda: [(1, 0, 0, 800, 600), (2, 100, 100, 100, 100)])
+    out = {}
+    observations.register(out, (0, 0), (800, 600), (800, 600))
+    monkeypatch.setattr(observations, 'geometry', lambda: [(1, 0, 0, 800, 600)])
+    with pytest.raises(ToolError, match='closed'):
+        observations.map_input('pointer_click', {'observation_id': out['observation']['id'],
+                                                 'x': 150, 'y': 150})
+    assert observations.map_input('pointer_click', {'observation_id': out['observation']['id'],
+                                                    'x': 400, 'y': 400})['x'] == 400
+
+
+def test_drag_checks_both_ends(monkeypatch):
+    monkeypatch.setattr(observations, 'geometry', lambda: [(1, 0, 0, 800, 600)])
+    out = {}
+    observations.register(out, (0, 0), (800, 600), (800, 600))
+    monkeypatch.setattr(observations, 'geometry',
+                        lambda: [(1, 0, 0, 800, 600), (2, 500, 100, 200, 200)])
+    with pytest.raises(ToolError):
+        observations.map_input('pointer_drag', {'observation_id': out['observation']['id'],
+                                                'from_x': 10, 'from_y': 10,
+                                                'to_x': 600, 'to_y': 200})
+
+
+def test_unnamed_popups_get_an_owner_and_a_label(monkeypatch):
+    import os
+    raw = [{'id': 1, 'pid': os.getpid(), 'wm_class': 'org.gnome.Nautilus', 'title': 'Home',
+            'type': 'NORMAL', 'transient_for': None},
+           {'id': 2, 'pid': os.getpid(), 'wm_class': None, 'title': '',
+            'type': 'POPUP_MENU', 'transient_for': 1},
+           {'id': 3, 'pid': os.getpid(), 'wm_class': None, 'title': 'Export',
+            'type': 'DIALOG', 'transient_for': None}]
+    out = shell._label_unnamed(raw)
+    assert out[1]['owner_app'] == 'org.gnome.Nautilus'
+    assert out[1]['label'] == 'org.gnome.Nautilus popup menu (untitled)'
+    assert out[2]['owner_app']                # this process's name, from /proc
+    assert "'Export'" in out[2]['label']
+    assert out[1]['wm_class'] is None         # reported value is not rewritten
+    assert shell.window_label(out[1]).startswith('org.gnome.Nautilus popup')
+    assert 'label' not in out[0]

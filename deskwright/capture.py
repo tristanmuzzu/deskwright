@@ -13,7 +13,14 @@ from typing import Any
 
 from .config import PKG
 from .errors import ToolError
-from .shell import _gdbus, _resolve_target, extension_methods, list_windows, window_at
+from .shell import (
+    _gdbus,
+    _resolve_target,
+    extension_methods,
+    list_windows,
+    window_at,
+    window_label,
+)
 
 SHOT_CACHE = Path(os.path.expanduser("~/.cache/deskwright/shots"))
 SHOT_CACHE_KEEP = 40
@@ -127,7 +134,7 @@ def _occlusion(window: dict) -> dict | None:
     percent = round(min(100.0, 100.0 * covered / area), 1)
     return {
         "occluded_percent": percent,
-        "by": [w["wm_class"] for w in above][:4],
+        "by": [window_label(w) for w in above][:4],
         "detail": (f"{percent}% of this window is behind another one, so the capture "
                    "shows what is in front of it. activate_window first if that is "
                    "not what you wanted."),
@@ -948,7 +955,7 @@ def _delta_where(baseline: list[bytes], current: bytes,
                     and box["x"] < w["x"] + w["width"]
                     and w["y"] < box["y"] + box["height"]
                     and box["y"] < w["y"] + w["height"]):
-                name = w.get("wm_class") or w.get("title") or str(w.get("id"))
+                name = window_label(w)
                 if name not in touching:
                     touching.append(name)
         out["windows"] = touching
