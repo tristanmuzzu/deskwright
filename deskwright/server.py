@@ -174,6 +174,11 @@ def tool_health(_: dict) -> dict:
         report["toolkit_accessibility"] = a11y
     except Exception:
         report["toolkit_accessibility"] = "unknown"
+    from .capture import _POWER_NAMES, display_power
+    power = display_power()
+    report["displays"] = ("on" if power == 0 else
+                          f"POWER-SAVE ({_POWER_NAMES[power]})" if power in _POWER_NAMES
+                          else "unknown")
     report["session_type"] = os.environ.get("XDG_SESSION_TYPE", "unset")
     report["dbus_session"] = "set" if os.environ.get("DBUS_SESSION_BUS_ADDRESS") else "MISSING"
     report["desktop"] = (os.environ.get("DESKWRIGHT_HEADLESS_NAME")
@@ -207,6 +212,10 @@ def _health_verdict(report: dict) -> str:
     if report.get("extension_pending_relogin"):
         degraded.append("the running shell predates some extension methods; "
                         "a logout is pending")
+    if str(report.get("displays", "")).startswith("POWER-SAVE"):
+        degraded.append("the displays are powered down, so screenshots show the "
+                        "last frame drawn, not the current screen; verify through "
+                        "app state or use a private headless desktop")
     if report.get("toolkit_accessibility") == "false":
         degraded.append("toolkit-accessibility is off, so apps started from "
                         "now on will expose no widgets")
@@ -215,8 +224,10 @@ def _health_verdict(report: dict) -> str:
     if broken:
         return f"NOT USABLE {where}: " + "; ".join(broken)
     if degraded:
-        return (f"USABLE {where} with limits: " + "; ".join(degraded)
-                + ". Screenshots, window control and pointer input all work.")
+        works = ("Window control and pointer input work"
+                 if str(report.get("displays", "")).startswith("POWER-SAVE")
+                 else "Screenshots, window control and pointer input all work")
+        return f"USABLE {where} with limits: " + "; ".join(degraded) + f". {works}."
     return (f"READY {where}: screenshots, window control, pointer input and "
             "the accessibility tree all work.")
 
@@ -294,11 +305,17 @@ TOOLS: list[dict] = [
                     "anyOf": [{"type": "integer"}, {"type": "string"}],
                 },
                 "region": {
-                    "description": "Capture just this rectangle, in screen pixels.",
-                    "type": "object",
-                    "properties": {"x": {"type": "integer"}, "y": {"type": "integer"},
-                                   "width": {"type": "integer"},
-                                   "height": {"type": "integer"}},
+                    "description": "Capture just this rectangle: screen pixels, or "
+                                   "with window= measured from that window's top-left "
+                                   "corner (so a docked pane is one call). "
+                                   "[x, y, width, height] or {x, y, width, height}.",
+                    "anyOf": [
+                        {"type": "object",
+                         "properties": {"x": {"type": "integer"}, "y": {"type": "integer"},
+                                        "width": {"type": "integer"},
+                                        "height": {"type": "integer"}}},
+                        {"type": "array", "items": {"type": "integer"},
+                         "minItems": 4, "maxItems": 4}],
                 },
                 "scale": {"type": "number", "default": 1.0, "minimum": 0.05,
                           "maximum": 4.0,
@@ -327,7 +344,7 @@ TOOLS: list[dict] = [
     },
     {
         "name": "zoom",
-        "description": 'Capture a small region at native resolution, with an observation ID for image-relative input. Window plus region uses window-relative capture bounds.',
+        "description": 'Capture a small region at native resolution (optionally enlarged with scale), with an observation ID for image-relative input. With window=, region is window-relative. from_observation crops an earlier screenshot instead of capturing again.',
         "inputSchema": {
             "type": "object",
             "properties": {
@@ -341,6 +358,12 @@ TOOLS: list[dict] = [
                            "anyOf": [{"type": "integer"}, {"type": "string"}]},
                 "pad": {"type": "integer", "default": 0, "minimum": 0,
                         "description": "Extra pixels of context on every side."},
+                "scale": {"type": "number", "default": 1.0, "minimum": 1.0, "maximum": 4.0,
+                          "description": "Enlarge the crop (2 doubles it) for tiny text "
+                                         "or icons. Never shrinks."},
+                "from_observation": _s("An observation id from an earlier screenshot: "
+                                       "crop that same capture instead of taking a new "
+                                       "one, so a live pane cannot change in between."),
                 "path": {"type": "string",
                          "description": "Where to keep the PNG; defaults to "
                                         "the shot cache"},

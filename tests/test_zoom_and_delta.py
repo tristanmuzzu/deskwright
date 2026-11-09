@@ -85,8 +85,8 @@ def test_zoom() -> None:
     try:
         # -- validation ---------------------------------------------------
         expect_bad_args("zoom with no target is refused", {}, "region")
-        expect_bad_args("zoom refuses scale",
-                        {"region": [0, 0, 50, 50], "scale": 2}, "scale")
+        expect_bad_args("zoom refuses a shrinking scale",
+                        {"region": [0, 0, 50, 50], "scale": 0.5}, "never shrinks")
         expect_bad_args("zoom refuses a negative pad",
                         {"region": [0, 0, 50, 50], "pad": -4}, "pad")
         expect_bad_args("zoom refuses a zero-size region",

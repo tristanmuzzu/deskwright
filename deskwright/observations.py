@@ -25,11 +25,12 @@ def register(result: dict, origin: tuple, native: tuple, shown: tuple) -> None:
         return
     key = uuid.uuid4().hex
     frame = {'id': key, 'session': session_key(), 'origin': list(origin),
-             'source_size': list(native), 'image_size': list(shown), 'geometry': signature}
+             'source_size': list(native), 'image_size': list(shown), 'geometry': signature,
+             'path': result.get('path')}
     FRAMES[key] = frame
     while len(FRAMES) > 64:
         FRAMES.popitem(last=False)
-    result['observation'] = {k: v for k, v in frame.items() if k != 'geometry'}
+    result['observation'] = {k: v for k, v in frame.items() if k not in ('geometry', 'path')}
 
 
 def map_input(name: str, args: dict) -> dict:

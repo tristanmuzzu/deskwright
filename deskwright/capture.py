@@ -134,6 +134,82 @@ def _occlusion(window: dict) -> dict | None:
     }
 
 
+_POWER_CACHE: dict[str, Any] = {"at": 0.0, "mode": None}
+_POWER_NAMES = {1: "standby", 2: "suspend", 3: "off"}
+
+
+def display_power() -> int | None:
+    """Mutter's PowerSaveMode: 0 on, 1 standby, 2 suspend, 3 off; None unknown.
+
+    2026-10-31: with Tristan's monitors switched off, a Codex session got
+    eight byte-identical screenshots over several minutes, every one marked
+    settled, while desktop_health said READY. The compositor stops repainting
+    when the displays are off, so a capture returns the last frame drawn.
+    The agent diagnosed a frozen dialog that did not exist. This is the one
+    number that would have said so. Cached for 2 s; never raises.
+    """
+    now = time.monotonic()
+    if now - _POWER_CACHE["at"] < 2.0:
+        return _POWER_CACHE["mode"]
+    mode = None
+    try:
+        out = subprocess.run(
+            ["gdbus", "call", "--session", "--dest", "org.gnome.Mutter.DisplayConfig",
+             "--object-path", "/org/gnome/Mutter/DisplayConfig", "--method",
+             "org.freedesktop.DBus.Properties.Get", "org.gnome.Mutter.DisplayConfig",
+             "PowerSaveMode"], capture_output=True, text=True, timeout=1.5)
+        m = re.search(r"<(-?\d+)>", out.stdout)
+        mode = int(m.group(1)) if m else None
+    except Exception:
+        mode = None
+    _POWER_CACHE.update(at=now, mode=mode)
+    return mode
+
+
+def stale_warning() -> str | None:
+    """A sentence for any image result while the displays are powered down."""
+    mode = display_power()
+    if mode not in _POWER_NAMES:
+        return None
+    return (f"the displays are in power-save ({_POWER_NAMES[mode]}). GNOME stops "
+            "repainting, so this image can show the screen as it was when they went "
+            "dark, not as it is now, and 'settled'/'no change' mean nothing. Input "
+            "still arrives. Verify through application state (ui_read_text, files, "
+            "the clipboard), or work on a private headless desktop.")
+
+
+# region -> (sha256 of the PNG, when it was first seen with that content)
+_LAST_CAPTURE: dict[tuple, tuple[str, float]] = {}
+
+
+def _repeat_note(region: tuple | None, path: Path) -> str | None:
+    """Say when a capture is byte-identical to the previous one of the same area.
+
+    A static screen does this legitimately, so it is a note, not an error. But
+    an identical frame minutes later, while something was supposed to change,
+    is the cheapest sign of a frozen or unrepainted screen there is.
+    """
+    import hashlib
+    try:
+        digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    except OSError:
+        return None
+    key = tuple(region) if region else ("screen",)
+    now = time.monotonic()
+    previous = _LAST_CAPTURE.get(key)
+    if previous and previous[0] == digest:
+        age = now - previous[1]
+        if age >= 5:
+            return (f"byte-identical to the capture of this area first taken {round(age)}s "
+                    "ago. Fine for a static screen; if you expected a change, the app may "
+                    "be frozen or the screen may not be repainting.")
+        return None
+    _LAST_CAPTURE[key] = (digest, now)
+    if len(_LAST_CAPTURE) > 64:
+        _LAST_CAPTURE.pop(next(iter(_LAST_CAPTURE)))
+    return None
+
+
 def tool_screenshot(a: dict) -> dict:
     path, persistent = _shot_path(a)
     region, window = _screenshot_region(a)
@@ -154,6 +230,12 @@ def tool_screenshot(a: dict) -> dict:
         occlusion = _occlusion(window)
         if occlusion:
             result["occluded"] = occlusion
+    warning = stale_warning()
+    if warning:
+        result["stale_warning"] = warning
+    repeat = _repeat_note(region, path)
+    if repeat:
+        result["repeat_capture"] = repeat
 
     scale = float(a.get("scale") or 1.0)
     if not 0.05 <= scale <= 4.0:
@@ -234,10 +316,17 @@ def tool_zoom(a: dict) -> dict:
     so the area has to be SMALL. More than half the desktop is refused, because
     zooming into that is a full screenshot with the cost hidden.
     """
-    if a.get("scale") is not None:
+    scale = a.get("scale")
+    scale = 1.0 if scale is None else float(scale)
+    if not 1.0 <= scale <= 4.0:
+        # 2026-11-08: an agent asked for scale, was refused, and enlarged the
+        # crop with ImageMagick instead. Enlarging is fine; shrinking is not.
         raise ToolError(
-            "zoom does not take scale: it always shows the pixels 1:1 with the "
-            "screen. Use screenshot for a scaled overview.", code="bad_args")
+            "zoom scale enlarges, from 1 to 4. It never shrinks: zoom shows pixels "
+            "at least 1:1. Use screenshot for a scaled overview.", code="bad_args")
+
+    if a.get("from_observation"):
+        return _zoom_observation(a, scale)
 
     region, window = _screenshot_region(a)
     if region is None:
@@ -285,11 +374,17 @@ def tool_zoom(a: dict) -> dict:
     result["dimensions"] = native
     origin = (region[0], region[1])
 
+    warning = stale_warning()
+    if warning:
+        result["stale_warning"] = warning
     # max_edge is set to the image's own long edge so _encode_inline never
-    # resizes in either direction -- that is the entire point of this tool.
+    # shrinks -- that is the entire point of this tool. scale > 1 enlarges.
     native_pair = _dimension_pair(native)
     edge = max(native_pair) if native_pair else MODEL_MAX_EDGE
-    _attach_inline(result, path, {**a, "max_edge": max(16, edge), "upscale": False})
+    _attach_inline(result, path, {**a, "max_edge": max(16, int(edge * scale)),
+                                  "upscale": scale > 1.0})
+    if scale > 1.0:
+        result["zoom"] = f"full resolution, enlarged {scale}x"
     shown = result.get("shown")
     if isinstance(shown, dict):
         result["coordinate_note"] = _coordinate_note(shown["dimensions"],
@@ -302,6 +397,60 @@ def tool_zoom(a: dict) -> dict:
         from .observations import register
         register(result, origin, _dimension_pair(native),
                  _dimension_pair(result["shown"]["dimensions"]))
+    return result
+
+
+def _zoom_observation(a: dict, scale: float) -> dict:
+    """Zoom into an earlier capture instead of taking a new one.
+
+    2026-11-09: a live pane changed ("Thinking" became "On the web") between a
+    screenshot and the zoom a moment later, so the close-up showed something
+    the overview never did. Cropping the overview's own PNG, which is kept at
+    native resolution, guarantees both show the same instant.
+    `region` is in screen pixels, or window-relative with window=, as usual.
+    """
+    from .observations import FRAMES
+    frame = FRAMES.get(str(a["from_observation"]))
+    if not frame or not frame.get("path") or not Path(frame["path"]).exists():
+        raise ToolError("that observation is gone (or its image was pruned); take a "
+                        "new screenshot", code="stale_observation")
+    if a.get("region") is None:
+        raise ToolError("from_observation needs a region to zoom into", code="bad_args")
+    if a.get("window") is not None:
+        region, _ = _screenshot_region(a)
+    else:
+        region = _parse_region(a["region"])
+    ox, oy = frame["origin"]
+    sw, _sh = frame["source_size"]
+    Image, _ = _pillow()
+    src = Path(frame["path"])
+    with Image.open(src) as img:
+        # the PNG on disk may be the native capture or rescaled (inline:false)
+        f = img.width / sw if sw else 1.0
+        box = (int((region[0] - ox) * f), int((region[1] - oy) * f),
+               int((region[0] - ox + region[2]) * f), int((region[1] - oy + region[3]) * f))
+        clipped = (max(0, box[0]), max(0, box[1]),
+                   min(img.width, box[2]), min(img.height, box[3]))
+        if clipped[2] <= clipped[0] or clipped[3] <= clipped[1]:
+            raise ToolError("region is outside that observation's image", code="bad_args")
+        path, _ = _shot_path(a)
+        img.crop(clipped).save(path)
+    result: dict[str, Any] = {
+        "path": str(path), "from_observation": frame["id"],
+        "region": {"x": region[0], "y": region[1], "width": region[2], "height": region[3]},
+        "zoom": "cropped from the earlier capture, so it shows the same instant",
+    }
+    native = _png_dimensions(path)
+    result["dimensions"] = native
+    pair = _dimension_pair(native) or (16, 16)
+    _attach_inline(result, path, {**a, "max_edge": max(16, int(max(pair) * scale)),
+                                  "upscale": scale > 1.0})
+    origin = (ox + int(clipped[0] / f), oy + int(clipped[1] / f))
+    shown = result.get("shown")
+    if isinstance(shown, dict):
+        result["coordinate_note"] = _coordinate_note(shown["dimensions"],
+                                                     f"{round(pair[0] / f)}x{round(pair[1] / f)}",
+                                                     origin)
     return result
 
 
@@ -402,6 +551,19 @@ def _estimate_tokens(width: int, height: int) -> int:
     return int(width * height / 750)
 
 
+def _estimate_tokens_openai(width: int, height: int) -> int:
+    """OpenAI's published high-detail image cost: fit in 2048x2048, shorten the
+    short side to 768, then 170 per 512px tile plus 85. The legacy estimate
+    above is Claude's formula and meant nothing to a GPT client (2026-10-31)."""
+    import math
+    w, h = float(width), float(height)
+    f = min(1.0, 2048 / max(w, h))
+    w, h = w * f, h * f
+    f = min(1.0, 768 / min(w, h)) if min(w, h) else 1.0
+    w, h = w * f, h * f
+    return 85 + 170 * math.ceil(w / 512) * math.ceil(h / 512)
+
+
 def _encode_inline(path: Path, max_edge: int = MODEL_MAX_EDGE,
                    quality: int = INLINE_QUALITY, upscale: bool = False,
                    image_format: str = "jpeg") -> dict:
@@ -446,7 +608,8 @@ def _encode_inline(path: Path, max_edge: int = MODEL_MAX_EDGE,
         "dimensions": f"{width}x{height}",
         "bytes": len(raw),
         "tokens_estimate": _estimate_tokens(width, height),
-        "tokens_estimate_basis": "legacy Claude width*height/750; not an OpenAI token estimate",
+        "tokens_estimate_basis": "Claude: width*height/750",
+        "tokens_estimate_openai": _estimate_tokens_openai(width, height),
         "quality": attempt_quality,
     }
 
@@ -930,6 +1093,10 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
             "no visual change above the comparison threshold; small edits may "
             "still have succeeded. Read back the app state before retrying"
         )
+        if not landed:
+            hints = _no_change_hints(a, window)
+            if hints:
+                view["possible_reasons"] = hints
         if landed:
             # Say WHERE, and for a small change, WHAT it now reads. Strictly
             # additive, and strictly a bonus: it must never break the look it
@@ -946,7 +1113,11 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
                     if where:
                         view["changed_where"] = where
                         text = _changed_text(path, where["box"], rect)
-                        if text:
+                        # A skip note ("tesseract blew the 0.5s OCR budget") came
+                        # back on 35 results in 19 sessions, mostly Chrome, and
+                        # told the reader nothing the image did not. Only real
+                        # text is worth the tokens.
+                        if text and not text.get("skipped"):
                             view["changed_text"] = text
             except Exception:
                 pass
@@ -964,9 +1135,65 @@ def _look_report(a: dict, result: dict, prepared: _Look) -> dict:
             "not attached in auto mode: change was below the comparison threshold; "
             "use screenshot or explicit look for visual inspection"
         )
+    warning = stale_warning()
+    if warning:
+        view["stale_warning"] = warning
+        view["verdict"] = ("unknown: the displays are powered down, so the screen "
+                           "is not being repainted; see stale_warning")
     view["path"] = str(path)
     result["look"] = view
     return result
+
+
+def process_state(pid: Any) -> dict | None:
+    """What the kernel says a window's process is doing, over 0.2 s.
+
+    A click into a hung app and a click that missed look the same on screen;
+    agents told them apart by sampling /proc by hand (2026-09). Never raises.
+    """
+    try:
+        pid = int(pid)
+        stat = Path(f"/proc/{pid}/stat")
+        def sample():
+            fields = stat.read_text().rsplit(")", 1)[1].split()
+            return fields[0], int(fields[11]) + int(fields[12])
+        state, t0 = sample()
+        time.sleep(0.2)
+        state, t1 = sample()
+    except (OSError, ValueError, IndexError, TypeError):
+        return {"pid": pid, "state": "gone"} if isinstance(pid, int) else None
+    hz = os.sysconf("SC_CLK_TCK") if hasattr(os, "sysconf") else 100
+    cpu = round(100 * (t1 - t0) / hz / 0.2)
+    names = {"R": "running", "S": "sleeping", "D": "blocked in the kernel (I/O)",
+             "T": "stopped", "t": "stopped by a debugger", "Z": "zombie (exited)"}
+    return {"pid": pid, "state": names.get(state, state), "cpu_percent": cpu}
+
+
+def _no_change_hints(a: dict, window: dict | None) -> list[str]:
+    """Why an action can show no change, in the order worth checking.
+
+    The old verdict said "it missed" 145 times across ~35 sessions, and agents
+    re-aimed or left for Bash. Often it had not missed: the toolkit needed a
+    hover first, the button changes nothing visible, or the app was busy.
+    """
+    hints = []
+    clicked = "x" in a or "ref" in a
+    if clicked and not a.get("hover_first"):
+        hints.append("Chromium/Electron, Qt and game-engine buttons often ignore a bare "
+                     "click until the pointer has hovered: retry once with "
+                     "hover_first:true before re-aiming")
+    hints.append("some controls change nothing visible (an inline button, a toggle "
+                 "whose state is off-screen): check the app's state, not the pixels")
+    if window and window.get("pid"):
+        st = process_state(window["pid"])
+        if st:
+            if st["state"] == "gone" or st["state"].startswith("zombie"):
+                hints.insert(0, f"the window's process ({st['pid']}) has exited")
+            elif st["state"].startswith(("stopped", "blocked")) or st["cpu_percent"] >= 90:
+                hints.insert(0, f"the app looks busy or stuck: process {st['pid']} is "
+                                f"{st['state']} at {st['cpu_percent']}% CPU, so input may "
+                                "be queued rather than lost; wait before retrying")
+    return hints
 
 
 def _look_typed(a: dict, result: dict, window: dict, prepared: _Look) -> dict:
