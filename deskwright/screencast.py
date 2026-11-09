@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import pwd
 import shutil
 import signal
 import subprocess
@@ -54,7 +55,9 @@ BUS = "org.gnome.Mutter.ScreenCast"
 PATH = "/org/gnome/Mutter/ScreenCast"
 DISPLAY_BUS = "org.gnome.Mutter.DisplayConfig"
 DISPLAY_PATH = "/org/gnome/Mutter/DisplayConfig"
-WINDOWS_HELPER = os.path.expanduser("~/.claude/bin/windows")
+# The user's real home, not $HOME: a private desktop session rewrites HOME to
+# its own directory, where this helper does not exist.
+WINDOWS_HELPER = os.path.join(pwd.getpwuid(os.getuid()).pw_dir, ".claude/bin/windows")
 
 # cursor-mode: 0 hidden, 1 embedded in the frames, 2 sent as separate metadata.
 CURSOR_HIDDEN, CURSOR_EMBEDDED = 0, 1
