@@ -240,6 +240,60 @@ def _within(node, scope):
     return False
 
 
+_TOP_ROLES = {"frame", "window", "dialog", "file chooser", "alert"}
+
+
+def _map_root(roots, win, windows):
+    """The accessible top-level for one compositor window, and how it was matched.
+
+    Exact title first, as before. Chrome and Electron failed it in every Codex
+    session (2026-10-31): the compositor title carries " - Google Chrome" or
+    an unread-count prefix the accessible frame does not, so ui_observe fell
+    back to pixels for the apps that needed it most. The fallbacks only accept
+    a UNIQUE answer within the same process, so they cannot pick between two
+    plausible windows: one top-level when the process has one window, then
+    one whose name is contained in the title (or the reverse), then one whose
+    on-screen size matches.
+    """
+    title = win.get("title") or ""
+    exact = [n for n in roots if n.get_name() == title]
+    if len(exact) == 1:
+        return exact[0], "title"
+    if exact:
+        return None, None
+    tops = [n for n in roots if n.get_role_name() in _TOP_ROLES and _showing(n)]
+    same_process = [w for w in windows if w.get("pid") == win.get("pid")
+                    and w.get("width", 0) * w.get("height", 0) >= 100 * 100]
+    if len(tops) == 1 and len(same_process) == 1:
+        return tops[0], "only window of this process"
+    named = [n for n in tops if n.get_name() and len(n.get_name()) >= 3
+             and (n.get_name() in title or (title and title in n.get_name()))]
+    if len(named) == 1:
+        return named[0], "title contains the accessible name"
+    sized = [n for n in tops if _size(n) == (win.get("width"), win.get("height"))]
+    if len(sized) == 1:
+        return sized[0], "matching size"
+    return None, None
+
+
+def _showing(node):
+    try:
+        states = node.get_state_set()
+        Atspi = atspi._atspi()
+        return states.contains(Atspi.StateType.SHOWING)
+    except Exception:
+        return True
+
+
+def _size(node):
+    try:
+        comp = node.get_component_iface()
+        ext = comp.get_extents(atspi._atspi().CoordType.SCREEN) if comp else None
+        return (ext.width, ext.height) if ext else None
+    except Exception:
+        return None
+
+
 def _snapshot(a, selectors=None):
     window_id = _number(a, "window_id", None, 1, 2**32-1, True)
     limit = _number(a, "limit", 100, 1, 400, True)
@@ -269,11 +323,10 @@ def _snapshot(a, selectors=None):
     for node in roots:
         if node is not None:
             node.clear_cache_single()
-    roots = [n for n in roots if n is not None and n.get_name() == win["title"]]
-    if len(roots) != 1:
+    root, mapped_by = _map_root([n for n in roots if n is not None], win, windows)
+    if root is None:
         _fail("cannot uniquely map compositor title to an accessible window; "
               "use ui_tree or visual interaction", "widget_missing")
-    root = roots[0]
     start = _start(win["pid"])
     scope = root
     if 'within' in a:
@@ -382,6 +435,7 @@ def _snapshot(a, selectors=None):
         except Exception:
             reasons.add("unreadable_node")
     return {"window": win, "controls": result, "visited": visited,
+            **({"window_matched_by": mapped_by} if mapped_by != "title" else {}),
             "scope": a.get('within', 'window'),
             "search_backend": 'collection' if indexed else 'tree',
             "visual_content": visual_content,

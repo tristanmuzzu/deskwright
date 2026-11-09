@@ -92,8 +92,17 @@ def tool_ui_observe(a):
     if capture._INLINE_KEY in shot:
         out[capture._INLINE_KEY] = shot[capture._INLINE_KEY]
     if snapshot:
-        if snapshot['complete']:
+        partial_ok = (not snapshot['complete']
+                      and set(snapshot['limits_hit']) <= {'result_limit', 'node_limit'})
+        if snapshot['complete'] or partial_ok:
+            # 2026-11-01, GNOME Settings: a scan that stopped at its 40-result
+            # limit returned controls: [], throwing away 40 valid refs. They
+            # are still exact and pinned; only the list is not exhaustive.
             out['controls'] = [_brief(n) for n in snapshot['controls']]
+            if partial_ok:
+                out['controls_partial'] = (
+                    "the scan stopped at its limit, so this list is not every "
+                    "control; ui_snapshot with name= or role= finds a specific one")
         out["native_scan"] = {"complete": snapshot["complete"],
                               "visited": snapshot["visited"], "limits_hit": snapshot["limits_hit"]}
     return out

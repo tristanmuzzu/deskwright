@@ -240,3 +240,11 @@ def test_compact_observation_keeps_parent_identity_for_unnamed_fields(route):
     route.state['controls'][0]['parent'] = 'observed-panel-ref'
     result = hybrid.tool_ui_observe({'window_id': 42})
     assert result['controls'][0]['parent'] == 'observed-panel-ref'
+
+
+def test_result_limit_keeps_the_controls_it_found_but_stays_visual(route):
+    route.state.update(complete=False, limits_hit=['result_limit'])
+    out = hybrid.tool_ui_observe({'window_id': 42})
+    assert out['mode'] == 'visual'                  # not promoted to native success
+    assert out['controls'] and 'controls_partial' in out
+    assert out[capture._INLINE_KEY]['data'] == 'pixels'

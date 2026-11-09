@@ -687,3 +687,50 @@ def test_collection_scope_refreshes_cached_parent_before_accepting_match(env):
     enable_collection(env, [env.button])
     with pytest.raises(ToolError, match='outside the observed scope'):
         ui.tool_ui_query({'window_id': 42, 'controls': {'save': {'role': 'button', 'name': 'Save'}}})
+
+
+def _top(name, w=800, h=600, role="frame"):
+    n = Node(name, role)
+    n.size = (w, h)
+    return n
+
+
+@pytest.fixture
+def mapping(monkeypatch):
+    monkeypatch.setattr(ui, "_showing", lambda n: True)
+    monkeypatch.setattr(ui, "_size", lambda n: getattr(n, "size", None))
+
+
+def test_exact_title_still_wins(mapping):
+    a, b = _top("Inbox - Google Chrome"), _top("Inbox")
+    win = {"pid": 1, "title": "Inbox - Google Chrome", "width": 800, "height": 600}
+    assert ui._map_root([a, b], win, [win]) == (a, "title")
+
+
+def test_chrome_suffix_is_matched_when_unique(mapping):
+    a, b = _top("Inbox"), _top("Settings")
+    win = {"pid": 1, "title": "Inbox - Google Chrome", "width": 1, "height": 1}
+    others = [win, {"pid": 1, "title": "Settings - Google Chrome", "width": 900, "height": 700}]
+    assert ui._map_root([a, b], win, others) == (a, "title contains the accessible name")
+
+
+def test_only_window_of_the_process(mapping):
+    a = _top("ChatGPT")
+    win = {"pid": 1, "title": "(3) ChatGPT — unread", "width": 1200, "height": 800}
+    assert ui._map_root([a], win, [win])[1] in ("only window of this process",
+                                                "title contains the accessible name")
+
+
+def test_size_breaks_a_tie_only_when_unique(mapping):
+    a, b = _top("", 800, 600), _top("", 1024, 768)
+    win = {"pid": 1, "title": "x", "width": 1024, "height": 768}
+    two = [win, dict(win, title="y")]
+    assert ui._map_root([a, b], win, two) == (b, "matching size")
+    c = _top("", 1024, 768)
+    assert ui._map_root([a, b, c], win, two) == (None, None)
+
+
+def test_duplicate_exact_titles_are_still_refused(mapping):
+    a, b = _top("Doc"), _top("Doc")
+    win = {"pid": 1, "title": "Doc", "width": 800, "height": 600}
+    assert ui._map_root([a, b], win, [win]) == (None, None)
