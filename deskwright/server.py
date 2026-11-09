@@ -1360,14 +1360,15 @@ def handle(msg: dict) -> None:
             # A tool-level failure is a result the model must see and reason
             # about, not a protocol error that hides the reason. The [code]
             # prefix is the machine-readable half (see deskwright/errors.py).
-            if acted:
+            # execute() already journals a failure it saw inside an operation.
+            if acted and not getattr(e, "journaled", False):
                 journal_record(name, args, {"error": str(e), "code": e.code, "action_status": e.action_status})
             _respond(msg_id, {"content": [{"type": "text", "text": e.wire_text()},
                               {"type": "text", "text": json.dumps({"code": e.code, "action_status": e.action_status,
                                   **({"details": e.details} if e.details else {})})}],
                               "isError": True})
         except Exception as e:
-            if acted:
+            if acted and not getattr(e, "journaled", False):
                 journal_record(name, args,
                                {"error": f"{type(e).__name__}: {e}",
                                 "code": "crash"})

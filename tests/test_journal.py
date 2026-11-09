@@ -316,3 +316,30 @@ def test_failed_typing_and_python_errors_do_not_leak_text(jdir):
     assert 'private-fixture' not in json.dumps(lines)
     assert all(e['outcome']['action_status'] == 'partial' for e in lines)
     assert all(e['outcome']['code'] == 'verification_failed' for e in lines)
+
+
+# ------------------------------------------- 7. one entry per refused call
+@pytest.mark.parametrize("raised", [ToolError("nope", code="bad_args", action_status="not_started"),
+                                    RuntimeError("boom")])
+def test_refused_call_inside_worker_is_journalled_once(jdir, monkeypatch, raised):
+    """The worker runs server.handle inside operation(), where execute()
+    already journals a failure. The server's error path used to journal it a
+    second time, so every refusal counted double in the server journal."""
+    from deskwright import execution, server, session
+
+    def refuse(_args):
+        raise raised
+
+    monkeypatch.setitem(server.HANDLERS, "pointer_click", refuse)
+    monkeypatch.setattr(server, "validate_tool_args", lambda *_: None)
+    monkeypatch.setattr(session, "start_deferred", lambda: None)
+    monkeypatch.setattr(server, "halt_active", lambda: False)
+    monkeypatch.setattr(server, "_respond", lambda *_: None)
+    monkeypatch.setattr(execution, "check", lambda: None)
+    import deskwright.shell as shell
+    monkeypatch.setattr(shell, "halt_active", lambda: False)
+    with execution.operation(5):
+        server.handle({"id": 1, "method": "tools/call", "params": {
+            "name": "pointer_click", "arguments": {"x": 1, "y": 2}}})
+    entries = [e for e in _read_lines(jdir) if e["tool"] == "pointer_click"]
+    assert len(entries) == 1, entries

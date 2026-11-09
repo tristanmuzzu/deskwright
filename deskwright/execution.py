@@ -109,6 +109,7 @@ def execute(name: str, args: dict, *, handler=None):
         if ctx and acting:
             from .journal import record as journal_record
             journal_record(name, args, {"error": str(e), "code": e.code, "action_status": e.action_status})
+            e.journaled = True  # server.handle must not record it again
         if ctx and ctx.progress:
             ctx.progress(record)
         raise
@@ -117,6 +118,7 @@ def execute(name: str, args: dict, *, handler=None):
         if ctx and acting:
             from .journal import record as journal_record
             journal_record(name, args, {"error": str(e), "code": "crash", "action_status": "unknown"})
+            e.journaled = True
         if ctx and ctx.progress:
             ctx.progress(record)
         raise
