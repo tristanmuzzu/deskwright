@@ -20,6 +20,8 @@ from .atspi import (
     tool_ui_set_text,
     tool_ui_tree,
 )
+from .browser import ACTIONS as BROWSER_ACTIONS
+from .browser import tool_browser_devtools
 from .capture import (
     _INLINE_KEY,
     SETTLE_MAX_S,
@@ -1214,6 +1216,47 @@ TOOLS.append({
         "look": _LOOK_SCHEMA, "look_at": _LOOK_AT_SCHEMA, "settle_max_s": _SETTLE_SCHEMA,
     }, "required": ["points", "target"]},
     "handler": tool_pointer_path,
+})
+
+TOOLS.append({
+    "name": "browser_devtools",
+    "description": "Read and steer a Chrome/Chromium/Electron page through its DevTools port "
+                   "on this machine, for what AT-SPI cannot see: list targets, evaluate "
+                   "JavaScript, collect console messages and uncaught exceptions, capture the "
+                   "page, navigate. Launch the browser with --remote-debugging-port=N and its "
+                   "own --user-data-dir. Loopback only. evaluate and navigate change the page.",
+    "inputSchema": {"type": "object", "properties": {
+        "port": {"type": "integer", "minimum": 1, "maximum": 65535,
+                 "description": "The --remote-debugging-port the browser was launched with."},
+        "action": {"type": "string", "enum": list(BROWSER_ACTIONS),
+                   "description": "targets: list every target (pages, workers, "
+                                  "extensions) and the default page. evaluate: run expression, "
+                                  "return its JSON value (promises awaited). console: "
+                                  "messages Chrome kept plus those arriving for seconds. "
+                                  "screenshot: the page as a PNG. navigate: go to url and "
+                                  "wait for the load event."},
+        "target": _s("Target id, or a unique fragment of its title or url. "
+                     "Default: the first page target."),
+        "expression": _s("JavaScript for evaluate; the result must be JSON-serialisable."),
+        "url": _s("Destination for navigate."),
+        "seconds": {"type": "number", "minimum": 0, "maximum": 30, "default": 2,
+                    "description": "How long console listens for new messages."},
+        "path": _s("Where screenshot writes the PNG; defaults to the shot cache."),
+        "inline": {"type": "boolean", "default": True,
+                   "description": "screenshot: also return the image inline."},
+        # No enum here on purpose: the generic enum refusal dumps the whole
+        # schema, while the handler's refusal says why and what to use.
+        "host": {"type": "string", "default": "127.0.0.1",
+                 "description": "127.0.0.1, localhost or ::1. Any other host is refused."},
+        "timeout": {"type": "number", "minimum": 0.5, "maximum": 60, "default": 10,
+                    "description": "Seconds to wait for Chrome, including the load event."},
+    }, "required": ["port", "action"]},
+    "handler": tool_browser_devtools,
+    # Not read-only: evaluate runs arbitrary page script and navigate leaves
+    # the page, so the halt switch gates it and the journal records it. The
+    # tool only dials loopback, but navigate can send the browser anywhere.
+    "annotations": {"readOnlyHint": False, "destructiveHint": False,
+                    "openWorldHint": True},
 })
 
 if os.environ.get("DESKWRIGHT_ENABLE_EXEC") == "1":
