@@ -42,6 +42,15 @@ def test_type_still_works_as_the_builtin():
     assert out['output'] == ['int', 'X'], out
 
 
+
+def test_print_output_arrives_as_whole_lines():
+    """print() writes args, separators and newline as separate chunks; a
+    trailing partial line is flushed when the code ends."""
+    out = run("print('RC', 0)\nprint('a\\nb', end='')\n"
+              "import sys\nsys.stderr.write('err\\n')")
+    assert out['output'] == ['RC 0', 'a', 'err', 'b'], out
+
+
 def test_describe_lists_tools_and_suggests_on_a_wrong_name():
     out = run("log(len(describe()) > 20)\ndescribe('mouse_click')")
     assert out['output'] == ['true']

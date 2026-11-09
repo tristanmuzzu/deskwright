@@ -255,16 +255,34 @@ def tool_desktop_exec(args):
     desktop = GLOBALS['desktop']
     desktop.last_call, desktop.effects = None, False
     # stdout is tool output, never transport. A bounded writer also covers print loops.
+    # print() writes its arguments, separators and newline as separate chunks;
+    # logging each chunk turned `print("RC", 0)` into ["RC", " ", "0", "\n"].
+    # Buffer them and log whole lines; a trailing partial line is flushed below.
     class Writer(io.TextIOBase):
+        pending = ''
+
         def write(self, value):
-            log(value)
+            text = self.pending + value
+            *lines, self.pending = text.split('\n')
+            for line in lines:
+                log(line)
             return len(value)
+
+        def flush_pending(self):
+            if self.pending:
+                log(self.pending)
+                self.pending = ''
     error = None
     recovery = None
     try:
         compiled = compile(code, '<desktop_exec>', 'exec')
-        with contextlib.redirect_stdout(Writer()), contextlib.redirect_stderr(Writer()):
-            exec(compiled, GLOBALS)
+        out, err = Writer(), Writer()
+        try:
+            with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+                exec(compiled, GLOBALS)
+        finally:
+            out.flush_pending()
+            err.flush_pending()
     except Exception as e:
         error = {'code': getattr(e, 'code', 'python_error'),
                  'message': str(e)[:2000], 'type': type(e).__name__,
